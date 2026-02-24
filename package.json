@@ -1,0 +1,34 @@
+{
+  "name": "axonize-desktop",
+  "version": "0.1.0",
+  "description": "Axonize semantic document operating system desktop app",
+  "main": "dist/main/main.js",
+  "license": "MIT",
+  "author": "Axonize Contributors",
+  "type": "commonjs",
+  "scripts": {
+    "clean": "rm -rf dist",
+    "build:main": "tsc -p tsconfig.main.json",
+    "build:renderer": "tsc -p tsconfig.renderer.json",
+    "copy:static": "node scripts/copy-static.cjs",
+    "build": "npm run clean && npm run build:main && npm run build:renderer && npm run copy:static",
+    "start": "npm run build && electron .",
+    "start:debug": "AXONIZE_CDP_PORT=9222 npm start",
+    "dev": "npm run build && electron . --dev",
+    "open:workspace": "node scripts/open-workspace.cjs",
+    "control:workspace": "node scripts/control-workspace.cjs",
+    "debug:workspace": "node scripts/debug-workspace.cjs",
+    "test:e2e": "npm run build && playwright test -c playwright.config.ts",
+    "test:e2e:headed": "npm run build && playwright test -c playwright.config.ts --headed"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.53.2",
+    "@types/node": "^20.17.30",
+    "electron": "^30.5.1",
+    "playwright": "^1.53.2",
+    "typescript": "^5.6.3"
+  }
+}
