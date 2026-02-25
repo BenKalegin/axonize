@@ -5,6 +5,7 @@ import { useVaultStore } from '../store/vault-store'
 import { useEditorStore } from '../store/editor-store'
 import type { AppSettings } from '../../core/rag/types'
 import { DEFAULT_SETTINGS } from '../../core/rag/types'
+import { PROVIDER_MODELS, DEFAULT_MODELS } from '../lib/llm-models'
 
 interface SettingsDialogProps {
   onClose: () => void
@@ -90,7 +91,13 @@ export function SettingsDialog({ onClose }: SettingsDialogProps) {
               <select
                 className="settings-select"
                 value={settings.llm.provider}
-                onChange={e => updateLLM('provider', e.target.value as AppSettings['llm']['provider'])}
+                onChange={e => {
+                  const newProvider = e.target.value as AppSettings['llm']['provider']
+                  updateLLM('provider', newProvider)
+                  if (DEFAULT_MODELS[newProvider]) {
+                    updateLLM('model', DEFAULT_MODELS[newProvider])
+                  }
+                }}
               >
                 <option value="anthropic">Anthropic</option>
                 <option value="openai">OpenAI</option>
@@ -113,12 +120,41 @@ export function SettingsDialog({ onClose }: SettingsDialogProps) {
 
             <div className="settings-field">
               <label>Model</label>
-              <input
-                className="settings-input"
-                type="text"
-                value={settings.llm.model}
-                onChange={e => updateLLM('model', e.target.value)}
-              />
+              {(() => {
+                const presets = PROVIDER_MODELS[settings.llm.provider] ?? []
+                const isPreset = presets.some((p) => p.id === settings.llm.model)
+                const isCustom = !isPreset && settings.llm.model !== ''
+                const selectValue = isCustom ? '__custom' : settings.llm.model
+                return (
+                  <>
+                    <select
+                      className="settings-select"
+                      value={selectValue}
+                      onChange={e => {
+                        if (e.target.value === '__custom') {
+                          updateLLM('model', '')
+                        } else {
+                          updateLLM('model', e.target.value)
+                        }
+                      }}
+                    >
+                      {presets.map((m) => (
+                        <option key={m.id} value={m.id}>{m.label}</option>
+                      ))}
+                      <option value="__custom">Custom...</option>
+                    </select>
+                    {(selectValue === '__custom' || isCustom) && (
+                      <input
+                        className="settings-input"
+                        type="text"
+                        value={settings.llm.model}
+                        onChange={e => updateLLM('model', e.target.value)}
+                        placeholder="Enter custom model name"
+                      />
+                    )}
+                  </>
+                )
+              })()}
             </div>
 
             <div className="settings-row">

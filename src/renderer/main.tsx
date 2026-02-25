@@ -5,6 +5,7 @@ import { useEditorStore } from './store/editor-store'
 import { useGraphStore } from './store/graph-store'
 import { useZoomStore } from './store/zoom-store'
 import { useRagStore } from './store/rag-store'
+import { useLLMLogStore } from './store/llm-log-store'
 import { useLayoutStore } from './store/layout-store'
 import './styles/global.css'
 import './styles/layout.css'
@@ -18,6 +19,7 @@ declare global {
       graph: typeof useGraphStore
       zoom: typeof useZoomStore
       rag: typeof useRagStore
+      llmLog: typeof useLLMLogStore
       layout: typeof useLayoutStore
     }
   }
@@ -29,6 +31,7 @@ window.__stores = {
   graph: useGraphStore,
   zoom: useZoomStore,
   rag: useRagStore,
+  llmLog: useLLMLogStore,
   layout: useLayoutStore
 }
 

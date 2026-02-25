@@ -13,8 +13,18 @@ const FilesIcon = () => (
   </svg>
 )
 
+const LLMLogIcon = () => (
+  <svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <rect x="2" y="3" width="16" height="12" rx="2" stroke="currentColor" strokeWidth="1.5" fill="none" />
+    <line x1="5" y1="7" x2="11" y2="7" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+    <line x1="5" y1="11" x2="15" y2="11" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+    <circle cx="10" cy="18" r="1" fill="currentColor" />
+  </svg>
+)
+
 const ACTIVITY_ITEMS: ActivityItem[] = [
-  { id: 'files', label: 'Explorer', icon: <FilesIcon /> }
+  { id: 'files', label: 'Explorer', icon: <FilesIcon /> },
+  { id: 'llm-log', label: 'LLM Log', icon: <LLMLogIcon /> }
 ]
 
 export function ActivityBar() {

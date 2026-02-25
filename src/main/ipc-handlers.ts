@@ -3,6 +3,7 @@ import { readVaultFiles } from './file-service'
 import { readFile } from 'fs/promises'
 import { getRecentVaults, addRecentVault, removeRecentVault } from './recent-vaults-service'
 import { registerRAGIpcHandlers, setCurrentVaultPath } from './rag-ipc-handlers'
+import log from './logger'
 
 const DOC_SLUGS = new Set(['doc', 'docs'])
 
@@ -35,13 +36,23 @@ export function registerIpcHandlers(): void {
   })
 
   ipcMain.handle('vault:readFiles', async (_event, vaultPath: string) => {
-    setCurrentVaultPath(vaultPath)
-    return readVaultFiles(vaultPath)
+    try {
+      setCurrentVaultPath(vaultPath)
+      return readVaultFiles(vaultPath)
+    } catch (e) {
+      log.error('vault:readFiles failed:', e)
+      throw e
+    }
   })
 
   ipcMain.handle('file:read', async (_event, filePath: string) => {
-    const content = await readFile(filePath, 'utf-8')
-    return content
+    try {
+      const content = await readFile(filePath, 'utf-8')
+      return content
+    } catch (e) {
+      log.error('file:read failed:', filePath, e)
+      throw e
+    }
   })
 
   ipcMain.handle('vault:getRecent', async () => {

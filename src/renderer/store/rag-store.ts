@@ -1,4 +1,5 @@
 import { create } from 'zustand'
+import { useLLMLogStore } from './llm-log-store'
 
 interface RAGSource {
   filePath: string
@@ -83,11 +84,19 @@ export const useRagStore = create<RagState>((set, get) => ({
 
   query: async (vaultPath: string, question: string) => {
     set({ isQuerying: true, queryError: null })
+    const logId = useLLMLogStore.getState().addEntry(question)
     try {
       const result = await window.axonize.rag.query(vaultPath, question)
       set({ lastResponse: result })
+      useLLMLogStore.getState().resolveEntry(
+        logId,
+        result.answer,
+        result.sources.map((s: RAGSource) => ({ filePath: s.filePath, score: s.score }))
+      )
     } catch (e) {
-      set({ queryError: e instanceof Error ? e.message : String(e) })
+      const errorMsg = e instanceof Error ? e.message : String(e)
+      set({ queryError: errorMsg })
+      useLLMLogStore.getState().rejectEntry(logId, errorMsg)
     } finally {
       set({ isQuerying: false })
     }

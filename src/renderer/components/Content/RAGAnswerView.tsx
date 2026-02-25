@@ -3,10 +3,12 @@ import { TEST_IDS } from '../../lib/testids'
 import { renderMarkdown } from '../../lib/markdown-renderer'
 import { useRagStore } from '../../store/rag-store'
 import { useEditorStore } from '../../store/editor-store'
+import { useVaultStore } from '../../store/vault-store'
 
 export function RAGAnswerView() {
   const { lastResponse, clearResponse } = useRagStore()
   const { selectFile } = useEditorStore()
+  const { vaultPath } = useVaultStore()
   const [answerHtml, setAnswerHtml] = useState('')
 
   useEffect(() => {
@@ -21,7 +23,8 @@ export function RAGAnswerView() {
   if (!lastResponse) return null
 
   const handleSourceClick = (filePath: string) => {
-    selectFile(filePath)
+    const fullPath = filePath.startsWith('/') ? filePath : `${vaultPath}/${filePath}`
+    selectFile(fullPath)
     clearResponse()
   }
 

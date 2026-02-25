@@ -11,6 +11,7 @@ export interface AxonizeAPI {
     open: () => Promise<string | null>
     readFiles: (vaultPath: string) => Promise<unknown[]>
     getRecent: () => Promise<RecentVault[]>
+    addRecent: (path: string, name: string) => Promise<void>
     removeRecent: (path: string) => Promise<void>
   }
   file: {
@@ -35,6 +36,7 @@ const api: AxonizeAPI = {
     open: () => ipcRenderer.invoke('vault:open'),
     readFiles: (vaultPath: string) => ipcRenderer.invoke('vault:readFiles', vaultPath),
     getRecent: () => ipcRenderer.invoke('vault:getRecent'),
+    addRecent: (path: string, name: string) => ipcRenderer.invoke('vault:addRecent', path, name),
     removeRecent: (path: string) => ipcRenderer.invoke('vault:removeRecent', path)
   },
   file: {

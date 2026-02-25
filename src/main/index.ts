@@ -1,12 +1,32 @@
 import { app, BrowserWindow, nativeImage, shell } from 'electron'
 import { join } from 'path'
 import { registerIpcHandlers } from './ipc-handlers'
+import { loadWindowState, saveWindowState } from './window-state'
+import log from './logger'
+
+app.name = 'Axonize'
+
+let saveTimeout: ReturnType<typeof setTimeout> | null = null
+
+function debouncedSave(win: BrowserWindow) {
+  if (saveTimeout) clearTimeout(saveTimeout)
+  saveTimeout = setTimeout(() => {
+    if (win.isDestroyed()) return
+    const bounds = win.getBounds()
+    saveWindowState({ ...bounds, maximized: win.isMaximized() })
+  }, 300)
+}
 
 function createWindow(): BrowserWindow {
   const iconPath = join(__dirname, '../../resources/icon.png')
+  const state = loadWindowState()
+
   const win = new BrowserWindow({
-    width: 1200,
-    height: 800,
+    title: 'Axonize',
+    width: state.width,
+    height: state.height,
+    x: state.x,
+    y: state.y,
     minWidth: 800,
     minHeight: 600,
     backgroundColor: '#1e1e2e',
@@ -15,6 +35,16 @@ function createWindow(): BrowserWindow {
       preload: join(__dirname, '../preload/index.js'),
       sandbox: false
     }
+  })
+
+  if (state.maximized) win.maximize()
+
+  win.on('resize', () => debouncedSave(win))
+  win.on('move', () => debouncedSave(win))
+  win.on('close', () => {
+    if (saveTimeout) clearTimeout(saveTimeout)
+    const bounds = win.getBounds()
+    saveWindowState({ ...bounds, maximized: win.isMaximized() })
   })
 
   win.webContents.setWindowOpenHandler(({ url }) => {
@@ -32,6 +62,7 @@ function createWindow(): BrowserWindow {
 }
 
 app.whenReady().then(() => {
+  log.info('Axonize starting...')
   const iconPath = join(__dirname, '../../resources/icon.png')
   if (process.platform === 'darwin') {
     app.dock.setIcon(nativeImage.createFromPath(iconPath))

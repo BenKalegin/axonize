@@ -80,5 +80,7 @@ export const useVaultStore = create<VaultState>((set, get) => ({
     set({ vaultPath: path, vaultName: name })
     const files = await window.axonize.vault.readFiles(path) as FileEntry[]
     set({ fileTree: files })
+    await window.axonize.vault.addRecent(path, name)
+    await get().loadRecentVaults()
   }
 }))

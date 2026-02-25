@@ -70,7 +70,18 @@ export const TEST_IDS = {
   // Layout
   ACTIVITY_BAR: 'activity-bar',
   SIDE_PANEL: 'side-panel',
-  RESIZE_HANDLE: 'resize-handle'
+  RESIZE_HANDLE: 'resize-handle',
+
+  // LLM Log
+  LLM_LOG_PANEL: 'llm-log-panel',
+  LLM_LOG_ENTRY: 'llm-log-entry',
+  LLM_LOG_CLEAR_BTN: 'llm-log-clear-btn',
+
+  // Zoom Controls
+  ZOOM_CONTROLS: 'zoom-controls',
+  ZOOM_IN_BTN: 'zoom-in-btn',
+  ZOOM_OUT_BTN: 'zoom-out-btn',
+  ZOOM_LEVEL: 'zoom-level'
 } as const
 
 export type TestId = (typeof TEST_IDS)[keyof typeof TEST_IDS]
