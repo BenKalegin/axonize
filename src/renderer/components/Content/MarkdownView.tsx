@@ -1,7 +1,8 @@
-import React, { useEffect, useRef, useState } from 'react'
+import React, { useCallback, useEffect, useRef, useState } from 'react'
 import mermaid from 'mermaid'
 import { TEST_IDS } from '../../lib/testids'
 import { useEditorStore } from '../../store/editor-store'
+import { useVaultStore } from '../../store/vault-store'
 import { renderMarkdown } from '../../lib/markdown-renderer'
 
 mermaid.initialize({
@@ -49,7 +50,8 @@ declare global {
 let mermaidCounter = 0
 
 export const MarkdownView = React.memo(function MarkdownView() {
-  const { selectedFile } = useEditorStore()
+  const { selectedFile, selectFile } = useEditorStore()
+  const { vaultPath } = useVaultStore()
   const [html, setHtml] = useState('')
   const containerRef = useRef<HTMLDivElement>(null)
 
@@ -105,12 +107,44 @@ export const MarkdownView = React.memo(function MarkdownView() {
     }
   }, [html])
 
+  const handleClick = useCallback((e: React.MouseEvent) => {
+    const anchor = (e.target as HTMLElement).closest('a')
+    if (!anchor) return
+
+    const href = anchor.getAttribute('href')
+    if (!href) return
+
+    // Ignore external links and anchors
+    if (href.startsWith('http://') || href.startsWith('https://') || href.startsWith('#')) return
+
+    e.preventDefault()
+
+    // Resolve relative link against current file's directory
+    const currentDir = selectedFile ? selectedFile.replace(/\/[^/]+$/, '') : vaultPath
+    if (!currentDir) return
+
+    // Strip any anchor fragment
+    const cleanHref = href.split('#')[0]
+    if (!cleanHref) return
+
+    // Add .md extension if not present
+    const target = cleanHref.endsWith('.md') ? cleanHref : `${cleanHref}.md`
+
+    // Resolve the path
+    const fullPath = target.startsWith('/')
+      ? target
+      : `${currentDir}/${target}`
+
+    selectFile(fullPath)
+  }, [selectedFile, vaultPath, selectFile])
+
   return (
     <div
       ref={containerRef}
       className="markdown-view"
       data-testid={TEST_IDS.MARKDOWN_VIEW}
       dangerouslySetInnerHTML={{ __html: html }}
+      onClick={handleClick}
     />
   )
 })

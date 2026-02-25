@@ -66,6 +66,24 @@
   color: var(--text-muted);
 }
 
+/* Navigation Buttons */
+.nav-buttons {
+  display: flex;
+  gap: 2px;
+}
+
+.nav-btn {
+  padding: 4px 6px !important;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.nav-btn:disabled {
+  opacity: 0.25;
+  pointer-events: none;
+}
+
 /* Vault Button Group + Dropdown */
 .vault-btn-group {
   position: relative;
