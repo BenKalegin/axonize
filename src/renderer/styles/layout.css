@@ -1,10 +1,10 @@
 .shell {
   display: grid;
   grid-template-areas:
-    "toolbar toolbar toolbar"
-    "left-sidebar content right-sidebar"
-    "command command command";
-  grid-template-columns: 240px 1fr 260px;
+    "toolbar toolbar toolbar toolbar"
+    "actbar left-sidebar content right-sidebar"
+    "command command command command";
+  grid-template-columns: var(--activity-bar-w) var(--side-panel-w) 1fr 260px;
   grid-template-rows: 40px 1fr 36px;
   height: 100vh;
   width: 100vw;
@@ -138,6 +138,74 @@
   padding: 8px 12px;
   font-size: 13px;
   color: var(--text-muted);
+}
+
+/* Activity Bar */
+.activity-bar {
+  grid-area: actbar;
+  background: var(--bg-surface);
+  border-right: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding-top: 4px;
+}
+
+.activity-bar-btn {
+  width: 40px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  color: var(--text-muted);
+  border-radius: 4px;
+  margin: 2px 0;
+  transition: color 0.15s;
+}
+
+.activity-bar-btn:hover {
+  color: var(--text-primary);
+}
+
+.activity-bar-btn.active {
+  color: var(--text-primary);
+}
+
+.activity-bar-btn.active::before {
+  content: '';
+  position: absolute;
+  left: -4px;
+  top: 25%;
+  bottom: 25%;
+  width: 3px;
+  border-radius: 0 2px 2px 0;
+  background: var(--accent);
+}
+
+/* Side Panel */
+.side-panel {
+  position: relative;
+}
+
+.side-panel-content {
+  height: 100%;
+  overflow-y: auto;
+}
+
+.resize-handle {
+  position: absolute;
+  top: 0;
+  right: -3px;
+  width: 6px;
+  height: 100%;
+  cursor: col-resize;
+  z-index: 10;
+}
+
+.resize-handle:hover {
+  background: var(--accent);
+  opacity: 0.4;
 }
 
 /* Sidebars */
@@ -288,6 +356,18 @@
 }
 .markdown-view tr:hover td {
   background: var(--bg-surface);
+}
+
+.mermaid-diagram {
+  display: flex;
+  justify-content: center;
+  margin: 12px 0;
+  overflow: hidden;
+}
+
+.mermaid-diagram svg {
+  max-width: 100% !important;
+  height: auto !important;
 }
 
 /* Graph View */

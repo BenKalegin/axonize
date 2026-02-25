@@ -47,9 +47,15 @@ export interface RagConfig {
   minScore: number
 }
 
+export interface UILayoutConfig {
+  activePanelId: string | null
+  sidePanelWidth: number
+}
+
 export interface AppSettings {
   llm: LLMConfig
   rag: RagConfig
+  ui?: UILayoutConfig
 }
 
 export interface LLMMessage {
@@ -93,5 +99,9 @@ export const DEFAULT_SETTINGS: AppSettings = {
     embeddingProvider: 'local-minilm',
     topK: 5,
     minScore: 0.3
+  },
+  ui: {
+    activePanelId: 'files',
+    sidePanelWidth: 220
   }
 }

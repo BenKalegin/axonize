@@ -5,6 +5,7 @@ import { useEditorStore } from './store/editor-store'
 import { useGraphStore } from './store/graph-store'
 import { useZoomStore } from './store/zoom-store'
 import { useRagStore } from './store/rag-store'
+import { useLayoutStore } from './store/layout-store'
 import './styles/global.css'
 import './styles/layout.css'
 
@@ -17,6 +18,7 @@ declare global {
       graph: typeof useGraphStore
       zoom: typeof useZoomStore
       rag: typeof useRagStore
+      layout: typeof useLayoutStore
     }
   }
 }
@@ -26,7 +28,8 @@ window.__stores = {
   editor: useEditorStore,
   graph: useGraphStore,
   zoom: useZoomStore,
-  rag: useRagStore
+  rag: useRagStore,
+  layout: useLayoutStore
 }
 
 // Register index progress listener
@@ -38,6 +41,9 @@ window.axonize.rag.onIndexProgress((payload: unknown) => {
     file?: string
   })
 })
+
+// Hydrate layout settings on startup
+useLayoutStore.getState().hydrateFromSettings()
 
 // Load recent vaults on startup, auto-open the most recent one
 useVaultStore.getState().loadRecentVaults().then(() => {

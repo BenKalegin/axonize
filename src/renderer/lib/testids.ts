@@ -65,7 +65,12 @@ export const TEST_IDS = {
   REINDEX_VAULT_BTN: 'reindex-vault-btn',
   INDEX_STATUS: 'index-status',
   RAG_ANSWER_VIEW: 'rag-answer-view',
-  RAG_SOURCE_LINK: 'rag-source-link'
+  RAG_SOURCE_LINK: 'rag-source-link',
+
+  // Layout
+  ACTIVITY_BAR: 'activity-bar',
+  SIDE_PANEL: 'side-panel',
+  RESIZE_HANDLE: 'resize-handle'
 } as const
 
 export type TestId = (typeof TEST_IDS)[keyof typeof TEST_IDS]

@@ -14,7 +14,8 @@ export async function getSettings(): Promise<AppSettings> {
     const parsed = JSON.parse(raw) as Partial<AppSettings>
     return {
       llm: { ...DEFAULT_SETTINGS.llm, ...parsed.llm },
-      rag: { ...DEFAULT_SETTINGS.rag, ...parsed.rag }
+      rag: { ...DEFAULT_SETTINGS.rag, ...parsed.rag },
+      ui: { ...DEFAULT_SETTINGS.ui, ...parsed.ui }
     }
   } catch {
     return { ...DEFAULT_SETTINGS }
