@@ -1,10 +1,22 @@
-import { useEffect, useRef, useState } from 'react'
+import React, { useEffect, useRef, useState } from 'react'
 import mermaid from 'mermaid'
 import { TEST_IDS } from '../../lib/testids'
 import { useEditorStore } from '../../store/editor-store'
 import { renderMarkdown } from '../../lib/markdown-renderer'
 
-mermaid.initialize({ startOnLoad: false, theme: 'dark' })
+mermaid.initialize({
+  startOnLoad: false,
+  theme: 'dark',
+  flowchart: { useMaxWidth: false },
+  sequence: { useMaxWidth: false },
+  gantt: { useMaxWidth: false },
+  journey: { useMaxWidth: false },
+  class: { useMaxWidth: false },
+  state: { useMaxWidth: false },
+  er: { useMaxWidth: false },
+  pie: { useMaxWidth: false },
+  architecture: { useMaxWidth: false }
+})
 
 declare global {
   interface Window {
@@ -36,7 +48,7 @@ declare global {
 
 let mermaidCounter = 0
 
-export function MarkdownView() {
+export const MarkdownView = React.memo(function MarkdownView() {
   const { selectedFile } = useEditorStore()
   const [html, setHtml] = useState('')
   const containerRef = useRef<HTMLDivElement>(null)
@@ -101,4 +113,4 @@ export function MarkdownView() {
       dangerouslySetInnerHTML={{ __html: html }}
     />
   )
-}
+})

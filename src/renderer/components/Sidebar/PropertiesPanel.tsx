@@ -1,16 +1,52 @@
+import { useCallback, useRef } from 'react'
 import { TEST_IDS } from '../../lib/testids'
 import { useGraphStore } from '../../store/graph-store'
+import { useLayoutStore } from '../../store/layout-store'
 
 export function PropertiesPanel() {
   const { nodes, edges, selectedNodeId } = useGraphStore()
+  const { rightPanelWidth, setRightPanelWidth } = useLayoutStore()
   const selectedNode = nodes.find(n => n.id === selectedNodeId)
+  const dragging = useRef(false)
+  const startX = useRef(0)
+  const startWidth = useRef(0)
+
+  const onPointerDown = useCallback(
+    (e: React.PointerEvent) => {
+      e.preventDefault()
+      dragging.current = true
+      startX.current = e.clientX
+      startWidth.current = rightPanelWidth
+      ;(e.target as HTMLElement).setPointerCapture(e.pointerId)
+    },
+    [rightPanelWidth]
+  )
+
+  const onPointerMove = useCallback(
+    (e: React.PointerEvent) => {
+      if (!dragging.current) return
+      const delta = startX.current - e.clientX
+      setRightPanelWidth(startWidth.current + delta)
+    },
+    [setRightPanelWidth]
+  )
+
+  const onPointerUp = useCallback(() => {
+    dragging.current = false
+  }, [])
 
   const connectedEdges = selectedNode
     ? edges.filter(e => e.source === selectedNode.id || e.target === selectedNode.id)
     : []
 
   return (
-    <div className="properties-panel" data-testid={TEST_IDS.PROPERTIES_PANEL}>
+    <div className="properties-panel" data-testid={TEST_IDS.PROPERTIES_PANEL} style={{ position: 'relative' }}>
+      <div
+        className="resize-handle resize-handle-left"
+        onPointerDown={onPointerDown}
+        onPointerMove={onPointerMove}
+        onPointerUp={onPointerUp}
+      />
       <div className="sidebar-header">Properties</div>
       {selectedNode ? (
         <div className="properties-content">

@@ -81,7 +81,13 @@ export const TEST_IDS = {
   ZOOM_CONTROLS: 'zoom-controls',
   ZOOM_IN_BTN: 'zoom-in-btn',
   ZOOM_OUT_BTN: 'zoom-out-btn',
-  ZOOM_LEVEL: 'zoom-level'
+  ZOOM_LEVEL: 'zoom-level',
+
+  // Exclude Folders
+  CONTEXT_MENU: 'context-menu',
+  EXCLUDE_FOLDER_BTN: 'exclude-folder-btn',
+  INCLUDE_FOLDER_BTN: 'include-folder-btn',
+  HIDDEN_FOLDERS_HEADER: 'hidden-folders-header'
 } as const
 
 export type TestId = (typeof TEST_IDS)[keyof typeof TEST_IDS]

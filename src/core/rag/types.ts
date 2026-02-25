@@ -56,6 +56,7 @@ export interface AppSettings {
   llm: LLMConfig
   rag: RagConfig
   ui?: UILayoutConfig
+  excludedFolders: string[]
 }
 
 export interface LLMMessage {
@@ -103,5 +104,6 @@ export const DEFAULT_SETTINGS: AppSettings = {
   ui: {
     activePanelId: 'files',
     sidePanelWidth: 220
-  }
+  },
+  excludedFolders: []
 }

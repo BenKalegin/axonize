@@ -4,7 +4,7 @@
     "toolbar toolbar toolbar toolbar"
     "actbar left-sidebar content right-sidebar"
     "command command command command";
-  grid-template-columns: var(--activity-bar-w) var(--side-panel-w) 1fr 260px;
+  grid-template-columns: var(--activity-bar-w) var(--side-panel-w) 1fr var(--right-panel-w, 0px);
   grid-template-rows: 40px 1fr 36px;
   height: 100vh;
   width: 100vw;
@@ -203,6 +203,11 @@
   z-index: 10;
 }
 
+.resize-handle-left {
+  right: auto;
+  left: -3px;
+}
+
 .resize-handle:hover {
   background: var(--accent);
   opacity: 0.4;
@@ -283,15 +288,20 @@
 .content-area {
   grid-area: content;
   background: var(--bg-base);
-  overflow: auto;
-  position: relative;
+  overflow: hidden;
 }
 
 .content-view {
   height: 100%;
+  position: relative;
+  overflow: hidden;
+}
+
+.content-scroll {
+  height: 100%;
+  overflow: auto;
   display: flex;
   flex-direction: column;
-  position: relative;
 }
 
 .empty-state {
@@ -306,8 +316,11 @@
 /* Markdown View */
 .markdown-view {
   padding: 24px 32px;
-  max-width: 800px;
   line-height: 1.6;
+}
+
+.markdown-view > *:not(.mermaid-diagram) {
+  max-width: 800px;
 }
 
 .markdown-view h1 { font-size: 28px; margin: 24px 0 12px; color: var(--text-primary); }
@@ -338,7 +351,6 @@
   margin: 12px 0;
 }
 .markdown-view table {
-  width: 100%;
   border-collapse: collapse;
   margin: 12px 0;
   font-size: 14px;
@@ -361,15 +373,13 @@
 }
 
 .mermaid-diagram {
-  display: flex;
-  justify-content: center;
   margin: 12px 0;
-  overflow: hidden;
+  overflow: visible;
 }
 
 .mermaid-diagram svg {
-  max-width: 100% !important;
   height: auto !important;
+  max-width: none !important;
 }
 
 /* Graph View */
@@ -1002,7 +1012,108 @@
   color: var(--text-primary);
 }
 
-/* Zoom Wrapper */
-.zoom-wrapper {
-  transition: transform 0.1s ease-out;
+/* Context Menu */
+.context-menu {
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+  padding: 4px 0;
+  min-width: 160px;
 }
+
+.context-menu-item {
+  display: block;
+  width: 100%;
+  padding: 6px 12px;
+  font-size: 13px;
+  color: var(--text-secondary);
+  text-align: left;
+  transition: background 0.1s, color 0.1s;
+}
+
+.context-menu-item:hover {
+  background: var(--bg-overlay);
+  color: var(--text-primary);
+}
+
+/* Hidden Folders Divider */
+.hidden-folders-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 8px;
+  margin-top: 4px;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--text-muted);
+  opacity: 0.5;
+  cursor: pointer;
+  border-top: 1px solid var(--border);
+  transition: opacity 0.15s;
+}
+
+.hidden-folders-header:hover {
+  opacity: 0.8;
+}
+
+/* Excluded tree nodes */
+.file-tree-node.excluded {
+  opacity: 0.4;
+}
+
+.file-tree-node.excluded:hover {
+  opacity: 0.6;
+}
+
+/* Settings Excluded Folders */
+.settings-excluded-empty {
+  font-size: 12px;
+  color: var(--text-muted);
+  padding: 4px 0;
+}
+
+.settings-excluded-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.settings-excluded-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 4px 8px;
+  background: var(--bg-base);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+}
+
+.settings-excluded-path {
+  font-size: 12px;
+  color: var(--text-secondary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex: 1;
+}
+
+.settings-excluded-remove {
+  width: 20px;
+  height: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 3px;
+  font-size: 16px;
+  color: var(--text-muted);
+  flex-shrink: 0;
+  transition: background 0.15s, color 0.15s;
+}
+
+.settings-excluded-remove:hover {
+  background: var(--bg-overlay);
+  color: var(--red);
+}
+

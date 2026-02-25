@@ -35,8 +35,11 @@ export function SettingsDialog({ onClose }: SettingsDialogProps) {
     return () => document.removeEventListener('keydown', handleKeyDown)
   }, [handleKeyDown])
 
+  const { loadExcludedFolders } = useVaultStore()
+
   const handleSave = async () => {
     await window.axonize.settings.save(settings)
+    await loadExcludedFolders()
     onClose()
   }
 
@@ -249,6 +252,35 @@ export function SettingsDialog({ onClose }: SettingsDialogProps) {
                 {statusText}
               </span>
             </div>
+          </div>
+
+          {/* Excluded Folders */}
+          <div className="settings-section">
+            <div className="settings-section-title">Excluded Folders</div>
+            {settings.excludedFolders.length === 0 ? (
+              <div className="settings-excluded-empty">
+                No folders excluded. Right-click a folder in the file tree to exclude it.
+              </div>
+            ) : (
+              <div className="settings-excluded-list">
+                {settings.excludedFolders.map((folder) => (
+                  <div key={folder} className="settings-excluded-item">
+                    <span className="settings-excluded-path">{folder}</span>
+                    <button
+                      className="settings-excluded-remove"
+                      onClick={() => {
+                        setSettings(prev => ({
+                          ...prev,
+                          excludedFolders: prev.excludedFolders.filter(f => f !== folder)
+                        }))
+                      }}
+                    >
+                      &times;
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         </div>
 

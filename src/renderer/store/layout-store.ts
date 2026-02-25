@@ -7,12 +7,15 @@ export const ACTIVITY_BAR_WIDTH = 48
 const MIN_PANEL_WIDTH = 160
 const MAX_PANEL_WIDTH = 600
 const DEFAULT_PANEL_WIDTH = 220
+const DEFAULT_RIGHT_PANEL_WIDTH = 260
 
 interface LayoutState {
   activePanelId: SidePanelId | null
   sidePanelWidth: number
+  rightPanelWidth: number
   togglePanel: (id: SidePanelId) => void
   setSidePanelWidth: (w: number) => void
+  setRightPanelWidth: (w: number) => void
   hydrateFromSettings: () => Promise<void>
   persistToSettings: () => Promise<void>
 }
@@ -20,6 +23,7 @@ interface LayoutState {
 export const useLayoutStore = create<LayoutState>((set, get) => ({
   activePanelId: 'files',
   sidePanelWidth: DEFAULT_PANEL_WIDTH,
+  rightPanelWidth: DEFAULT_RIGHT_PANEL_WIDTH,
 
   togglePanel: (id) =>
     set((s) => ({
@@ -28,6 +32,9 @@ export const useLayoutStore = create<LayoutState>((set, get) => ({
 
   setSidePanelWidth: (w) =>
     set({ sidePanelWidth: Math.min(MAX_PANEL_WIDTH, Math.max(MIN_PANEL_WIDTH, w)) }),
+
+  setRightPanelWidth: (w) =>
+    set({ rightPanelWidth: Math.min(MAX_PANEL_WIDTH, Math.max(MIN_PANEL_WIDTH, w)) }),
 
   hydrateFromSettings: async () => {
     try {

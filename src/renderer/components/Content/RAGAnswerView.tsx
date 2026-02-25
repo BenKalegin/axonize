@@ -1,11 +1,11 @@
-import { useEffect, useState } from 'react'
+import React, { useEffect, useState } from 'react'
 import { TEST_IDS } from '../../lib/testids'
 import { renderMarkdown } from '../../lib/markdown-renderer'
 import { useRagStore } from '../../store/rag-store'
 import { useEditorStore } from '../../store/editor-store'
 import { useVaultStore } from '../../store/vault-store'
 
-export function RAGAnswerView() {
+export const RAGAnswerView = React.memo(function RAGAnswerView() {
   const { lastResponse, clearResponse } = useRagStore()
   const { selectFile } = useEditorStore()
   const { vaultPath } = useVaultStore()
@@ -57,4 +57,4 @@ export function RAGAnswerView() {
       )}
     </div>
   )
-}
+})

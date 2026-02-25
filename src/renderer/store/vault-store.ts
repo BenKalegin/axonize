@@ -1,4 +1,5 @@
 import { create } from 'zustand'
+import type { AppSettings } from '../../core/rag/types'
 
 const DOC_SLUGS = new Set(['doc', 'docs'])
 
@@ -30,12 +31,16 @@ interface VaultState {
   vaultName: string | null
   fileTree: FileEntry[]
   recentVaults: RecentVault[]
+  excludedFolders: string[]
   openVault: () => Promise<void>
   setVaultPath: (path: string) => void
   loadFileTree: (path: string) => Promise<void>
   loadRecentVaults: () => Promise<void>
   removeRecentVault: (path: string) => Promise<void>
   openRecentVault: (path: string) => Promise<void>
+  loadExcludedFolders: () => Promise<void>
+  excludeFolder: (relativePath: string) => Promise<void>
+  includeFolder: (relativePath: string) => Promise<void>
 }
 
 export const useVaultStore = create<VaultState>((set, get) => ({
@@ -43,6 +48,7 @@ export const useVaultStore = create<VaultState>((set, get) => ({
   vaultName: null,
   fileTree: [],
   recentVaults: [],
+  excludedFolders: [],
 
   openVault: async () => {
     const path = await window.axonize.vault.open()
@@ -52,6 +58,7 @@ export const useVaultStore = create<VaultState>((set, get) => ({
       const files = await window.axonize.vault.readFiles(path) as FileEntry[]
       set({ fileTree: files })
       await get().loadRecentVaults()
+      await get().loadExcludedFolders()
     }
   },
 
@@ -82,5 +89,28 @@ export const useVaultStore = create<VaultState>((set, get) => ({
     set({ fileTree: files })
     await window.axonize.vault.addRecent(path, name)
     await get().loadRecentVaults()
+    await get().loadExcludedFolders()
+  },
+
+  loadExcludedFolders: async () => {
+    const s = await window.axonize.settings.get() as AppSettings
+    set({ excludedFolders: s.excludedFolders ?? [] })
+  },
+
+  excludeFolder: async (relativePath: string) => {
+    const s = await window.axonize.settings.get() as AppSettings
+    const folders = s.excludedFolders ?? []
+    if (folders.includes(relativePath)) return
+    const updated = [...folders, relativePath]
+    await window.axonize.settings.save({ ...s, excludedFolders: updated })
+    set({ excludedFolders: updated })
+  },
+
+  includeFolder: async (relativePath: string) => {
+    const s = await window.axonize.settings.get() as AppSettings
+    const folders = s.excludedFolders ?? []
+    const updated = folders.filter((f) => f !== relativePath)
+    await window.axonize.settings.save({ ...s, excludedFolders: updated })
+    set({ excludedFolders: updated })
   }
 }))

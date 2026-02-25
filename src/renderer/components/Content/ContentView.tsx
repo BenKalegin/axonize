@@ -16,7 +16,8 @@ export function ContentView() {
   const { vaultPath } = useVaultStore()
   const { lastResponse, isQuerying } = useRagStore()
   const [zoomPercent, setZoomPercent] = useState(100)
-  const contentRef = useRef<HTMLDivElement>(null)
+  const scrollRef = useRef<HTMLDivElement>(null)
+  const outerRef = useRef<HTMLDivElement>(null)
 
   const zoomIn = useCallback(() => {
     setZoomPercent((prev) => {
@@ -38,8 +39,15 @@ export function ContentView() {
 
   const resetZoom = useCallback(() => setZoomPercent(100), [])
 
+  // Apply zoom via ref to avoid re-rendering children (preserves mermaid SVGs)
   useEffect(() => {
-    const el = contentRef.current
+    if (scrollRef.current) {
+      scrollRef.current.style.zoom = String(zoomPercent / 100)
+    }
+  }, [zoomPercent])
+
+  useEffect(() => {
+    const el = outerRef.current
     if (!el) return
     const handleWheel = (e: WheelEvent) => {
       if (!(e.metaKey || e.ctrlKey)) return
@@ -56,41 +64,29 @@ export function ContentView() {
     (viewMode === 'markdown' && selectedFile)
   )
 
-  const scale = zoomPercent / 100
-
   return (
-    <div className="content-view" data-testid={TEST_IDS.CONTENT_VIEW} ref={contentRef}>
-      {!vaultPath ? (
-        <WelcomeScreen />
-      ) : lastResponse || isQuerying ? (
-        isQuerying ? (
-          <div className="empty-state" data-testid={TEST_IDS.EMPTY_STATE}>
-            <p>Querying...</p>
-          </div>
-        ) : (
-          <div className="zoom-wrapper" style={{
-            transform: `scale(${scale})`,
-            transformOrigin: 'top left',
-            width: `${100 / scale}%`
-          }}>
+    <div className="content-view" data-testid={TEST_IDS.CONTENT_VIEW} ref={outerRef}>
+      <div className="content-scroll" ref={scrollRef}>
+        {!vaultPath ? (
+          <WelcomeScreen />
+        ) : lastResponse || isQuerying ? (
+          isQuerying ? (
+            <div className="empty-state" data-testid={TEST_IDS.EMPTY_STATE}>
+              <p>Querying...</p>
+            </div>
+          ) : (
             <RAGAnswerView />
-          </div>
-        )
-      ) : viewMode === 'graph' ? (
-        <GraphView />
-      ) : selectedFile ? (
-        <div className="zoom-wrapper" style={{
-          transform: `scale(${scale})`,
-          transformOrigin: 'top left',
-          width: `${100 / scale}%`
-        }}>
+          )
+        ) : viewMode === 'graph' ? (
+          <GraphView />
+        ) : selectedFile ? (
           <MarkdownView />
-        </div>
-      ) : (
-        <div className="empty-state" data-testid={TEST_IDS.EMPTY_STATE}>
-          <p>Select a file to view</p>
-        </div>
-      )}
+        ) : (
+          <div className="empty-state" data-testid={TEST_IDS.EMPTY_STATE}>
+            <p>Select a file to view</p>
+          </div>
+        )}
+      </div>
       {showZoom && (
         <ZoomControls
           zoom={zoomPercent}

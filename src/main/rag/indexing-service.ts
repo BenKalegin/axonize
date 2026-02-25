@@ -17,6 +17,13 @@ import {
   saveVectors
 } from './embedding-store'
 import type { ChunkMeta, IndexProgress, RagIndexState } from '../../core/rag/types'
+import { getSettings } from '../settings-service'
+
+function isExcluded(relativePath: string, excludedFolders: string[]): boolean {
+  return excludedFolders.some(
+    (folder) => relativePath === folder || relativePath.startsWith(folder + '/')
+  )
+}
 
 function sendProgress(window: BrowserWindow | null, progress: IndexProgress): void {
   if (window && !window.isDestroyed()) {
@@ -37,8 +44,13 @@ export async function incrementalReindex(
 
   sendProgress(window, { phase: 'scanning', current: 0, total: 0 })
 
+  const settings = await getSettings()
+  const excluded = settings.excludedFolders ?? []
+
   const fileTree = await readVaultFiles(vaultPath)
-  const mdFiles = getMarkdownFiles(fileTree)
+  const mdFiles = getMarkdownFiles(fileTree).filter(
+    (f) => !isExcluded(f.relativePath, excluded)
+  )
   const currentHashes: Record<string, string> = {}
   const changedFiles: string[] = []
   const removedFiles = new Set<string>(Object.keys(state?.fileHashes ?? {}))
@@ -145,8 +157,13 @@ export async function fullReindex(
 
   sendProgress(window, { phase: 'scanning', current: 0, total: 0 })
 
+  const settings = await getSettings()
+  const excluded = settings.excludedFolders ?? []
+
   const fileTree = await readVaultFiles(vaultPath)
-  const mdFiles = getMarkdownFiles(fileTree)
+  const mdFiles = getMarkdownFiles(fileTree).filter(
+    (f) => !isExcluded(f.relativePath, excluded)
+  )
   const fileHashes: Record<string, string> = {}
   const allMeta: ChunkMeta[] = []
   const allVectorRows: Float32Array[] = []
