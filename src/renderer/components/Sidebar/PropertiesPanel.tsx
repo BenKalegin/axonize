@@ -4,9 +4,9 @@ import { useGraphStore } from '../../store/graph-store'
 import { useLayoutStore } from '../../store/layout-store'
 
 export function PropertiesPanel() {
-  const { nodes, edges, selectedNodeId } = useGraphStore()
+  const { cards, relations, focusCardId } = useGraphStore()
   const { rightPanelWidth, setRightPanelWidth } = useLayoutStore()
-  const selectedNode = nodes.find(n => n.id === selectedNodeId)
+  const selectedCard = cards.find((c) => c.id === focusCardId)
   const dragging = useRef(false)
   const startX = useRef(0)
   const startWidth = useRef(0)
@@ -35,8 +35,8 @@ export function PropertiesPanel() {
     dragging.current = false
   }, [])
 
-  const connectedEdges = selectedNode
-    ? edges.filter(e => e.source === selectedNode.id || e.target === selectedNode.id)
+  const connectedRelations = selectedCard
+    ? relations.filter((r) => r.sourceId === selectedCard.id || r.targetId === selectedCard.id)
     : []
 
   return (
@@ -48,35 +48,33 @@ export function PropertiesPanel() {
         onPointerUp={onPointerUp}
       />
       <div className="sidebar-header">Properties</div>
-      {selectedNode ? (
+      {selectedCard ? (
         <div className="properties-content">
           <div className="property-row">
             <span className="property-label">Title</span>
-            <span data-testid={TEST_IDS.PROPERTY_TITLE}>{selectedNode.label}</span>
+            <span data-testid={TEST_IDS.PROPERTY_TITLE}>{selectedCard.title}</span>
           </div>
           <div className="property-row">
-            <span className="property-label">Type</span>
-            <span data-testid={TEST_IDS.PROPERTY_TYPE}>{selectedNode.type}</span>
+            <span className="property-label">Level</span>
+            <span data-testid={TEST_IDS.PROPERTY_TYPE}>{selectedCard.level}</span>
           </div>
-          {selectedNode.filePath && (
-            <div className="property-row">
-              <span className="property-label">Path</span>
-              <span data-testid={TEST_IDS.PROPERTY_PATH}>{selectedNode.filePath}</span>
-            </div>
-          )}
           <div className="property-row">
-            <span className="property-label">Edges</span>
-            <span data-testid={TEST_IDS.PROPERTY_EDGES}>{connectedEdges.length}</span>
+            <span className="property-label">Path</span>
+            <span data-testid={TEST_IDS.PROPERTY_PATH}>{selectedCard.filePath}</span>
           </div>
-          {connectedEdges.length > 0 && (
+          <div className="property-row">
+            <span className="property-label">Relations</span>
+            <span data-testid={TEST_IDS.PROPERTY_EDGES}>{connectedRelations.length}</span>
+          </div>
+          {connectedRelations.length > 0 && (
             <div className="property-edges-list">
-              {connectedEdges.map(e => (
-                <div key={e.id} className="property-edge-item">
-                  <span className={`edge-type edge-type-${e.type}`}>{e.type}</span>
+              {connectedRelations.map((r, i) => (
+                <div key={i} className="property-edge-item">
+                  <span className={`edge-type edge-type-${r.type}`}>{r.type}</span>
                   <span className="edge-target">
-                    {e.source === selectedNode.id
-                      ? nodes.find(n => n.id === e.target)?.label ?? e.target
-                      : nodes.find(n => n.id === e.source)?.label ?? e.source}
+                    {r.sourceId === selectedCard.id
+                      ? cards.find((c) => c.id === r.targetId)?.title ?? r.targetId
+                      : cards.find((c) => c.id === r.sourceId)?.title ?? r.sourceId}
                   </span>
                 </div>
               ))}

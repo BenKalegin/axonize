@@ -1,5 +1,34 @@
 import { create } from 'zustand'
 import type { AppSettings } from '../../core/rag/types'
+import { useGeneratedDocsStore } from './generated-docs-store'
+import { useRagStore } from './rag-store'
+import { useGraphStore } from './graph-store'
+
+async function loadSemanticCache(vaultPath: string): Promise<void> {
+  const { cards, relations } = await window.axonize.semantic.load(vaultPath)
+  if (cards.length > 0) {
+    useGraphStore.getState().loadSemanticData(cards, relations)
+  }
+}
+
+async function runSemanticIndex(vaultPath: string): Promise<void> {
+  // Load cached data first so graph is usable immediately
+  try {
+    await loadSemanticCache(vaultPath)
+  } catch {
+    console.warn('[semantic] No cached semantic data yet')
+  }
+
+  // Then run incremental decomposition in background
+  try {
+    console.log('[semantic] Starting incremental decomposition for', vaultPath)
+    await window.axonize.semantic.incremental(vaultPath)
+    console.log('[semantic] Decomposition complete, loading results')
+    await loadSemanticCache(vaultPath)
+  } catch (err) {
+    console.error('[semantic] Decomposition failed:', err)
+  }
+}
 
 const DOC_SLUGS = new Set(['doc', 'docs'])
 
@@ -59,6 +88,8 @@ export const useVaultStore = create<VaultState>((set, get) => ({
       set({ fileTree: files })
       await get().loadRecentVaults()
       await get().loadExcludedFolders()
+      useGeneratedDocsStore.getState().runCleanup(path).catch(() => {})
+      runSemanticIndex(path).catch(() => {})
     }
   },
 
@@ -90,6 +121,8 @@ export const useVaultStore = create<VaultState>((set, get) => ({
     await window.axonize.vault.addRecent(path, name)
     await get().loadRecentVaults()
     await get().loadExcludedFolders()
+    useGeneratedDocsStore.getState().runCleanup(path).catch(() => {})
+    runSemanticIndex(path).catch(() => {})
   },
 
   loadExcludedFolders: async () => {
@@ -98,12 +131,18 @@ export const useVaultStore = create<VaultState>((set, get) => ({
   },
 
   excludeFolder: async (relativePath: string) => {
+    const { vaultPath } = get()
     const s = await window.axonize.settings.get() as AppSettings
     const folders = s.excludedFolders ?? []
     if (folders.includes(relativePath)) return
     const updated = [...folders, relativePath]
     await window.axonize.settings.save({ ...s, excludedFolders: updated })
     set({ excludedFolders: updated })
+    if (vaultPath) {
+      window.axonize.rag.purgeFolder(vaultPath, relativePath).then((result) => {
+        useRagStore.getState().updateStatus()
+      }).catch(() => {})
+    }
   },
 
   includeFolder: async (relativePath: string) => {

@@ -3,6 +3,8 @@ import { readVaultFiles } from './file-service'
 import { readFile } from 'fs/promises'
 import { getRecentVaults, addRecentVault, removeRecentVault } from './recent-vaults-service'
 import { registerRAGIpcHandlers, setCurrentVaultPath } from './rag-ipc-handlers'
+import { registerGeneratedDocsIpcHandlers } from './generated-docs-ipc-handlers'
+import { registerSemanticIpcHandlers } from './semantic-ipc-handlers'
 import log from './logger'
 
 const DOC_SLUGS = new Set(['doc', 'docs'])
@@ -68,4 +70,6 @@ export function registerIpcHandlers(): void {
   })
 
   registerRAGIpcHandlers()
+  registerGeneratedDocsIpcHandlers()
+  registerSemanticIpcHandlers()
 }
