@@ -12,7 +12,8 @@ import type {
   SemanticCard,
   CardRelation,
   SemanticIndexState,
-  SemanticProgress
+  SemanticProgress,
+  SemanticEstimate
 } from '../../core/semantic/types'
 import log from '../logger'
 
@@ -20,6 +21,10 @@ const SEMANTIC_VERSION = 1
 const SEMANTIC_MAX_TOKENS = 4096
 const RETRY_DELAYS = [3000, 6000, 12000]
 const INTER_DOC_DELAY = 1500
+const PROMPT_OVERHEAD_TOKENS = 250
+const AVG_OUTPUT_TOKENS_PER_FILE = 1500
+const CROSS_DOC_OUTPUT_TOKENS = 500
+const CHARS_PER_TOKEN = 4
 
 // --- Build lock ---
 
@@ -322,6 +327,16 @@ export async function buildSemanticIndex(
     log.error('Cross-document relation extraction failed:', err)
   }
 
+  // Don't overwrite a valid cache with empty results from failed LLM calls
+  if (allCards.length === 0 && mdFiles.length > 0) {
+    const existing = await loadCards(vaultPath)
+    if (existing.length > 0) {
+      log.warn(`[semantic] All decompositions failed, keeping existing ${existing.length} cards`)
+      sendProgress(window, { phase: 'done', current: existing.length, total: existing.length })
+      return { cardCount: existing.length }
+    }
+  }
+
   sendProgress(window, { phase: 'saving', current: 0, total: 1 })
   await saveSemanticCache(vaultPath, fileHashes, allCards, allRelations)
 
@@ -370,6 +385,7 @@ async function doIncrementalUpdate(
   const currentHashes: Record<string, string> = {}
   const changedFiles: string[] = []
   const removedFiles = new Set<string>(Object.keys(existingState.fileHashes))
+  const filesWithCards = new Set(existingCards.map((c) => c.filePath))
 
   for (const file of mdFiles) {
     const content = await readFile(file.path, 'utf-8')
@@ -377,7 +393,9 @@ async function doIncrementalUpdate(
     currentHashes[file.relativePath] = hash
     removedFiles.delete(file.relativePath)
 
-    if (existingState.fileHashes[file.relativePath] !== hash) {
+    const hashChanged = existingState.fileHashes[file.relativePath] !== hash
+    const missingCards = !filesWithCards.has(file.relativePath)
+    if (hashChanged || missingCards) {
       changedFiles.push(file.relativePath)
     }
   }
@@ -449,4 +467,71 @@ export async function loadSemanticIndex(
   const cards = await loadCards(vaultPath)
   const relations = await loadRelations(vaultPath)
   return { cards, relations }
+}
+
+export async function estimateSemanticBuild(vaultPath: string): Promise<SemanticEstimate> {
+  const settings = await getSettings()
+  const excluded = settings.excludedFolders ?? []
+  const fileTree = await readVaultFiles(vaultPath)
+  const mdFiles = getMarkdownFiles(fileTree).filter(
+    (f) => !isExcluded(f.relativePath, excluded)
+  )
+
+  const existingState = await loadSemanticState(vaultPath)
+  const existingHashes = existingState?.fileHashes ?? {}
+  const existingCards = await loadCards(vaultPath)
+  const filesWithCards = new Set(existingCards.map((c) => c.filePath))
+
+  let totalChars = 0
+  let filesToProcess = 0
+  let cachedFiles = 0
+
+  for (const file of mdFiles) {
+    const content = await readFile(file.path, 'utf-8')
+    const hash = hashContent(content)
+    const hashMatch = existingHashes[file.relativePath] === hash
+    const hasCards = filesWithCards.has(file.relativePath)
+    if (hashMatch && hasCards) {
+      cachedFiles++
+    } else {
+      filesToProcess++
+      totalChars += content.length
+    }
+  }
+
+  const inputTokens = Math.ceil(totalChars / CHARS_PER_TOKEN) + filesToProcess * PROMPT_OVERHEAD_TOKENS
+  const outputTokens = filesToProcess * AVG_OUTPUT_TOKENS_PER_FILE + CROSS_DOC_OUTPUT_TOKENS
+  const costPerInputToken = estimateInputCost(settings.llm.provider, settings.llm.model)
+  const costPerOutputToken = estimateOutputCost(settings.llm.provider, settings.llm.model)
+  const estimatedCostUsd = (inputTokens * costPerInputToken + outputTokens * costPerOutputToken) / 1_000_000
+
+  return {
+    fileCount: mdFiles.length,
+    totalChars,
+    inputTokens,
+    outputTokens,
+    estimatedCostUsd,
+    cachedFiles,
+    filesToProcess
+  }
+}
+
+function estimateInputCost(provider: string, model: string): number {
+  if (provider === 'ollama') return 0
+  if (provider === 'anthropic') return model.includes('haiku') ? 0.25 : 3.0
+  // OpenAI
+  if (model.includes('gpt-4o-mini')) return 0.15
+  if (model.includes('gpt-4o')) return 2.5
+  if (model.includes('gpt-4')) return 30.0
+  return 5.0
+}
+
+function estimateOutputCost(provider: string, model: string): number {
+  if (provider === 'ollama') return 0
+  if (provider === 'anthropic') return model.includes('haiku') ? 1.25 : 15.0
+  // OpenAI
+  if (model.includes('gpt-4o-mini')) return 0.6
+  if (model.includes('gpt-4o')) return 10.0
+  if (model.includes('gpt-4')) return 60.0
+  return 15.0
 }

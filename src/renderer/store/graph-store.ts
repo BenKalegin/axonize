@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import type { SemanticCard, CardRelation } from '../../core/semantic/types'
+import type { SemanticCard, CardRelation, SemanticProgress } from '../../core/semantic/types'
 import { computeRadialLayout } from '../../core/semantic/radial-layout'
 import type { PositionedCard } from '../../core/semantic/radial-layout'
 
@@ -10,7 +10,9 @@ interface GraphState {
   zoomLevel: number
   positionedCards: PositionedCard[]
   isLoading: boolean
+  progress: SemanticProgress | null
   loadSemanticData: (cards: SemanticCard[], relations: CardRelation[]) => void
+  setProgress: (progress: SemanticProgress | null) => void
   ensureLoaded: (vaultPath: string) => Promise<void>
   buildIndex: (vaultPath: string) => Promise<void>
   setFocus: (cardId: string) => void
@@ -37,6 +39,7 @@ export const useGraphStore = create<GraphState>((set, get) => ({
   zoomLevel: 0,
   positionedCards: [],
   isLoading: false,
+  progress: null,
 
   loadSemanticData: (cards, relations) => {
     const level0 = cards.find((c) => c.level === 0)
@@ -44,6 +47,8 @@ export const useGraphStore = create<GraphState>((set, get) => ({
     const positioned = computeRadialLayout(focusCardId ?? '', cards, relations, 0)
     set({ cards, relations, focusCardId, zoomLevel: 0, positionedCards: positioned })
   },
+
+  setProgress: (progress) => set({ progress }),
 
   ensureLoaded: async (vaultPath) => {
     const { cards, isLoading } = get()
@@ -109,6 +114,7 @@ export const useGraphStore = create<GraphState>((set, get) => ({
     focusCardId: null,
     zoomLevel: 0,
     positionedCards: [],
-    isLoading: false
+    isLoading: false,
+    progress: null
   })
 }))

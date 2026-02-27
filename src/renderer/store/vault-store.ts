@@ -12,6 +12,8 @@ async function loadSemanticCache(vaultPath: string): Promise<void> {
 }
 
 async function runSemanticIndex(vaultPath: string): Promise<void> {
+  useGraphStore.getState().clear()
+
   // Load cached data first so graph is usable immediately
   try {
     await loadSemanticCache(vaultPath)

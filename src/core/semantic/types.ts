@@ -38,3 +38,13 @@ export interface SemanticProgress {
   total: number
   file?: string
 }
+
+export interface SemanticEstimate {
+  fileCount: number
+  totalChars: number
+  inputTokens: number
+  outputTokens: number
+  estimatedCostUsd: number
+  cachedFiles: number
+  filesToProcess: number
+}

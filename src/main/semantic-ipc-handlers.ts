@@ -3,7 +3,8 @@ import {
   buildSemanticIndex,
   incrementalSemanticUpdate,
   loadSemanticIndex,
-  loadSemanticState
+  loadSemanticState,
+  estimateSemanticBuild
 } from './semantic/decomposition-service'
 import log from './logger'
 
@@ -41,5 +42,9 @@ export function registerSemanticIpcHandlers(): void {
   ipcMain.handle('semantic:status', async (_event, payload: { vaultPath: string }) => {
     const state = await loadSemanticState(payload.vaultPath)
     return state ?? { version: 0, fileHashes: {} }
+  })
+
+  ipcMain.handle('semantic:estimate', async (_event, payload: { vaultPath: string }) => {
+    return estimateSemanticBuild(payload.vaultPath)
   })
 }

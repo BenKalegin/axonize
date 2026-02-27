@@ -34,6 +34,16 @@ export interface SemanticLoadResult {
   }>
 }
 
+export interface SemanticEstimateResult {
+  fileCount: number
+  totalChars: number
+  inputTokens: number
+  outputTokens: number
+  estimatedCostUsd: number
+  cachedFiles: number
+  filesToProcess: number
+}
+
 export interface AxonizeAPI {
   vault: {
     open: () => Promise<string | null>
@@ -59,6 +69,7 @@ export interface AxonizeAPI {
     incremental: (vaultPath: string) => Promise<{ cardCount: number }>
     load: (vaultPath: string) => Promise<SemanticLoadResult>
     status: (vaultPath: string) => Promise<{ version: number; fileHashes: Record<string, string> }>
+    estimate: (vaultPath: string) => Promise<SemanticEstimateResult>
     onProgress: (callback: (payload: unknown) => void) => () => void
   }
   settings: {
@@ -107,6 +118,7 @@ const api: AxonizeAPI = {
     incremental: (vaultPath: string) => ipcRenderer.invoke('semantic:incremental', { vaultPath }),
     load: (vaultPath: string) => ipcRenderer.invoke('semantic:load', { vaultPath }),
     status: (vaultPath: string) => ipcRenderer.invoke('semantic:status', { vaultPath }),
+    estimate: (vaultPath: string) => ipcRenderer.invoke('semantic:estimate', { vaultPath }),
     onProgress: (callback: (payload: unknown) => void) => {
       const listener = (_event: unknown, payload: unknown) => callback(payload)
       ipcRenderer.on('semantic:progress', listener)
