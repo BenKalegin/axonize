@@ -1,7 +1,7 @@
 import { useRef, useCallback, useMemo, useState, useEffect } from 'react'
 import ForceGraph2D from 'react-force-graph-2d'
-import { TEST_IDS } from '../../lib/testids'
-import { useGraphStore, visibleCards, visibleRelations } from '../../store/graph-store'
+import { TEST_IDS } from '@/lib/testids'
+import { useGraphStore, visibleCards, visibleRelations } from '@/store/graph-store'
 import {
   drawCard,
   drawRelationEdge,
@@ -14,12 +14,12 @@ import {
   HUB_RADIUS,
   CLUSTER_WIDTH
 } from './CardRenderer'
-import { useEditorStore } from '../../store/editor-store'
+import { useEditorStore } from '@/store/editor-store'
 import { forceCollide } from 'd3-force'
-import { computeInitialPositions, getForceConfig, linkDistanceByType } from '../../../core/semantic/force-layout'
-import { createLensForce } from '../../../core/semantic/lens-force'
-import { CardKind } from '../../../core/semantic/types'
-import type { CardKind as CardKindType, Facet } from '../../../core/semantic/types'
+import { computeInitialPositions, getForceConfig, linkDistanceByType } from '@core/semantic/force-layout'
+import { createLensForce } from '@core/semantic/lens-force'
+import { CardKind } from '@core/semantic/types'
+import type { CardKind as CardKindType, Facet } from '@core/semantic/types'
 
 interface GraphNode {
   id: string
@@ -43,7 +43,25 @@ interface GraphLink {
 }
 
 const SCALE_BY_LEVEL: Record<number, number> = { 0: 1.0, 1: 0.8, 2: 0.6 }
+const DEFAULT_SCALE = 0.6
 const EDGE_DIM_OPACITY = 0.08
+const HUB_HIT_PADDING = 4
+const COLLISION_PAD = 5
+const COLLISION_STRENGTH = 0.8
+const COLLISION_ITERATIONS = 3
+const DEFAULT_COLLISION_RADIUS = 60
+
+// zoom-to-fit
+const FIT_EDGE_MARGIN = 40
+
+// center-on-click timing
+const CENTER_ANIMATION_MS = 400
+
+// simulation tuning
+const COOLDOWN_TICKS = 200
+const DEPTH_CHANGE_TICKS = 30
+const ALPHA_DECAY = 0.02
+const VELOCITY_DECAY = 0.3
 
 function useContainerSize(ref: React.RefObject<HTMLDivElement | null>): { width: number; height: number } {
   const [size, setSize] = useState({ width: 800, height: 500 })
@@ -68,7 +86,6 @@ export function ForceGraph() {
   const containerRef = useRef<HTMLDivElement>(null)
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const fgRef = useRef<any>(undefined)
-  const initializedRef = useRef(false)
   const { cards, relations, dimensions, visibleDepth, activeLens, hoveredNodeId, setHoveredNode } = useGraphStore()
   const { width, height } = useContainerSize(containerRef)
 
@@ -114,9 +131,12 @@ export function ForceGraph() {
     }))
 
     return { nodes, links }
-  }, [shown, shownRelations])
+  }, [shown, shownRelations, cardTitleMap])
 
-  // Configure d3 forces when graph data or ref changes
+  // Configure d3 forces — short settle on depth change, full reheat on lens change
+  const prevLensRef = useRef(activeLens)
+  const prevDepthRef = useRef(visibleDepth)
+  const [cooldownTicks, setCooldownTicks] = useState(COOLDOWN_TICKS)
   useEffect(() => {
     const fg = fgRef.current
     if (!fg || shown.length === 0) return
@@ -135,34 +155,54 @@ export function ForceGraph() {
 
     const nodeRadiusMap = new Map<string, number>()
     for (const c of shown) {
-      if (c.kind === CardKind.Hub) nodeRadiusMap.set(c.id, HUB_RADIUS + 10)
+      if (c.kind === CardKind.Hub) nodeRadiusMap.set(c.id, HUB_RADIUS + COLLISION_PAD * 2)
       else if (c.kind === CardKind.Cluster) nodeRadiusMap.set(c.id, CLUSTER_WIDTH / 2)
-      else nodeRadiusMap.set(c.id, (CARD_WIDTH * (SCALE_BY_LEVEL[c.level] ?? 0.6)) / 2 + 5)
+      else nodeRadiusMap.set(c.id, (CARD_WIDTH * (SCALE_BY_LEVEL[c.level] ?? DEFAULT_SCALE)) / 2 + COLLISION_PAD)
     }
     const collision = forceCollide<GraphNode>()
-      .radius((node) => nodeRadiusMap.get(node.id) ?? 60)
-      .strength(0.8)
-      .iterations(3)
+      .radius((node) => nodeRadiusMap.get(node.id) ?? DEFAULT_COLLISION_RADIUS)
+      .strength(COLLISION_STRENGTH)
+      .iterations(COLLISION_ITERATIONS)
     fg.d3Force('collision', collision as never)
 
     fg.d3Force('cluster', createLensForce(shown, shownRelations, activeLens, config.clusterStrength) as never)
-    fg.d3ReheatSimulation()
-  }, [graphData, shown, shownRelations, activeLens])
 
-  // Zoom to fit after initial load and on depth changes
+    const lensChanged = prevLensRef.current !== activeLens
+    const depthChanged = prevDepthRef.current !== visibleDepth
+    prevLensRef.current = activeLens
+    prevDepthRef.current = visibleDepth
+
+    setCooldownTicks(depthChanged && !lensChanged ? DEPTH_CHANGE_TICKS : COOLDOWN_TICKS)
+    fg.d3ReheatSimulation()
+  }, [graphData, shown, shownRelations, activeLens, visibleDepth])
+
+  const fitPadding = useMemo(() => {
+    const maxCardHalf = shown.reduce((max, c) => {
+      if (c.kind === CardKind.Cluster) {
+        return Math.max(max, clusterCardHeight(c.clusterDocIds?.length ?? 0) / 2)
+      }
+      const scale = SCALE_BY_LEVEL[c.level] ?? DEFAULT_SCALE
+      return Math.max(max, (CARD_HEIGHT * scale) / 2)
+    }, HUB_RADIUS)
+    return maxCardHalf + FIT_EDGE_MARGIN
+  }, [shown])
+
+  const needsFitRef = useRef(false)
+
+  // Mark that we need a fit whenever visible nodes change
   useEffect(() => {
-    if (shown.length === 0) return
-    const delay = initializedRef.current ? 300 : 600
-    initializedRef.current = true
-    const timer = setTimeout(() => {
-      fgRef.current?.zoomToFit(400, 60)
-    }, delay)
-    return () => clearTimeout(timer)
+    if (shown.length > 0) needsFitRef.current = true
   }, [shown.length, visibleDepth])
+
+  const handleEngineStop = useCallback(() => {
+    if (!needsFitRef.current) return
+    needsFitRef.current = false
+    fgRef.current?.zoomToFit(0, fitPadding)
+  }, [fitPadding])
 
   // Reset initialization flag when cards reload
   useEffect(() => {
-    if (cards.length === 0) initializedRef.current = false
+    if (cards.length === 0) needsFitRef.current = false
   }, [cards.length])
 
   const dimIndexMap = useMemo(() => {
@@ -189,7 +229,7 @@ export function ForceGraph() {
         return
       }
 
-      const scale = SCALE_BY_LEVEL[level] ?? 0.6
+      const scale = SCALE_BY_LEVEL[level] ?? DEFAULT_SCALE
       drawCard(ctx, title, summary, x, y, scale, 1, level, isHovered)
 
       if (facets && level === 0) {
@@ -211,7 +251,7 @@ export function ForceGraph() {
 
       if (kind === CardKind.Hub) {
         ctx.beginPath()
-        ctx.arc(x, y, HUB_RADIUS + 4, 0, 2 * Math.PI)
+        ctx.arc(x, y, HUB_RADIUS + HUB_HIT_PADDING, 0, 2 * Math.PI)
         ctx.fill()
         return
       }
@@ -222,7 +262,7 @@ export function ForceGraph() {
         return
       }
 
-      const scale = SCALE_BY_LEVEL[level] ?? 0.6
+      const scale = SCALE_BY_LEVEL[level] ?? DEFAULT_SCALE
       const w = CARD_WIDTH * scale
       const h = CARD_HEIGHT * scale
       ctx.fillRect(x - w / 2, y - h / 2, w, h)
@@ -259,13 +299,13 @@ export function ForceGraph() {
       // Cluster click: drill down to docs level
       if (kind === CardKind.Cluster) {
         setDepth(0)
-        fgRef.current?.centerAt(node.x, node.y, 400)
+        fgRef.current?.centerAt(node.x, node.y, CENTER_ANIMATION_MS)
         return
       }
 
       // Hub click: just center
       if (kind === CardKind.Hub) {
-        fgRef.current?.centerAt(node.x, node.y, 400)
+        fgRef.current?.centerAt(node.x, node.y, CENTER_ANIMATION_MS)
         return
       }
 
@@ -283,7 +323,7 @@ export function ForceGraph() {
         setDepth((level + 1) as -1 | 0 | 1 | 2)
       }
 
-      fgRef.current?.centerAt(node.x, node.y, 400)
+      fgRef.current?.centerAt(node.x, node.y, CENTER_ANIMATION_MS)
     },
     [cards]
   )
@@ -299,12 +339,13 @@ export function ForceGraph() {
         nodeId="id"
         onNodeClick={handleNodeClick}
         onNodeHover={handleNodeHover}
+        onEngineStop={handleEngineStop}
         width={width}
         height={height}
         backgroundColor="#1e1e2e"
-        cooldownTicks={200}
-        d3AlphaDecay={0.02}
-        d3VelocityDecay={0.3}
+        cooldownTicks={cooldownTicks}
+        d3AlphaDecay={ALPHA_DECAY}
+        d3VelocityDecay={VELOCITY_DECAY}
         enableNodeDrag={true}
       />
     </div>

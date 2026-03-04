@@ -1,8 +1,8 @@
 import { useState, useCallback, useEffect, useRef } from 'react'
-import { TEST_IDS } from '../../lib/testids'
-import { useEditorStore } from '../../store/editor-store'
-import { useGeneratedDocsStore } from '../../store/generated-docs-store'
-import type { GeneratedDocMeta } from '../../../core/rag/types'
+import { TEST_IDS } from '@/lib/testids'
+import { useEditorStore } from '@/store/editor-store'
+import { useGeneratedDocsStore } from '@/store/generated-docs-store'
+import type { GeneratedDocMeta } from '@core/rag/types'
 
 interface GeneratedDocNodeProps {
   doc: GeneratedDocMeta

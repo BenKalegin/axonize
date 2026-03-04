@@ -1,9 +1,9 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
-import { TEST_IDS } from '../../lib/testids'
-import { useEditorStore } from '../../store/editor-store'
-import { useVaultStore } from '../../store/vault-store'
-import { useRagStore } from '../../store/rag-store'
-import { useGeneratedDocsStore } from '../../store/generated-docs-store'
+import { TEST_IDS } from '@/lib/testids'
+import { useEditorStore } from '@/store/editor-store'
+import { useVaultStore } from '@/store/vault-store'
+import { useRagStore } from '@/store/rag-store'
+import { useGeneratedDocsStore } from '@/store/generated-docs-store'
 import { MarkdownView } from './MarkdownView'
 import { RAGAnswerView } from './RAGAnswerView'
 import { GeneratedDocHeader } from './GeneratedDocHeader'
@@ -69,7 +69,7 @@ export function ContentView() {
     [selectedFile, docs]
   )
 
-  const showZoom = vaultPath && (
+  const showZoom = vaultPath && viewMode !== 'graph' && (
     lastResponse ||
     (viewMode === 'markdown' && selectedFile)
   )

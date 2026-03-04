@@ -1,11 +1,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { TEST_IDS } from '../../lib/testids'
+import { TEST_IDS } from '@/lib/testids'
 import { ForceGraph } from './ForceGraph'
-import { useGraphStore } from '../../store/graph-store'
-import type { VisibleDepth } from '../../store/graph-store'
-import { useVaultStore } from '../../store/vault-store'
-import type { SemanticProgress } from '../../../core/semantic/types'
-import type { SemanticEstimateResult } from '../../../preload/index'
+import { useGraphStore } from '@/store/graph-store'
+import type { VisibleDepth } from '@/store/graph-store'
+import { useVaultStore } from '@/store/vault-store'
+import type { SemanticProgress } from '@core/semantic/types'
+import type { SemanticEstimateResult } from '../../../preload'
 
 const PHASE_LABELS: Record<string, string> = {
   scanning: 'Scanning files',
@@ -152,11 +152,10 @@ export function GraphView() {
   }, [vaultPath, ensureLoaded])
 
   useEffect(() => {
-    const unsub = window.axonize.semantic.onProgress((payload: unknown) => {
+    return window.axonize.semantic.onProgress((payload: unknown) => {
       const p = payload as SemanticProgress
       setProgress(p.phase === 'done' ? null : p)
     })
-    return unsub
   }, [setProgress])
 
   const handleWheel = useCallback(

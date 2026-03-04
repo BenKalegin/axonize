@@ -1,4 +1,4 @@
-import type { RelationType, Facet } from '../../../core/semantic/types'
+import type { RelationType, Facet } from '@core/semantic/types'
 
 export const CARD_WIDTH = 240
 export const CARD_HEIGHT = 110

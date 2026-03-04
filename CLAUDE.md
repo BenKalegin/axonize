@@ -12,6 +12,7 @@
   - **DIP** — depend on abstractions (interfaces/types), not concrete implementations; inject dependencies via constructor params.
 - **Abstraction.** Use interfaces, type aliases, and helper functions to hide implementation details. Prefer composition over inheritance.
 - **Typecheck must pass.** Run `pnpm typecheck` after every change.
+- **No magic numbers.** Every numeric literal (timeouts, sizes, thresholds, opacities, etc.) must be a named constant with a descriptive name. Group related constants together at the top of the file. The only exceptions are `0`, `1`, `-1`, and simple arithmetic identities.
 - **No fallbacks.** Never add fallback logic, backward-compatibility shims, or degraded-mode code paths. If a feature requires a capability, send the command and let it fail — do not silently fall back to an older mechanism. Services and drivers must be updated to support new commands; we do not paper over their gaps.
 
 ## Constants & Enums — Domain Co-location

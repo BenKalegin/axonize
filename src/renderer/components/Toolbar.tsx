@@ -1,8 +1,8 @@
 import { useState, useEffect, useRef } from 'react'
-import { TEST_IDS } from '../lib/testids'
-import { useVaultStore } from '../store/vault-store'
-import { useEditorStore } from '../store/editor-store'
-import { useRagStore } from '../store/rag-store'
+import { TEST_IDS } from '@/lib/testids'
+import { useVaultStore } from '@/store/vault-store'
+import { useEditorStore } from '@/store/editor-store'
+import { useRagStore } from '@/store/rag-store'
 import { SettingsDialog } from './SettingsDialog'
 
 export function Toolbar() {

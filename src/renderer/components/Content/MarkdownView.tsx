@@ -1,9 +1,9 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react'
 import mermaid from 'mermaid'
-import { TEST_IDS } from '../../lib/testids'
-import { useEditorStore } from '../../store/editor-store'
-import { useVaultStore } from '../../store/vault-store'
-import { renderMarkdown } from '../../lib/markdown-renderer'
+import { TEST_IDS } from '@/lib/testids'
+import { useEditorStore } from '@/store/editor-store'
+import { useVaultStore } from '@/store/vault-store'
+import { renderMarkdown } from '@/lib/markdown-renderer'
 
 mermaid.initialize({
   startOnLoad: false,
@@ -21,40 +21,7 @@ mermaid.initialize({
 
 declare global {
   interface Window {
-    axonize: {
-      vault: {
-        open: () => Promise<string | null>
-        readFiles: (vaultPath: string) => Promise<unknown[]>
-        getRecent: () => Promise<{ path: string; name: string; openedAt: number }[]>
-        addRecent: (path: string, name: string) => Promise<void>
-        removeRecent: (path: string) => Promise<void>
-      }
-      file: {
-        read: (filePath: string) => Promise<string>
-      }
-      rag: {
-        indexVault: (vaultPath: string) => Promise<{ chunkCount: number }>
-        fullReindex: (vaultPath: string) => Promise<{ chunkCount: number }>
-        reindexFile: (vaultPath: string, filePath: string) => Promise<{ chunkCount: number }>
-        getStatus: () => Promise<{ chunkCount: number }>
-        query: (vaultPath: string, question: string) => Promise<{ answer: string; suggestedTitle: string; sources: Array<{ filePath: string; startLine: number; headingPath: string[]; score: number; contentPreview: string }> }>
-        purgeFolder: (vaultPath: string, folderPath: string) => Promise<{ chunkCount: number }>
-        onIndexProgress: (callback: (payload: unknown) => void) => () => void
-      }
-      settings: {
-        get: () => Promise<unknown>
-        save: (settings: unknown) => Promise<{ ok: boolean }>
-      }
-      generatedDocs: {
-        save: (vaultPath: string, title: string, query: string, answer: string) => Promise<{ id: string; title: string; query: string; createdAt: string; filePath: string }>
-        list: (vaultPath: string) => Promise<Array<{ id: string; title: string; query: string; createdAt: string; filePath: string }>>
-        rename: (filePath: string, newTitle: string) => Promise<void>
-        makePermanent: (filePath: string, targetPath: string) => Promise<void>
-        delete: (filePath: string) => Promise<void>
-        cleanup: (vaultPath: string) => Promise<number>
-        listFolders: (vaultPath: string) => Promise<string[]>
-      }
-    }
+    axonize: import('../../../preload').AxonizeAPI
   }
 }
 

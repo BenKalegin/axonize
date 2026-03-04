@@ -1,7 +1,7 @@
 import { create } from 'zustand'
-import type { SemanticCard, CardRelation, SemanticProgress, DimensionMeta } from '../../core/semantic/types'
-import { CardKind } from '../../core/semantic/types'
-import { resolveCardTitle } from '../../core/semantic/title-utils'
+import type { SemanticCard, CardRelation, SemanticProgress, DimensionMeta } from '@core/semantic/types'
+import { CardKind } from '@core/semantic/types'
+import { resolveCardTitle } from '@core/semantic/title-utils'
 
 export type VisibleDepth = -1 | 0 | 1 | 2
 

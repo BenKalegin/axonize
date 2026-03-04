@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import type { GeneratedDocMeta } from '../../core/rag/types'
+import type { GeneratedDocMeta } from '@core/rag/types'
 
 interface GeneratedDocsState {
   docs: GeneratedDocMeta[]

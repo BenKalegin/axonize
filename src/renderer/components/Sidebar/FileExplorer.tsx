@@ -1,12 +1,12 @@
 import { useState, useMemo, useCallback } from 'react'
-import { TEST_IDS } from '../../lib/testids'
-import { useVaultStore } from '../../store/vault-store'
-import { useEditorStore } from '../../store/editor-store'
-import { useGeneratedDocsStore } from '../../store/generated-docs-store'
+import { TEST_IDS } from '@/lib/testids'
+import { useVaultStore } from '@/store/vault-store'
+import { useEditorStore } from '@/store/editor-store'
+import { useGeneratedDocsStore } from '@/store/generated-docs-store'
 import { FileTreeNode } from './FileTreeNode'
 import { GeneratedDocNode } from './GeneratedDocNode'
 import { MakePermanentDialog } from './MakePermanentDialog'
-import type { GeneratedDocMeta } from '../../../core/rag/types'
+import type { GeneratedDocMeta } from '@core/rag/types'
 
 export function FileExplorer() {
   const { fileTree, excludedFolders } = useVaultStore()

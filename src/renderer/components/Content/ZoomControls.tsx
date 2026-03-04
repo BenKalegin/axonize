@@ -1,4 +1,4 @@
-import { TEST_IDS } from '../../lib/testids'
+import { TEST_IDS } from '@/lib/testids'
 
 interface ZoomControlsProps {
   zoom: number

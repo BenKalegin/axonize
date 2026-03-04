@@ -1,5 +1,5 @@
-import { TEST_IDS } from '../../lib/testids'
-import type { GeneratedDocMeta } from '../../../core/rag/types'
+import { TEST_IDS } from '@/lib/testids'
+import type { GeneratedDocMeta } from '@core/rag/types'
 
 interface GeneratedDocHeaderProps {
   doc: GeneratedDocMeta

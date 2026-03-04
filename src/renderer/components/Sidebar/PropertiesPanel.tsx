@@ -1,7 +1,7 @@
 import { useCallback, useRef } from 'react'
-import { TEST_IDS } from '../../lib/testids'
-import { useGraphStore } from '../../store/graph-store'
-import { useLayoutStore } from '../../store/layout-store'
+import { TEST_IDS } from '@/lib/testids'
+import { useGraphStore } from '@/store/graph-store'
+import { useLayoutStore } from '@/store/layout-store'
 
 export function PropertiesPanel() {
   const { cards, relations, hoveredNodeId } = useGraphStore()

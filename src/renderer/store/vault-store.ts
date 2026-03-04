@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import type { AppSettings } from '../../core/rag/types'
+import type { AppSettings } from '@core/rag/types'
 import { useGeneratedDocsStore } from './generated-docs-store'
 import { useRagStore } from './rag-store'
 import { useGraphStore } from './graph-store'
@@ -141,7 +141,7 @@ export const useVaultStore = create<VaultState>((set, get) => ({
     await window.axonize.settings.save({ ...s, excludedFolders: updated })
     set({ excludedFolders: updated })
     if (vaultPath) {
-      window.axonize.rag.purgeFolder(vaultPath, relativePath).then((result) => {
+      window.axonize.rag.purgeFolder(vaultPath, relativePath).then((_result) => {
         useRagStore.getState().updateStatus()
       }).catch(() => {})
     }

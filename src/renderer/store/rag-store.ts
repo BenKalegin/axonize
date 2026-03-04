@@ -40,7 +40,7 @@ interface RagState {
   clearResponse: () => void
 }
 
-export const useRagStore = create<RagState>((set, get) => ({
+export const useRagStore = create<RagState>((set) => ({
   isIndexing: false,
   indexProgress: null,
   chunkCount: 0,
