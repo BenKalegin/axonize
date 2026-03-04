@@ -29,7 +29,7 @@ let mermaidCounter = 0
 
 export const MarkdownView = React.memo(function MarkdownView() {
   const { selectedFile, selectFile } = useEditorStore()
-  const { vaultPath } = useVaultStore()
+  const { vaultPath, fileTree } = useVaultStore()
   const [html, setHtml] = useState('')
   const containerRef = useRef<HTMLDivElement>(null)
 
@@ -47,7 +47,7 @@ export const MarkdownView = React.memo(function MarkdownView() {
     return () => {
       cancelled = true
     }
-  }, [selectedFile])
+  }, [selectedFile, fileTree])
 
   useEffect(() => {
     if (!html || !containerRef.current) return

@@ -58,12 +58,13 @@ window.axonize.semantic.onErrorsClear(() => {
   useSemanticErrorsStore.getState().clearErrors()
 })
 
-// Register file change listener
+// Register file change listener — refresh tree + incremental reindex
 window.axonize.vault.onFilesChanged(() => {
   const { vaultPath, loadFileTree } = useVaultStore.getState()
-  if (vaultPath) {
-    loadFileTree(vaultPath).catch(() => {})
-  }
+  if (!vaultPath) return
+  loadFileTree(vaultPath).catch(() => {})
+  useRagStore.getState().indexVault(vaultPath)
+  window.axonize.semantic.incremental(vaultPath).catch(() => {})
 })
 
 // Hydrate layout settings on startup
