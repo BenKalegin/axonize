@@ -8,6 +8,30 @@ import { GeneratedDocNode } from './GeneratedDocNode'
 import { MakePermanentDialog } from './MakePermanentDialog'
 import type { GeneratedDocMeta } from '@core/rag/types'
 
+interface FileEntry {
+  name: string
+  path: string
+  relativePath: string
+  isDirectory: boolean
+  children?: FileEntry[]
+}
+
+function filterTree(entries: FileEntry[], query: string): FileEntry[] {
+  const lower = query.toLowerCase()
+  const result: FileEntry[] = []
+  for (const entry of entries) {
+    if (entry.isDirectory) {
+      const filteredChildren = entry.children ? filterTree(entry.children, query) : []
+      if (filteredChildren.length > 0) {
+        result.push({ ...entry, children: filteredChildren })
+      }
+    } else if (entry.name.toLowerCase().includes(lower)) {
+      result.push(entry)
+    }
+  }
+  return result
+}
+
 export function FileExplorer() {
   const { fileTree, excludedFolders } = useVaultStore()
   const { canGoBack, canGoForward, goBack, goForward } = useEditorStore()
@@ -15,6 +39,8 @@ export function FileExplorer() {
   const [hiddenExpanded, setHiddenExpanded] = useState(false)
   const [generatedExpanded, setGeneratedExpanded] = useState(true)
   const [permanentDoc, setPermanentDoc] = useState<GeneratedDocMeta | null>(null)
+  const [searchOpen, setSearchOpen] = useState(false)
+  const [searchQuery, setSearchQuery] = useState('')
 
   const { visible, excluded } = useMemo(() => {
     const excludedSet = new Set(excludedFolders)
@@ -29,6 +55,11 @@ export function FileExplorer() {
     }
     return { visible: vis, excluded: exc }
   }, [fileTree, excludedFolders])
+
+  const filteredVisible = useMemo(() => {
+    if (!searchQuery) return visible
+    return filterTree(visible as FileEntry[], searchQuery)
+  }, [visible, searchQuery])
 
   const handleMakePermanent = useCallback((doc: GeneratedDocMeta) => {
     setPermanentDoc(doc)
@@ -60,10 +91,35 @@ export function FileExplorer() {
           </button>
         </div>
         <span>Files</span>
+        <button
+          className="toolbar-btn nav-btn file-search-btn"
+          onClick={() => {
+            setSearchOpen(!searchOpen)
+            if (searchOpen) setSearchQuery('')
+          }}
+          title="Search files"
+          data-testid={TEST_IDS.FILE_SEARCH_BTN}
+        >
+          <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+            <circle cx="5" cy="5" r="3.5" stroke="currentColor" strokeWidth="1.5"/>
+            <path d="M8 8L11 11" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+          </svg>
+        </button>
       </div>
+      {searchOpen && (
+        <input
+          className="file-search-input"
+          data-testid={TEST_IDS.FILE_SEARCH_INPUT}
+          type="text"
+          placeholder="Filter files..."
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+          autoFocus
+        />
+      )}
       <div className="file-tree" data-testid={TEST_IDS.FILE_TREE}>
-        {visible.map((entry) => (
-          <FileTreeNode key={entry.path} entry={entry} depth={0} />
+        {filteredVisible.map((entry) => (
+          <FileTreeNode key={entry.path} entry={entry} depth={0} defaultExpanded={!!searchQuery} />
         ))}
         {docs.length > 0 && (
           <>

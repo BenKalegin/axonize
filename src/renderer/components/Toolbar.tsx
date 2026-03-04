@@ -6,11 +6,12 @@ import { useRagStore } from '@/store/rag-store'
 import { SettingsDialog } from './SettingsDialog'
 
 export function Toolbar() {
-  const { vaultPath, vaultName, openVault, recentVaults, openRecentVault, loadRecentVaults } = useVaultStore()
+  const { vaultPath, vaultName, openVault, recentVaults, openRecentVault, loadRecentVaults, removeRecentVault, refreshVault } = useVaultStore()
   const { viewMode, setViewMode } = useEditorStore()
   const { chunkCount } = useRagStore()
   const [dropdownOpen, setDropdownOpen] = useState(false)
   const [settingsOpen, setSettingsOpen] = useState(false)
+  const [confirmRemove, setConfirmRemove] = useState<string | null>(null)
   const groupRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -56,17 +57,59 @@ export function Toolbar() {
             <div data-testid={TEST_IDS.VAULT_DROPDOWN} className="vault-dropdown">
               {recentVaults.length > 0 ? (
                 recentVaults.map(vault => (
-                  <div
-                    key={vault.path}
-                    data-testid={TEST_IDS.VAULT_DROPDOWN_ITEM}
-                    className="vault-dropdown-item"
-                    onClick={() => {
-                      openRecentVault(vault.path)
-                      setDropdownOpen(false)
-                    }}
-                  >
-                    <span className="vault-dropdown-item-name">{vault.name}</span>
-                    <span className="vault-dropdown-item-path">{vault.path}</span>
+                  <div key={vault.path}>
+                    <div
+                      data-testid={TEST_IDS.VAULT_DROPDOWN_ITEM}
+                      className="vault-dropdown-item"
+                    >
+                      <div
+                        className="vault-dropdown-item-info"
+                        onClick={() => {
+                          openRecentVault(vault.path)
+                          setDropdownOpen(false)
+                          setConfirmRemove(null)
+                        }}
+                      >
+                        <span className="vault-dropdown-item-name">{vault.name}</span>
+                        <span className="vault-dropdown-item-path">{vault.path}</span>
+                      </div>
+                      <button
+                        className="vault-dropdown-remove"
+                        data-testid={TEST_IDS.VAULT_DROPDOWN_REMOVE}
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          setConfirmRemove(confirmRemove === vault.path ? null : vault.path)
+                        }}
+                        title="Remove from recents"
+                      >
+                        &times;
+                      </button>
+                    </div>
+                    {confirmRemove === vault.path && (
+                      <div className="vault-dropdown-confirm">
+                        <span>Remove {vault.name}?</span>
+                        <div className="vault-dropdown-confirm-btns">
+                          <button
+                            className="vault-dropdown-confirm-btn vault-dropdown-confirm-btn--cancel"
+                            onClick={() => setConfirmRemove(null)}
+                          >
+                            Cancel
+                          </button>
+                          <button
+                            className="vault-dropdown-confirm-btn vault-dropdown-confirm-btn--delete"
+                            onClick={async () => {
+                              await removeRecentVault(vault.path)
+                              setConfirmRemove(null)
+                              if (vaultPath === vault.path) {
+                                useVaultStore.setState({ vaultPath: null, vaultName: null, fileTree: [] })
+                              }
+                            }}
+                          >
+                            Remove
+                          </button>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 ))
               ) : (
@@ -76,9 +119,22 @@ export function Toolbar() {
           )}
         </div>
         {vaultPath && (
-          <span data-testid={TEST_IDS.VAULT_NAME} className="vault-name">
-            {vaultName}
-          </span>
+          <>
+            <span data-testid={TEST_IDS.VAULT_NAME} className="vault-name">
+              {vaultName}
+            </span>
+            <button
+              data-testid={TEST_IDS.REFRESH_VAULT_BTN}
+              className="toolbar-btn toolbar-refresh-btn"
+              onClick={refreshVault}
+              title="Refresh vault"
+            >
+              <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+                <path d="M12 2v4h-4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                <path d="M10.5 9A5 5 0 1 1 11.1 4.5L12 6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+              </svg>
+            </button>
+          </>
         )}
       </div>
       <div className="toolbar-center">

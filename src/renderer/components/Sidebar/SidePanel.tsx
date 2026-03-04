@@ -3,6 +3,7 @@ import { TEST_IDS } from '../../lib/testids'
 import { useLayoutStore } from '../../store/layout-store'
 import { FileExplorer } from './FileExplorer'
 import { LLMLogPanel } from './LLMLogPanel'
+import { SemanticErrorsPanel } from './SemanticErrorsPanel'
 
 export function SidePanel() {
   const { activePanelId, sidePanelWidth, setSidePanelWidth, persistToSettings } =
@@ -48,6 +49,7 @@ export function SidePanel() {
       <div className="side-panel-content">
         {activePanelId === 'files' && <FileExplorer />}
         {activePanelId === 'llm-log' && <LLMLogPanel />}
+        {activePanelId === 'errors' && <SemanticErrorsPanel />}
       </div>
       <div
         className="resize-handle"

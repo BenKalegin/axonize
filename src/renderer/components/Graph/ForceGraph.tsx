@@ -86,10 +86,10 @@ export function ForceGraph() {
   const containerRef = useRef<HTMLDivElement>(null)
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const fgRef = useRef<any>(undefined)
-  const { cards, relations, dimensions, visibleDepth, activeLens, hoveredNodeId, setHoveredNode } = useGraphStore()
+  const { cards, relations, dimensions, visibleDepth, activeLens, hoveredNodeId, focusedDocId, setHoveredNode } = useGraphStore()
   const { width, height } = useContainerSize(containerRef)
 
-  const shown = useMemo(() => visibleCards(cards, visibleDepth), [cards, visibleDepth])
+  const shown = useMemo(() => visibleCards(cards, visibleDepth, focusedDocId), [cards, visibleDepth, focusedDocId])
   const shownIds = useMemo(() => new Set(shown.map((c) => c.id)), [shown])
   const shownRelations = useMemo(() => visibleRelations(relations, shownIds), [relations, shownIds])
 
@@ -293,7 +293,7 @@ export function ForceGraph() {
 
   const handleNodeClick = useCallback(
     (node: GraphNode) => {
-      const { visibleDepth, increaseDepth, setDepth } = useGraphStore.getState()
+      const { visibleDepth, increaseDepth, setDepth, focusDoc } = useGraphStore.getState()
       const { level, kind } = node._card
 
       // Cluster click: drill down to docs level
@@ -309,11 +309,20 @@ export function ForceGraph() {
         return
       }
 
+      // Detail card click: open the file
       if (level === 2) {
         const card = cards.find((c) => c.id === node.id)
         if (card) {
           useEditorStore.getState().selectFile(card.filePath)
         }
+        return
+      }
+
+      // Doc click: focus on this doc's subtree and drill in
+      if (level === 0 && visibleDepth === 0) {
+        focusDoc(node.id)
+        increaseDepth()
+        fgRef.current?.centerAt(node.x, node.y, CENTER_ANIMATION_MS)
         return
       }
 

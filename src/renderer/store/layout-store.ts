@@ -1,7 +1,7 @@
 import { create } from 'zustand'
 import type { UILayoutConfig } from '../../core/rag/types'
 
-export type SidePanelId = 'files' | 'llm-log'
+export type SidePanelId = 'files' | 'llm-log' | 'errors'
 
 export const ACTIVITY_BAR_WIDTH = 48
 const MIN_PANEL_WIDTH = 160

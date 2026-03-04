@@ -5,6 +5,7 @@ import { getRecentVaults, addRecentVault, removeRecentVault } from './recent-vau
 import { registerRAGIpcHandlers, setCurrentVaultPath } from './rag-ipc-handlers'
 import { registerGeneratedDocsIpcHandlers } from './generated-docs-ipc-handlers'
 import { registerSemanticIpcHandlers } from './semantic-ipc-handlers'
+import { startWatching, stopWatching } from './file-watcher'
 import log from './logger'
 
 const DOC_SLUGS = new Set(['doc', 'docs'])
@@ -67,6 +68,17 @@ export function registerIpcHandlers(): void {
 
   ipcMain.handle('vault:removeRecent', async (_event, path: string) => {
     await removeRecentVault(path)
+  })
+
+  ipcMain.handle('vault:startWatch', (_event, path: string) => {
+    const win = BrowserWindow.getFocusedWindow()
+    if (win) {
+      startWatching(path, win)
+    }
+  })
+
+  ipcMain.handle('vault:stopWatch', () => {
+    stopWatching()
   })
 
   registerRAGIpcHandlers()

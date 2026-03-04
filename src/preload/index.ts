@@ -60,6 +60,9 @@ export interface AxonizeAPI {
     getRecent: () => Promise<RecentVault[]>
     addRecent: (path: string, name: string) => Promise<void>
     removeRecent: (path: string) => Promise<void>
+    startWatch: (path: string) => Promise<void>
+    stopWatch: () => Promise<void>
+    onFilesChanged: (callback: () => void) => () => void
   }
   file: {
     read: (filePath: string) => Promise<string>
@@ -80,6 +83,8 @@ export interface AxonizeAPI {
     status: (vaultPath: string) => Promise<{ version: number; fileHashes: Record<string, string> }>
     estimate: (vaultPath: string) => Promise<SemanticEstimateResult>
     onProgress: (callback: (payload: unknown) => void) => () => void
+    onError: (callback: (payload: unknown) => void) => () => void
+    onErrorsClear: (callback: () => void) => () => void
   }
   settings: {
     get: () => Promise<unknown>
@@ -102,7 +107,16 @@ const api: AxonizeAPI = {
     readFiles: (vaultPath: string) => ipcRenderer.invoke('vault:readFiles', vaultPath),
     getRecent: () => ipcRenderer.invoke('vault:getRecent'),
     addRecent: (path: string, name: string) => ipcRenderer.invoke('vault:addRecent', path, name),
-    removeRecent: (path: string) => ipcRenderer.invoke('vault:removeRecent', path)
+    removeRecent: (path: string) => ipcRenderer.invoke('vault:removeRecent', path),
+    startWatch: (path: string) => ipcRenderer.invoke('vault:startWatch', path),
+    stopWatch: () => ipcRenderer.invoke('vault:stopWatch'),
+    onFilesChanged: (callback: () => void) => {
+      const listener = () => callback()
+      ipcRenderer.on('vault:filesChanged', listener)
+      return () => {
+        ipcRenderer.removeListener('vault:filesChanged', listener)
+      }
+    }
   },
   file: {
     read: (filePath: string) => ipcRenderer.invoke('file:read', filePath)
@@ -133,6 +147,20 @@ const api: AxonizeAPI = {
       ipcRenderer.on('semantic:progress', listener)
       return () => {
         ipcRenderer.removeListener('semantic:progress', listener)
+      }
+    },
+    onError: (callback: (payload: unknown) => void) => {
+      const listener = (_event: unknown, payload: unknown) => callback(payload)
+      ipcRenderer.on('semantic:error', listener)
+      return () => {
+        ipcRenderer.removeListener('semantic:error', listener)
+      }
+    },
+    onErrorsClear: (callback: () => void) => {
+      const listener = () => callback()
+      ipcRenderer.on('semantic:errors-clear', listener)
+      return () => {
+        ipcRenderer.removeListener('semantic:errors-clear', listener)
       }
     }
   },

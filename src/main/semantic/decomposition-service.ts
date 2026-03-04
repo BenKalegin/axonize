@@ -50,6 +50,25 @@ function sendProgress(window: BrowserWindow | null, progress: SemanticProgress):
   }
 }
 
+interface SemanticErrorPayload {
+  file: string
+  phase: string
+  message: string
+  timestamp: number
+}
+
+function sendError(window: BrowserWindow | null, error: Omit<SemanticErrorPayload, 'timestamp'>): void {
+  if (window && !window.isDestroyed()) {
+    window.webContents.send('semantic:error', { ...error, timestamp: Date.now() })
+  }
+}
+
+function clearErrors(window: BrowserWindow | null): void {
+  if (window && !window.isDestroyed()) {
+    window.webContents.send('semantic:errors-clear')
+  }
+}
+
 function isExcluded(relativePath: string, excludedFolders: string[]): boolean {
   return excludedFolders.some(
     (folder) => relativePath === folder || relativePath.startsWith(folder + '/')
@@ -228,6 +247,7 @@ async function runFacetAndClusterPhases(
     log.info(`[semantic] Discovered ${dimensions.length} dimensions: ${dimensions.map((d) => d.key).join(', ')}`)
   } catch (err) {
     log.error('Dimension discovery failed:', err)
+    sendError(window, { file: '(vault)', phase: 'dimension-discovery', message: String(err) })
   }
 
   // Phase: facet extraction
@@ -241,6 +261,7 @@ async function runFacetAndClusterPhases(
     log.info(`[semantic] Facets extracted for ${facetMap.size} docs`)
   } catch (err) {
     log.error('Facet extraction failed:', err)
+    sendError(window, { file: '(vault)', phase: 'facet-extraction', message: String(err) })
   }
 
   // Phase: clustering + hubs
@@ -254,6 +275,7 @@ async function runFacetAndClusterPhases(
     log.info(`[semantic] Generated ${clusters.length} clusters, ${hubs.length} hubs`)
   } catch (err) {
     log.error('Cluster/hub generation failed:', err)
+    sendError(window, { file: '(vault)', phase: 'clustering', message: String(err) })
   }
 
   // Phase: curated cross-doc relations
@@ -265,6 +287,7 @@ async function runFacetAndClusterPhases(
     log.info(`[semantic] Generated ${crossRelations.length} curated cross-doc relations`)
   } catch (err) {
     log.error('Curated cross-doc relation extraction failed:', err)
+    sendError(window, { file: '(vault)', phase: 'cross-linking', message: String(err) })
   }
 
   return dimensions
@@ -274,6 +297,7 @@ export async function buildSemanticIndex(
   vaultPath: string,
   window: BrowserWindow | null
 ): Promise<{ cardCount: number }> {
+  clearErrors(window)
   sendProgress(window, { phase: 'scanning', current: 0, total: 0 })
 
   const settings = await getSettings()
@@ -301,6 +325,7 @@ export async function buildSemanticIndex(
       allRelations.push(...result.relations)
     } catch (err) {
       log.error(`Semantic decomposition failed for ${file.relativePath}:`, err)
+      sendError(window, { file: file.relativePath, phase: 'decomposition', message: String(err) })
     }
 
     if (i < mdFiles.length - 1) {
@@ -356,6 +381,7 @@ async function doIncrementalUpdate(
     return buildSemanticIndex(vaultPath, window)
   }
 
+  clearErrors(window)
   sendProgress(window, { phase: 'scanning', current: 0, total: 0 })
 
   const settings = await getSettings()
@@ -368,7 +394,6 @@ async function doIncrementalUpdate(
   const currentHashes: Record<string, string> = {}
   const changedFiles: string[] = []
   const removedFiles = new Set<string>(Object.keys(existingState.fileHashes))
-  const filesWithCards = new Set(existingCards.map((c) => c.filePath))
 
   for (const file of mdFiles) {
     const content = await readFile(file.path, 'utf-8')
@@ -377,8 +402,7 @@ async function doIncrementalUpdate(
     removedFiles.delete(file.relativePath)
 
     const hashChanged = existingState.fileHashes[file.relativePath] !== hash
-    const missingCards = !filesWithCards.has(file.relativePath)
-    if (hashChanged || missingCards) {
+    if (hashChanged) {
       changedFiles.push(file.relativePath)
     }
   }
@@ -413,6 +437,7 @@ async function doIncrementalUpdate(
       newRelations.push(...result.relations)
     } catch (err) {
       log.error(`Semantic decomposition failed for ${relPath}:`, err)
+      sendError(window, { file: relPath, phase: 'decomposition', message: String(err) })
     }
 
     if (i < changedFiles.length - 1) {

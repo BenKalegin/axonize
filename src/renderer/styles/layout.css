@@ -360,12 +360,18 @@
   border-radius: 3px;
   font-size: 13px;
 }
+.markdown-view pre code {
+  background: transparent;
+  padding: 0;
+  border-radius: 0;
+}
 .markdown-view pre {
-  background: var(--bg-surface);
+  background: rgba(255, 255, 255, 0.03);
   padding: 12px 16px;
   border-radius: 6px;
   overflow-x: auto;
   margin: 12px 0;
+  line-height: 1;
 }
 .markdown-view ul, .markdown-view ol { padding-left: 24px; margin: 8px 0; }
 .markdown-view li { margin: 4px 0; color: var(--text-secondary); }
@@ -1390,5 +1396,187 @@
   border: 1px solid var(--accent);
   border-radius: 3px;
   outline: none;
+}
+
+/* File Search */
+.file-search-btn {
+  margin-left: auto;
+}
+
+.file-search-input {
+  display: block;
+  width: calc(100% - 16px);
+  padding: 4px 8px;
+  margin: 4px 8px;
+  font-size: 12px;
+  color: var(--text-secondary);
+  background: var(--bg-base);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  outline: none;
+  transition: border-color 0.15s;
+}
+
+.file-search-input:focus {
+  border-color: var(--accent);
+}
+
+/* Refresh Vault Button */
+.toolbar-refresh-btn {
+  padding: 4px 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Vault Dropdown Remove */
+.vault-dropdown-item-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.vault-dropdown-item-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  flex: 1;
+}
+
+.vault-dropdown-remove {
+  width: 20px;
+  height: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 3px;
+  font-size: 14px;
+  color: var(--text-muted);
+  flex-shrink: 0;
+  opacity: 0;
+  transition: opacity 0.15s, background 0.15s, color 0.15s;
+}
+
+.vault-dropdown-item:hover .vault-dropdown-remove {
+  opacity: 1;
+}
+
+.vault-dropdown-remove:hover {
+  background: var(--bg-overlay);
+  color: var(--red);
+}
+
+.vault-dropdown-confirm {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 12px;
+  font-size: 12px;
+  color: var(--text-secondary);
+  background: var(--bg-overlay);
+  border-top: 1px solid var(--border);
+}
+
+.vault-dropdown-confirm-btns {
+  display: flex;
+  gap: 6px;
+}
+
+.vault-dropdown-confirm-btn {
+  padding: 2px 10px;
+  border-radius: 3px;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.vault-dropdown-confirm-btn--cancel {
+  color: var(--text-muted);
+}
+
+.vault-dropdown-confirm-btn--delete {
+  background: var(--red);
+  color: var(--bg-base);
+}
+
+/* Semantic Errors Panel */
+.semantic-errors-panel {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+.semantic-errors-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.semantic-errors-clear-btn {
+  width: 20px;
+  height: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 3px;
+  font-size: 16px;
+  color: var(--text-muted);
+  transition: background 0.15s, color 0.15s;
+}
+
+.semantic-errors-clear-btn:hover {
+  background: var(--bg-overlay);
+  color: var(--red);
+}
+
+.semantic-errors-list {
+  flex: 1;
+  overflow-y: auto;
+  padding: 4px 0;
+}
+
+.semantic-errors-empty {
+  padding: 12px;
+  color: var(--text-muted);
+  font-size: 13px;
+}
+
+.semantic-error-entry {
+  padding: 6px 12px;
+  border-bottom: 1px solid var(--border);
+  cursor: pointer;
+  transition: background 0.1s;
+}
+
+.semantic-error-entry:hover {
+  background: var(--bg-overlay);
+}
+
+.semantic-error-file {
+  font-size: 12px;
+  color: var(--text-primary);
+  font-weight: 500;
+  margin-bottom: 2px;
+}
+
+.semantic-error-phase {
+  display: inline-block;
+  padding: 1px 5px;
+  border-radius: 3px;
+  font-size: 10px;
+  font-weight: 600;
+  background: var(--bg-overlay);
+  color: var(--text-muted);
+  margin-right: 6px;
+}
+
+.semantic-error-message {
+  font-size: 11px;
+  color: var(--red);
+  line-height: 1.3;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 

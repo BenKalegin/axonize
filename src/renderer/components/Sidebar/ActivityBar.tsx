@@ -1,10 +1,11 @@
+import type { ReactNode } from 'react'
 import { TEST_IDS } from '../../lib/testids'
 import { useLayoutStore, type SidePanelId } from '../../store/layout-store'
 
 interface ActivityItem {
   id: SidePanelId
   label: string
-  icon: JSX.Element
+  icon: ReactNode
 }
 
 const FilesIcon = () => (
@@ -22,9 +23,18 @@ const LLMLogIcon = () => (
   </svg>
 )
 
+const ErrorsIcon = () => (
+  <svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <path d="M10 2L18 17H2L10 2Z" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" fill="none" />
+    <line x1="10" y1="8" x2="10" y2="12" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+    <circle cx="10" cy="14.5" r="0.8" fill="currentColor" />
+  </svg>
+)
+
 const ACTIVITY_ITEMS: ActivityItem[] = [
   { id: 'files', label: 'Explorer', icon: <FilesIcon /> },
-  { id: 'llm-log', label: 'LLM Log', icon: <LLMLogIcon /> }
+  { id: 'llm-log', label: 'LLM Log', icon: <LLMLogIcon /> },
+  { id: 'errors', label: 'Errors', icon: <ErrorsIcon /> }
 ]
 
 export function ActivityBar() {

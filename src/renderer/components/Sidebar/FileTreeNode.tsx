@@ -15,10 +15,11 @@ interface FileTreeNodeProps {
   entry: FileEntry
   depth: number
   excluded?: boolean
+  defaultExpanded?: boolean
 }
 
-export function FileTreeNode({ entry, depth, excluded }: FileTreeNodeProps) {
-  const [expanded, setExpanded] = useState(true)
+export function FileTreeNode({ entry, depth, excluded, defaultExpanded }: FileTreeNodeProps) {
+  const [expanded, setExpanded] = useState(defaultExpanded ?? true)
   const [ctxMenu, setCtxMenu] = useState<{ x: number; y: number } | null>(null)
   const ctxRef = useRef<HTMLDivElement>(null)
   const { selectedFile, selectFile } = useEditorStore()
@@ -113,7 +114,7 @@ export function FileTreeNode({ entry, depth, excluded }: FileTreeNodeProps) {
       {entry.isDirectory && expanded && entry.children && (
         <div className="file-tree-children">
           {entry.children.map((child) => (
-            <FileTreeNode key={child.path} entry={child} depth={depth + 1} excluded={isExcluded} />
+            <FileTreeNode key={child.path} entry={child} depth={depth + 1} excluded={isExcluded} defaultExpanded={defaultExpanded} />
           ))}
         </div>
       )}

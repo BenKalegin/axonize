@@ -98,7 +98,22 @@ export const TEST_IDS = {
   GENERATED_DOC_PERMANENT_BTN: 'generated-doc-permanent-btn',
   GENERATED_DOC_DELETE_BTN: 'generated-doc-delete-btn',
   MAKE_PERMANENT_DIALOG: 'make-permanent-dialog',
-  GENERATED_DOCS_RETENTION_INPUT: 'generated-docs-retention-input'
+  GENERATED_DOCS_RETENTION_INPUT: 'generated-docs-retention-input',
+
+  // File Search
+  FILE_SEARCH_BTN: 'file-search-btn',
+  FILE_SEARCH_INPUT: 'file-search-input',
+
+  // Refresh Vault
+  REFRESH_VAULT_BTN: 'refresh-vault-btn',
+
+  // Vault Dropdown Remove
+  VAULT_DROPDOWN_REMOVE: 'vault-dropdown-remove',
+
+  // Semantic Errors Panel
+  SEMANTIC_ERRORS_PANEL: 'semantic-errors-panel',
+  SEMANTIC_ERROR_ENTRY: 'semantic-error-entry',
+  SEMANTIC_ERRORS_CLEAR_BTN: 'semantic-errors-clear-btn'
 } as const
 
 export type TestId = (typeof TEST_IDS)[keyof typeof TEST_IDS]

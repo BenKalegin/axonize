@@ -34,6 +34,12 @@ const LEVEL_0_ACCENT = '#89b4fa'
 const HOVER_BORDER = '#b4befe'
 const DEFAULT_BORDER = '#45475a'
 
+// --- Pixel snapping to prevent anti-aliasing gaps ---
+
+function snap(v: number): number {
+  return Math.round(v)
+}
+
 // --- Shared drawing helpers ---
 
 function roundRect(
@@ -114,8 +120,11 @@ export function drawCard(
 ): void {
   if (opacity <= 0 || scale <= 0) return
 
-  const w = CARD_WIDTH * scale
-  const h = CARD_HEIGHT * scale
+  const w = snap(CARD_WIDTH * scale)
+  const h = snap(CARD_HEIGHT * scale)
+  const rx = snap(x - w / 2)
+  const ry = snap(y - h / 2)
+  const r = snap(8 * scale)
 
   ctx.save()
   ctx.globalAlpha = opacity
@@ -127,7 +136,7 @@ export function drawCard(
 
   // Background
   ctx.fillStyle = '#313244'
-  roundRect(ctx, x - w / 2, y - h / 2, w, h, 8 * scale)
+  roundRect(ctx, rx, ry, w, h, r)
   ctx.fill()
 
   // Reset shadow before border
@@ -135,7 +144,7 @@ export function drawCard(
 
   // Border
   ctx.strokeStyle = selectBorder(level, isHovered)
-  ctx.lineWidth = (isHovered ? 2 : 1) * scale
+  ctx.lineWidth = snap((isHovered ? 2 : 1) * scale) || 1
   ctx.stroke()
 
   // Title
@@ -168,6 +177,8 @@ export function drawHubNode(
 
   const r = HUB_RADIUS
   const color = colorForIndex(dimensionIndex)
+  const sx = snap(x)
+  const sy = snap(y)
 
   ctx.save()
   ctx.globalAlpha = opacity
@@ -179,18 +190,18 @@ export function drawHubNode(
 
   // Circle
   ctx.beginPath()
-  ctx.arc(x, y, r, 0, 2 * Math.PI)
+  ctx.arc(sx, sy, r, 0, 2 * Math.PI)
   ctx.fillStyle = isHovered ? '#45475a' : '#313244'
   ctx.fill()
   ctx.shadowColor = 'transparent'
 
   ctx.strokeStyle = isHovered ? HOVER_BORDER : color
-  ctx.lineWidth = isHovered ? 2.5 : 2
+  ctx.lineWidth = isHovered ? 3 : 2
   ctx.stroke()
 
   // Inner dot
   ctx.beginPath()
-  ctx.arc(x, y, 6, 0, 2 * Math.PI)
+  ctx.arc(sx, sy, 6, 0, 2 * Math.PI)
   ctx.fillStyle = color
   ctx.fill()
 
@@ -199,7 +210,7 @@ export function drawHubNode(
   ctx.textBaseline = 'top'
   ctx.fillStyle = '#a6adc8'
   ctx.font = 'bold 11px sans-serif'
-  ctx.fillText(truncate(title, 20), x, y + r + 6)
+  ctx.fillText(truncate(title, 20), sx, sy + r + 6)
 
   ctx.restore()
 }
@@ -224,8 +235,10 @@ export function drawClusterCard(
   if (opacity <= 0) return
 
   const docs = docTitles ?? []
-  const w = CLUSTER_WIDTH
-  const h = clusterCardHeight(docs.length)
+  const w = snap(CLUSTER_WIDTH)
+  const h = snap(clusterCardHeight(docs.length))
+  const rx = snap(x - w / 2)
+  const ry = snap(y - h / 2)
 
   ctx.save()
   ctx.globalAlpha = opacity
@@ -237,7 +250,7 @@ export function drawClusterCard(
 
   // Background
   ctx.fillStyle = '#1e1e2e'
-  roundRect(ctx, x - w / 2, y - h / 2, w, h, 10)
+  roundRect(ctx, rx, ry, w, h, 10)
   ctx.fill()
 
   ctx.shadowColor = 'transparent'
@@ -245,7 +258,7 @@ export function drawClusterCard(
   // Dashed border
   ctx.setLineDash([8, 4])
   ctx.strokeStyle = isHovered ? HOVER_BORDER : '#585b70'
-  ctx.lineWidth = isHovered ? 2 : 1.5
+  ctx.lineWidth = isHovered ? 2 : 2
   ctx.stroke()
   ctx.setLineDash([])
 

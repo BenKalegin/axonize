@@ -7,6 +7,7 @@ import { useZoomStore } from './store/zoom-store'
 import { useRagStore } from './store/rag-store'
 import { useLLMLogStore } from './store/llm-log-store'
 import { useLayoutStore } from './store/layout-store'
+import { useSemanticErrorsStore } from './store/semantic-errors-store'
 import './styles/global.css'
 import './styles/layout.css'
 
@@ -21,6 +22,7 @@ declare global {
       rag: typeof useRagStore
       llmLog: typeof useLLMLogStore
       layout: typeof useLayoutStore
+      semanticErrors: typeof useSemanticErrorsStore
     }
   }
 }
@@ -32,7 +34,8 @@ window.__stores = {
   zoom: useZoomStore,
   rag: useRagStore,
   llmLog: useLLMLogStore,
-  layout: useLayoutStore
+  layout: useLayoutStore,
+  semanticErrors: useSemanticErrorsStore
 }
 
 // Register index progress listener
@@ -43,6 +46,24 @@ window.axonize.rag.onIndexProgress((payload: unknown) => {
     total: number
     file?: string
   })
+})
+
+// Register semantic error listeners
+window.axonize.semantic.onError((payload) => {
+  const err = payload as { file: string; phase: string; message: string; timestamp: number }
+  useSemanticErrorsStore.getState().addError(err)
+})
+
+window.axonize.semantic.onErrorsClear(() => {
+  useSemanticErrorsStore.getState().clearErrors()
+})
+
+// Register file change listener
+window.axonize.vault.onFilesChanged(() => {
+  const { vaultPath, loadFileTree } = useVaultStore.getState()
+  if (vaultPath) {
+    loadFileTree(vaultPath).catch(() => {})
+  }
 })
 
 // Hydrate layout settings on startup

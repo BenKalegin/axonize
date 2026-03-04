@@ -12,6 +12,7 @@ interface GraphState {
   visibleDepth: VisibleDepth
   activeLens: string
   hoveredNodeId: string | null
+  focusedDocId: string | null
   isLoading: boolean
   progress: SemanticProgress | null
   loadSemanticData: (cards: SemanticCard[], relations: CardRelation[], dimensions: DimensionMeta[]) => void
@@ -23,6 +24,7 @@ interface GraphState {
   setDepth: (depth: VisibleDepth) => void
   setLens: (lens: string) => void
   setHoveredNode: (nodeId: string | null) => void
+  focusDoc: (docId: string | null) => void
   clear: () => void
 }
 
@@ -33,13 +35,29 @@ function resolveCardTitles(cards: SemanticCard[]): SemanticCard[] {
   }))
 }
 
-export function visibleCards(cards: SemanticCard[], depth: VisibleDepth): SemanticCard[] {
+export function visibleCards(cards: SemanticCard[], depth: VisibleDepth, focusedDocId: string | null): SemanticCard[] {
+  const focusedSubtree = focusedDocId ? collectSubtreeIds(cards, focusedDocId) : null
+
   return cards.filter((c) => {
     const kind = c.kind ?? CardKind.Doc
     if (kind === CardKind.Cluster) return depth === -1
-    if (kind === CardKind.Hub) return depth <= 0
+    if (kind === CardKind.Hub) return depth <= 0 && !focusedSubtree
+    if (focusedSubtree && c.level > 0) return focusedSubtree.has(c.id)
     return c.level <= depth
   })
+}
+
+function collectSubtreeIds(cards: SemanticCard[], rootId: string): Set<string> {
+  const ids = new Set<string>()
+  const queue = [rootId]
+  while (queue.length > 0) {
+    const id = queue.pop()!
+    ids.add(id)
+    for (const c of cards) {
+      if (c.parentId === id && !ids.has(c.id)) queue.push(c.id)
+    }
+  }
+  return ids
 }
 
 export function visibleRelations(
@@ -56,12 +74,13 @@ export const useGraphStore = create<GraphState>((set, get) => ({
   visibleDepth: 0,
   activeLens: 'by_topic',
   hoveredNodeId: null,
+  focusedDocId: null,
   isLoading: false,
   progress: null,
 
   loadSemanticData: (rawCards, relations, dimensions = []) => {
     const cards = resolveCardTitles(rawCards)
-    set({ cards, relations, dimensions, visibleDepth: 0, hoveredNodeId: null, activeLens: 'by_topic' })
+    set({ cards, relations, dimensions, visibleDepth: 0, hoveredNodeId: null, focusedDocId: null, activeLens: 'by_topic' })
   },
 
   setProgress: (progress) => set({ progress }),
@@ -102,14 +121,19 @@ export const useGraphStore = create<GraphState>((set, get) => ({
 
   decreaseDepth: () => {
     const { visibleDepth } = get()
-    if (visibleDepth > -1) set({ visibleDepth: (visibleDepth - 1) as VisibleDepth })
+    if (visibleDepth > -1) {
+      const newDepth = (visibleDepth - 1) as VisibleDepth
+      set({ visibleDepth: newDepth, focusedDocId: newDepth <= 0 ? null : get().focusedDocId })
+    }
   },
 
-  setDepth: (depth) => set({ visibleDepth: depth }),
+  setDepth: (depth) => set({ visibleDepth: depth, focusedDocId: depth <= 0 ? null : get().focusedDocId }),
 
   setLens: (lens) => set({ activeLens: lens }),
 
   setHoveredNode: (nodeId) => set({ hoveredNodeId: nodeId }),
+
+  focusDoc: (docId) => set({ focusedDocId: docId }),
 
   clear: () => set({
     cards: [],
@@ -118,6 +142,7 @@ export const useGraphStore = create<GraphState>((set, get) => ({
     visibleDepth: 0,
     activeLens: 'by_topic',
     hoveredNodeId: null,
+    focusedDocId: null,
     isLoading: false,
     progress: null
   })

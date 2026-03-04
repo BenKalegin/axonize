@@ -72,6 +72,7 @@ interface VaultState {
   loadExcludedFolders: () => Promise<void>
   excludeFolder: (relativePath: string) => Promise<void>
   includeFolder: (relativePath: string) => Promise<void>
+  refreshVault: () => Promise<void>
 }
 
 export const useVaultStore = create<VaultState>((set, get) => ({
@@ -92,6 +93,7 @@ export const useVaultStore = create<VaultState>((set, get) => ({
       await get().loadExcludedFolders()
       useGeneratedDocsStore.getState().runCleanup(path).catch(() => {})
       runSemanticIndex(path).catch(() => {})
+      window.axonize.vault.startWatch(path).catch(() => {})
     }
   },
 
@@ -125,6 +127,7 @@ export const useVaultStore = create<VaultState>((set, get) => ({
     await get().loadExcludedFolders()
     useGeneratedDocsStore.getState().runCleanup(path).catch(() => {})
     runSemanticIndex(path).catch(() => {})
+    window.axonize.vault.startWatch(path).catch(() => {})
   },
 
   loadExcludedFolders: async () => {
@@ -153,5 +156,14 @@ export const useVaultStore = create<VaultState>((set, get) => ({
     const updated = folders.filter((f) => f !== relativePath)
     await window.axonize.settings.save({ ...s, excludedFolders: updated })
     set({ excludedFolders: updated })
+  },
+
+  refreshVault: async () => {
+    const { vaultPath } = get()
+    if (!vaultPath) return
+    const files = await window.axonize.vault.readFiles(vaultPath) as FileEntry[]
+    set({ fileTree: files })
+    await get().loadExcludedFolders()
+    runSemanticIndex(vaultPath).catch(() => {})
   }
 }))
