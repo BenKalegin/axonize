@@ -1,6 +1,6 @@
 import { BrowserWindow, ipcMain } from 'electron'
 import { getSettings, saveSettings } from './settings-service'
-import { incrementalReindex, fullReindex, reindexFile } from './rag/indexing-service'
+import { incrementalReindex, fullReindex, reindexFile, purgeFolder } from './rag/indexing-service'
 import { executeQuery } from './rag/query-service'
 import { loadIndexState } from './rag/embedding-store'
 import type { AppSettings } from '../core/rag/types'
@@ -36,6 +36,11 @@ export function registerRAGIpcHandlers(): void {
     const vaultPath = resolveVaultPath(payload)
     const win = BrowserWindow.getFocusedWindow()
     return reindexFile(vaultPath, payload.filePath, win)
+  })
+
+  ipcMain.handle('rag:purgeFolder', async (_event, payload: { vaultPath?: string; folderPath: string }) => {
+    const vaultPath = resolveVaultPath(payload)
+    return purgeFolder(vaultPath, payload.folderPath)
   })
 
   ipcMain.handle('rag:getStatus', async () => {

@@ -57,6 +57,7 @@ export interface AppSettings {
   rag: RagConfig
   ui?: UILayoutConfig
   excludedFolders: string[]
+  generatedDocs: GeneratedDocsConfig
 }
 
 export interface LLMMessage {
@@ -72,6 +73,7 @@ export interface LLMResponse {
 
 export interface RAGQueryResult {
   answer: string
+  suggestedTitle: string
   sources: Array<{
     filePath: string
     startLine: number
@@ -79,6 +81,18 @@ export interface RAGQueryResult {
     score: number
     contentPreview: string
   }>
+}
+
+export interface GeneratedDocsConfig {
+  retentionDays: number
+}
+
+export interface GeneratedDocMeta {
+  id: string
+  title: string
+  query: string
+  createdAt: string
+  filePath: string
 }
 
 export interface IndexProgress {
@@ -105,5 +119,8 @@ export const DEFAULT_SETTINGS: AppSettings = {
     activePanelId: 'files',
     sidePanelWidth: 220
   },
-  excludedFolders: []
+  excludedFolders: [],
+  generatedDocs: {
+    retentionDays: 7
+  }
 }

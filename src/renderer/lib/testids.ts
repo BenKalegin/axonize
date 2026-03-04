@@ -87,7 +87,18 @@ export const TEST_IDS = {
   CONTEXT_MENU: 'context-menu',
   EXCLUDE_FOLDER_BTN: 'exclude-folder-btn',
   INCLUDE_FOLDER_BTN: 'include-folder-btn',
-  HIDDEN_FOLDERS_HEADER: 'hidden-folders-header'
+  HIDDEN_FOLDERS_HEADER: 'hidden-folders-header',
+
+  // Generated Documents
+  GENERATED_DOCS_HEADER: 'generated-docs-header',
+  GENERATED_DOC_NODE: 'generated-doc-node',
+  GENERATED_DOC_HEADER: 'generated-doc-content-header',
+  GENERATED_DOC_RENAME_BTN: 'generated-doc-rename-btn',
+  GENERATED_DOC_RENAME_INPUT: 'generated-doc-rename-input',
+  GENERATED_DOC_PERMANENT_BTN: 'generated-doc-permanent-btn',
+  GENERATED_DOC_DELETE_BTN: 'generated-doc-delete-btn',
+  MAKE_PERMANENT_DIALOG: 'make-permanent-dialog',
+  GENERATED_DOCS_RETENTION_INPUT: 'generated-docs-retention-input'
 } as const
 
 export type TestId = (typeof TEST_IDS)[keyof typeof TEST_IDS]

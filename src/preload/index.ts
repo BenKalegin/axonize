@@ -25,12 +25,21 @@ export interface SemanticLoadResult {
     childIds: string[]
     startLine: number
     endLine: number
+    kind?: string
+    facets?: Record<string, string[]>
+    hubCategory?: string
+    clusterDocIds?: string[]
   }>
   relations: Array<{
     sourceId: string
     targetId: string
     type: string
     label?: string
+  }>
+  dimensions?: Array<{
+    key: string
+    label: string
+    description: string
   }>
 }
 

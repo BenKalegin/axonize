@@ -1,5 +1,6 @@
 import { create } from 'zustand'
 import { useLLMLogStore } from './llm-log-store'
+import { useGeneratedDocsStore } from './generated-docs-store'
 
 interface RAGSource {
   filePath: string
@@ -11,6 +12,7 @@ interface RAGSource {
 
 interface RAGResponse {
   answer: string
+  suggestedTitle: string
   sources: RAGSource[]
 }
 
@@ -93,6 +95,12 @@ export const useRagStore = create<RagState>((set, get) => ({
         result.answer,
         result.sources.map((s: RAGSource) => ({ filePath: s.filePath, score: s.score }))
       )
+      useGeneratedDocsStore.getState().saveDoc(
+        vaultPath,
+        result.suggestedTitle,
+        question,
+        result.answer
+      ).catch(() => { /* best-effort save */ })
     } catch (e) {
       const errorMsg = e instanceof Error ? e.message : String(e)
       set({ queryError: errorMsg })

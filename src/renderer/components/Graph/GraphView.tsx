@@ -1,7 +1,8 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { TEST_IDS } from '../../lib/testids'
 import { ForceGraph } from './ForceGraph'
 import { useGraphStore } from '../../store/graph-store'
+import type { VisibleDepth } from '../../store/graph-store'
 import { useVaultStore } from '../../store/vault-store'
 import type { SemanticProgress } from '../../../core/semantic/types'
 import type { SemanticEstimateResult } from '../../../preload/index'
@@ -9,9 +10,19 @@ import type { SemanticEstimateResult } from '../../../preload/index'
 const PHASE_LABELS: Record<string, string> = {
   scanning: 'Scanning files',
   decomposing: 'Decomposing',
+  'discovering-dimensions': 'Discovering dimensions',
+  'facet-extraction': 'Extracting facets',
+  clustering: 'Generating clusters',
   'cross-linking': 'Finding cross-doc relations',
   saving: 'Saving cache'
 }
+
+const DEPTH_LABELS: { depth: VisibleDepth; label: string }[] = [
+  { depth: -1, label: 'Clusters' },
+  { depth: 0, label: 'Docs' },
+  { depth: 1, label: 'Sections' },
+  { depth: 2, label: 'Details' }
+]
 
 function ProgressBar({ progress }: { progress: SemanticProgress }) {
   const pct = progress.total > 0 ? Math.round((progress.current / progress.total) * 100) : 0
@@ -81,9 +92,55 @@ function EstimateCard({ estimate, onConfirm, onCancel }: {
   )
 }
 
+function DepthControls() {
+  const { visibleDepth, setDepth } = useGraphStore()
+
+  return (
+    <div className="graph-depth-controls" data-testid={TEST_IDS.ZOOM_LEVEL}>
+      {DEPTH_LABELS.map(({ depth, label }) => (
+        <button
+          key={depth}
+          className={`graph-depth-btn${visibleDepth === depth ? ' graph-depth-btn--active' : ''}`}
+          onClick={() => setDepth(depth)}
+        >
+          {label}
+        </button>
+      ))}
+    </div>
+  )
+}
+
+function LensSelector() {
+  const { activeLens, setLens, visibleDepth, dimensions } = useGraphStore()
+
+  const lensOptions = useMemo(() => {
+    const options = [{ key: 'by_topic', label: 'By Topic' }]
+    for (const dim of dimensions) {
+      options.push({ key: dim.key, label: dim.label })
+    }
+    return options
+  }, [dimensions])
+
+  if (visibleDepth > 0 || lensOptions.length < 2) return null
+
+  return (
+    <div className="graph-lens-selector">
+      {lensOptions.map(({ key, label }) => (
+        <button
+          key={key}
+          className={`graph-lens-btn${activeLens === key ? ' graph-lens-btn--active' : ''}`}
+          onClick={() => setLens(key)}
+        >
+          {label}
+        </button>
+      ))}
+    </div>
+  )
+}
+
 export function GraphView() {
   const containerRef = useRef<HTMLDivElement>(null)
-  const { zoomLevel, zoomIn, zoomOut, cards, isLoading, progress, ensureLoaded, buildIndex, setProgress } = useGraphStore()
+  const { cards, progress, increaseDepth, decreaseDepth, ensureLoaded, buildIndex, setProgress } = useGraphStore()
   const { vaultPath } = useVaultStore()
   const [estimate, setEstimate] = useState<SemanticEstimateResult | null>(null)
   const [estimating, setEstimating] = useState(false)
@@ -107,12 +164,12 @@ export function GraphView() {
       if (!e.metaKey && !e.ctrlKey) return
       e.preventDefault()
       if (e.deltaY < 0) {
-        zoomIn()
+        increaseDepth()
       } else {
-        zoomOut()
+        decreaseDepth()
       }
     },
-    [zoomIn, zoomOut]
+    [increaseDepth, decreaseDepth]
   )
 
   useEffect(() => {
@@ -129,7 +186,6 @@ export function GraphView() {
       const est = await window.axonize.semantic.estimate(vaultPath)
       setEstimate(est)
     } catch {
-      // Fall through to build without estimate
       buildIndex(vaultPath)
     }
     setEstimating(false)
@@ -146,37 +202,19 @@ export function GraphView() {
     setEstimate(null)
   }, [])
 
-  const displayLevel = zoomLevel.toFixed(1)
   const hasCards = cards.length > 0
 
   return (
     <div ref={containerRef} className="graph-view" data-testid={TEST_IDS.GRAPH_VIEW}>
-      {hasCards && (
-        <div className="graph-zoom-indicator" data-testid={TEST_IDS.ZOOM_LEVEL}>
-          <button
-            className="zoom-indicator-btn"
-            onClick={zoomOut}
-            data-testid={TEST_IDS.ZOOM_OUT_BTN}
-          >
-            -
-          </button>
-          <span className="zoom-indicator-label">L{displayLevel}</span>
-          <button
-            className="zoom-indicator-btn"
-            onClick={zoomIn}
-            data-testid={TEST_IDS.ZOOM_IN_BTN}
-          >
-            +
-          </button>
-        </div>
-      )}
-      {isLoading && (
+      {hasCards && <DepthControls />}
+      {hasCards && <LensSelector />}
+      {progress && (
         <div className="graph-empty-state">
           <p>Building semantic index...</p>
-          {progress && <ProgressBar progress={progress} />}
+          <ProgressBar progress={progress} />
         </div>
       )}
-      {!isLoading && !hasCards && !estimate && (
+      {!progress && !hasCards && !estimate && (
         <div className="graph-empty-state graph-empty-state--interactive">
           <p>No semantic cards yet.</p>
           {vaultPath && (
@@ -186,7 +224,7 @@ export function GraphView() {
           )}
         </div>
       )}
-      {!isLoading && estimate && (
+      {!progress && estimate && (
         <div className="graph-empty-state graph-empty-state--interactive">
           <EstimateCard
             estimate={estimate}

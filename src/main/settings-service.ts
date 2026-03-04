@@ -15,7 +15,9 @@ export async function getSettings(): Promise<AppSettings> {
     return {
       llm: { ...DEFAULT_SETTINGS.llm, ...parsed.llm },
       rag: { ...DEFAULT_SETTINGS.rag, ...parsed.rag },
-      ui: { ...DEFAULT_SETTINGS.ui, ...parsed.ui }
+      ui: { ...DEFAULT_SETTINGS.ui, ...parsed.ui },
+      excludedFolders: parsed.excludedFolders ?? DEFAULT_SETTINGS.excludedFolders,
+      generatedDocs: { ...DEFAULT_SETTINGS.generatedDocs, ...parsed.generatedDocs }
     }
   } catch {
     return { ...DEFAULT_SETTINGS }

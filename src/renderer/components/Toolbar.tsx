@@ -7,7 +7,7 @@ import { SettingsDialog } from './SettingsDialog'
 
 export function Toolbar() {
   const { vaultPath, vaultName, openVault, recentVaults, openRecentVault, loadRecentVaults } = useVaultStore()
-  const { viewMode, setViewMode, canGoBack, canGoForward, goBack, goForward } = useEditorStore()
+  const { viewMode, setViewMode } = useEditorStore()
   const { chunkCount } = useRagStore()
   const [dropdownOpen, setDropdownOpen] = useState(false)
   const [settingsOpen, setSettingsOpen] = useState(false)
@@ -79,30 +79,6 @@ export function Toolbar() {
           <span data-testid={TEST_IDS.VAULT_NAME} className="vault-name">
             {vaultName}
           </span>
-        )}
-        {vaultPath && (
-          <div className="nav-buttons">
-            <button
-              className="toolbar-btn nav-btn"
-              onClick={goBack}
-              disabled={!canGoBack}
-              title="Go back"
-            >
-              <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
-                <path d="M8 1L3 6L8 11" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-              </svg>
-            </button>
-            <button
-              className="toolbar-btn nav-btn"
-              onClick={goForward}
-              disabled={!canGoForward}
-              title="Go forward"
-            >
-              <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
-                <path d="M4 1L9 6L4 11" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-              </svg>
-            </button>
-          </div>
         )}
       </div>
       <div className="toolbar-center">

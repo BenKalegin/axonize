@@ -6,8 +6,6 @@ import { hashContent } from '../../core/integrity/file-hasher'
 import { readVaultFiles } from '../file-service'
 import { getMarkdownFiles } from '../../core/vault/file-tree'
 import { getSettings } from '../settings-service'
-import { createLLMProvider } from '../../core/rag/llm-factory'
-import type { LLMMessage } from '../../core/rag/types'
 import type {
   SemanticCard,
   CardRelation,
@@ -15,15 +13,19 @@ import type {
   SemanticProgress,
   SemanticEstimate
 } from '../../core/semantic/types'
+import { CardKind } from '../../core/semantic/types'
+import { llmCompleteWithRetry, sanitizeJSON, tryParseJSON } from './llm-helpers'
+import { discoverDimensions, extractFacets } from './facet-extraction-service'
+import { generateClusters, generateHubNodes, generateCuratedCrossDocRelations } from './cluster-hub-service'
+import type { DimensionMeta } from '../../core/semantic/types'
 import log from '../logger'
 
-const SEMANTIC_VERSION = 1
-const SEMANTIC_MAX_TOKENS = 4096
-const RETRY_DELAYS = [3000, 6000, 12000]
+const SEMANTIC_VERSION = 2
 const INTER_DOC_DELAY = 1500
 const PROMPT_OVERHEAD_TOKENS = 250
 const AVG_OUTPUT_TOKENS_PER_FILE = 1500
 const CROSS_DOC_OUTPUT_TOKENS = 500
+const FACET_CLUSTER_OUTPUT_TOKENS = 3000
 const CHARS_PER_TOKEN = 4
 
 // --- Build lock ---
@@ -56,6 +58,15 @@ function isExcluded(relativePath: string, excludedFolders: string[]): boolean {
 
 function delay(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms))
+}
+
+function assignCardKinds(cards: SemanticCard[]): void {
+  for (const card of cards) {
+    if (card.kind) continue
+    if (card.level === 0) card.kind = CardKind.Doc
+    else if (card.level === 1) card.kind = CardKind.Section
+    else card.kind = CardKind.Detail
+  }
 }
 
 // --- Cache I/O ---
@@ -93,27 +104,6 @@ export async function loadRelations(vaultPath: string): Promise<CardRelation[]> 
   }
 }
 
-// --- LLM with retry ---
-
-async function llmCompleteWithRetry(messages: LLMMessage[]): Promise<string> {
-  const settings = await getSettings()
-  const llm = createLLMProvider({ ...settings.llm, maxTokens: SEMANTIC_MAX_TOKENS })
-
-  for (let attempt = 0; attempt <= RETRY_DELAYS.length; attempt++) {
-    try {
-      const response = await llm.complete(messages)
-      return response.content
-    } catch (err) {
-      const isRateLimit = String(err).includes('429') || String(err).includes('rate_limit')
-      if (!isRateLimit || attempt >= RETRY_DELAYS.length) throw err
-      const waitMs = RETRY_DELAYS[attempt]
-      log.info(`[semantic] Rate limited, retrying in ${waitMs}ms...`)
-      await delay(waitMs)
-    }
-  }
-  throw new Error('Unreachable')
-}
-
 // --- LLM Decomposition ---
 
 interface DecompositionResult {
@@ -130,7 +120,7 @@ Level 2: For each Level 1 card, 3-7 sub-cards if the content warrants deeper bre
 
 For each card provide:
 - id: a unique string (use format "card-<index>")
-- title: short heading, under 8 words
+- title: a descriptive name for this card (NOT generic like "Document Summary" or "Overview" — use the document's actual topic)
 - summary: 1-3 sentences
 - level: 0, 1, or 2
 - parentId: the id of the parent card (null for level 0)
@@ -151,41 +141,7 @@ Document:
 ${content}`
 }
 
-function buildCrossDocPrompt(level0Cards: SemanticCard[]): string {
-  const summaries = level0Cards
-    .map((c) => `- id: "${c.id}" | file: "${c.filePath}" | title: "${c.title}" | summary: "${c.summary}"`)
-    .join('\n')
-
-  return `Given these document-level summaries, identify semantic relations between documents.
-
-Documents:
-${summaries}
-
-For each relation provide:
-- sourceId, targetId (use the document card ids above)
-- type: one of "sequence", "elaboration", "inference", "contrast", "example", "dependency"
-
-Output ONLY valid JSON array (no markdown fences, no explanation):
-[{"sourceId": "...", "targetId": "...", "type": "..."}]
-
-If no meaningful cross-document relations exist, output: []`
-}
-
 // --- JSON Parsing ---
-
-function sanitizeJSON(raw: string): string {
-  let s = raw.replace(/^```json?\s*\n?/m, '').replace(/\n?```\s*$/m, '').trim()
-  s = s.replace(/,\s*([}\]])/g, '$1')
-  return s
-}
-
-function tryParseJSON(raw: string): unknown | null {
-  try {
-    return JSON.parse(raw)
-  } catch {
-    return null
-  }
-}
 
 function parseDecompositionJSON(raw: string, filePath: string): DecompositionResult {
   const cleaned = sanitizeJSON(raw)
@@ -227,20 +183,6 @@ function parseDecompositionJSON(raw: string, filePath: string): DecompositionRes
   return { cards, relations }
 }
 
-function parseCrossDocJSON(raw: string): CardRelation[] {
-  const cleaned = sanitizeJSON(raw)
-  const parsed = (tryParseJSON(cleaned) ?? tryParseJSON(cleaned + ']')) as unknown[] | null
-  if (!parsed || !Array.isArray(parsed)) {
-    log.warn('Could not parse cross-doc JSON, returning empty')
-    return []
-  }
-  return parsed.map((r: Record<string, unknown>) => ({
-    sourceId: String(r.sourceId),
-    targetId: String(r.targetId),
-    type: String(r.type ?? 'sequence')
-  }))
-}
-
 // --- Document decomposition ---
 
 async function decomposeDocument(filePath: string, content: string): Promise<DecompositionResult> {
@@ -252,33 +194,81 @@ async function decomposeDocument(filePath: string, content: string): Promise<Dec
   return parseDecompositionJSON(responseContent, filePath)
 }
 
-async function findCrossDocRelations(level0Cards: SemanticCard[]): Promise<CardRelation[]> {
-  if (level0Cards.length < 2) return []
-
-  const prompt = buildCrossDocPrompt(level0Cards)
-  const responseContent = await llmCompleteWithRetry([
-    { role: 'system', content: 'You are a precise document analyzer. Output only valid JSON.' },
-    { role: 'user', content: prompt }
-  ])
-  return parseCrossDocJSON(responseContent)
-}
-
 // --- Saving ---
 
 async function saveSemanticCache(
   vaultPath: string,
   fileHashes: Record<string, string>,
   cards: SemanticCard[],
-  relations: CardRelation[]
+  relations: CardRelation[],
+  dimensions: DimensionMeta[]
 ): Promise<void> {
   const dir = await ensureSemanticDir(vaultPath)
-  const state: SemanticIndexState = { version: SEMANTIC_VERSION, fileHashes }
+  const state: SemanticIndexState = { version: SEMANTIC_VERSION, fileHashes, dimensions }
   await atomicWriteJSON(join(dir, 'index-state.json'), state)
   await atomicWriteJSON(join(dir, 'cards.json'), cards)
   await atomicWriteJSON(join(dir, 'relations.json'), relations)
 }
 
 // --- Public API ---
+
+async function runFacetAndClusterPhases(
+  allCards: SemanticCard[],
+  allRelations: CardRelation[],
+  window: BrowserWindow | null
+): Promise<DimensionMeta[]> {
+  const level0 = allCards.filter((c) => c.level === 0)
+  assignCardKinds(allCards)
+
+  // Phase: dimension discovery
+  let dimensions: DimensionMeta[] = []
+  sendProgress(window, { phase: 'discovering-dimensions', current: 0, total: 1 })
+  try {
+    dimensions = await discoverDimensions(level0)
+    log.info(`[semantic] Discovered ${dimensions.length} dimensions: ${dimensions.map((d) => d.key).join(', ')}`)
+  } catch (err) {
+    log.error('Dimension discovery failed:', err)
+  }
+
+  // Phase: facet extraction
+  sendProgress(window, { phase: 'facet-extraction', current: 0, total: 1 })
+  try {
+    const facetMap = await extractFacets(level0, dimensions)
+    for (const card of level0) {
+      const facet = facetMap.get(card.id)
+      if (facet) card.facets = facet
+    }
+    log.info(`[semantic] Facets extracted for ${facetMap.size} docs`)
+  } catch (err) {
+    log.error('Facet extraction failed:', err)
+  }
+
+  // Phase: clustering + hubs
+  sendProgress(window, { phase: 'clustering', current: 0, total: 1 })
+  try {
+    const facetMap = new Map(level0.filter((c) => c.facets).map((c) => [c.id, c.facets!]))
+    const clusters = await generateClusters(level0, facetMap)
+    const { hubs, hubRelations } = generateHubNodes(level0, facetMap, dimensions)
+    allCards.push(...clusters, ...hubs)
+    allRelations.push(...hubRelations)
+    log.info(`[semantic] Generated ${clusters.length} clusters, ${hubs.length} hubs`)
+  } catch (err) {
+    log.error('Cluster/hub generation failed:', err)
+  }
+
+  // Phase: curated cross-doc relations
+  sendProgress(window, { phase: 'cross-linking', current: 0, total: 1 })
+  try {
+    const facetMap = new Map(level0.filter((c) => c.facets).map((c) => [c.id, c.facets!]))
+    const crossRelations = await generateCuratedCrossDocRelations(level0, facetMap, dimensions)
+    allRelations.push(...crossRelations)
+    log.info(`[semantic] Generated ${crossRelations.length} curated cross-doc relations`)
+  } catch (err) {
+    log.error('Curated cross-doc relation extraction failed:', err)
+  }
+
+  return dimensions
+}
 
 export async function buildSemanticIndex(
   vaultPath: string,
@@ -318,15 +308,6 @@ export async function buildSemanticIndex(
     }
   }
 
-  sendProgress(window, { phase: 'cross-linking', current: 0, total: 1 })
-  try {
-    const level0 = allCards.filter((c) => c.level === 0)
-    const crossRelations = await findCrossDocRelations(level0)
-    allRelations.push(...crossRelations)
-  } catch (err) {
-    log.error('Cross-document relation extraction failed:', err)
-  }
-
   // Don't overwrite a valid cache with empty results from failed LLM calls
   if (allCards.length === 0 && mdFiles.length > 0) {
     const existing = await loadCards(vaultPath)
@@ -337,8 +318,10 @@ export async function buildSemanticIndex(
     }
   }
 
+  const dimensions = await runFacetAndClusterPhases(allCards, allRelations, window)
+
   sendProgress(window, { phase: 'saving', current: 0, total: 1 })
-  await saveSemanticCache(vaultPath, fileHashes, allCards, allRelations)
+  await saveSemanticCache(vaultPath, fileHashes, allCards, allRelations, dimensions)
 
   sendProgress(window, { phase: 'done', current: allCards.length, total: allCards.length })
   log.info(`[semantic] Build complete: ${allCards.length} cards`)
@@ -369,7 +352,7 @@ async function doIncrementalUpdate(
 ): Promise<{ cardCount: number }> {
   const existingState = await loadSemanticState(vaultPath)
   const existingCards = await loadCards(vaultPath)
-  if (!existingState || existingCards.length === 0) {
+  if (!existingState || existingCards.length === 0 || existingState.version < SEMANTIC_VERSION) {
     return buildSemanticIndex(vaultPath, window)
   }
 
@@ -437,25 +420,20 @@ async function doIncrementalUpdate(
     }
   }
 
-  const allCards = [...keptCards, ...newCards]
-  // Keep only intra-file relations, re-derive cross-doc
-  let allRelations = [...keptRelations, ...newRelations].filter((r) => {
+  // Keep only per-file doc cards (remove old cluster/hub cards)
+  const keptDocCards = keptCards.filter((c) => !c.kind || c.kind === CardKind.Doc || c.kind === CardKind.Section || c.kind === CardKind.Detail)
+  const allCards = [...keptDocCards, ...newCards]
+  // Keep only intra-file relations, re-derive cross-doc + cluster + hub
+  const allRelations = [...keptRelations, ...newRelations].filter((r) => {
     const srcCard = allCards.find((c) => c.id === r.sourceId)
     const tgtCard = allCards.find((c) => c.id === r.targetId)
     return srcCard && tgtCard && srcCard.filePath === tgtCard.filePath
   })
 
-  sendProgress(window, { phase: 'cross-linking', current: 0, total: 1 })
-  try {
-    const level0 = allCards.filter((c) => c.level === 0)
-    const crossRelations = await findCrossDocRelations(level0)
-    allRelations.push(...crossRelations)
-  } catch (err) {
-    log.error('Cross-document relation extraction failed:', err)
-  }
+  const dimensions = await runFacetAndClusterPhases(allCards, allRelations, window)
 
   sendProgress(window, { phase: 'saving', current: 0, total: 1 })
-  await saveSemanticCache(vaultPath, currentHashes, allCards, allRelations)
+  await saveSemanticCache(vaultPath, currentHashes, allCards, allRelations, dimensions)
 
   sendProgress(window, { phase: 'done', current: allCards.length, total: allCards.length })
   return { cardCount: allCards.length }
@@ -463,10 +441,12 @@ async function doIncrementalUpdate(
 
 export async function loadSemanticIndex(
   vaultPath: string
-): Promise<{ cards: SemanticCard[]; relations: CardRelation[] }> {
+): Promise<{ cards: SemanticCard[]; relations: CardRelation[]; dimensions: DimensionMeta[] }> {
   const cards = await loadCards(vaultPath)
   const relations = await loadRelations(vaultPath)
-  return { cards, relations }
+  const state = await loadSemanticState(vaultPath)
+  const dimensions = state?.dimensions ?? []
+  return { cards, relations, dimensions }
 }
 
 export async function estimateSemanticBuild(vaultPath: string): Promise<SemanticEstimate> {
@@ -500,7 +480,7 @@ export async function estimateSemanticBuild(vaultPath: string): Promise<Semantic
   }
 
   const inputTokens = Math.ceil(totalChars / CHARS_PER_TOKEN) + filesToProcess * PROMPT_OVERHEAD_TOKENS
-  const outputTokens = filesToProcess * AVG_OUTPUT_TOKENS_PER_FILE + CROSS_DOC_OUTPUT_TOKENS
+  const outputTokens = filesToProcess * AVG_OUTPUT_TOKENS_PER_FILE + CROSS_DOC_OUTPUT_TOKENS + FACET_CLUSTER_OUTPUT_TOKENS
   const costPerInputToken = estimateInputCost(settings.llm.provider, settings.llm.model)
   const costPerOutputToken = estimateOutputCost(settings.llm.provider, settings.llm.model)
   const estimatedCostUsd = (inputTokens * costPerInputToken + outputTokens * costPerOutputToken) / 1_000_000

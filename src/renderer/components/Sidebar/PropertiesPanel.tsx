@@ -4,9 +4,9 @@ import { useGraphStore } from '../../store/graph-store'
 import { useLayoutStore } from '../../store/layout-store'
 
 export function PropertiesPanel() {
-  const { cards, relations, focusCardId } = useGraphStore()
+  const { cards, relations, hoveredNodeId } = useGraphStore()
   const { rightPanelWidth, setRightPanelWidth } = useLayoutStore()
-  const selectedCard = cards.find((c) => c.id === focusCardId)
+  const selectedCard = cards.find((c) => c.id === hoveredNodeId)
   const dragging = useRef(false)
   const startX = useRef(0)
   const startWidth = useRef(0)

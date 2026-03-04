@@ -52,6 +52,7 @@ export async function executeQuery(
   if (results.length === 0) {
     return {
       answer: 'No relevant context found in the indexed documents for this question.',
+      suggestedTitle: question.slice(0, 60),
       sources: []
     }
   }
@@ -60,8 +61,11 @@ export async function executeQuery(
   const llm = getLLMProvider(settings.llm)
   const response = await llm.complete(messages)
 
+  const { title, body } = extractTitle(response.content, question)
+
   return {
-    answer: response.content,
+    answer: body,
+    suggestedTitle: title,
     sources: results.map((r) => ({
       filePath: r.meta.filePath,
       startLine: r.meta.startLine,
@@ -70,4 +74,12 @@ export async function executeQuery(
       contentPreview: r.meta.contentPreview
     }))
   }
+}
+
+function extractTitle(content: string, fallback: string): { title: string; body: string } {
+  const match = content.match(/^<!--\s*title:\s*(.+?)\s*-->\s*\n?/)
+  if (match) {
+    return { title: match[1].trim(), body: content.slice(match[0].length) }
+  }
+  return { title: fallback.slice(0, 60), body: content }
 }

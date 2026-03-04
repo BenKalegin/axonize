@@ -254,6 +254,25 @@ export function SettingsDialog({ onClose }: SettingsDialogProps) {
             </div>
           </div>
 
+          {/* Generated Documents */}
+          <div className="settings-section">
+            <div className="settings-section-title">Generated Documents</div>
+            <div className="settings-field">
+              <label>Retention (days)</label>
+              <input
+                className="settings-input"
+                data-testid={TEST_IDS.GENERATED_DOCS_RETENTION_INPUT}
+                type="number"
+                value={settings.generatedDocs?.retentionDays ?? 7}
+                onChange={(e) => setSettings((prev) => ({
+                  ...prev,
+                  generatedDocs: { ...prev.generatedDocs, retentionDays: Math.max(1, Number(e.target.value)) }
+                }))}
+                min={1}
+              />
+            </div>
+          </div>
+
           {/* Excluded Folders */}
           <div className="settings-section">
             <div className="settings-section-title">Excluded Folders</div>

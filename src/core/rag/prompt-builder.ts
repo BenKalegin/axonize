@@ -1,6 +1,7 @@
 import type { LLMMessage, SearchResult } from './types'
 
 const SYSTEM_PROMPT = `You are a helpful assistant that answers questions about a documentation vault.
+Begin your response with: <!-- title: A Short Descriptive Title -->
 You MUST cite your sources using this exact format: [source:filePath:startLine]
 For example: [source:docs/guide.md:42]
 

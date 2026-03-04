@@ -5,9 +5,9 @@ import { useRagStore } from './rag-store'
 import { useGraphStore } from './graph-store'
 
 async function loadSemanticCache(vaultPath: string): Promise<void> {
-  const { cards, relations } = await window.axonize.semantic.load(vaultPath)
+  const { cards, relations, dimensions } = await window.axonize.semantic.load(vaultPath)
   if (cards.length > 0) {
-    useGraphStore.getState().loadSemanticData(cards, relations)
+    useGraphStore.getState().loadSemanticData(cards, relations, dimensions ?? [])
   }
 }
 

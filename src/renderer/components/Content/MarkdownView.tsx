@@ -26,6 +26,7 @@ declare global {
         open: () => Promise<string | null>
         readFiles: (vaultPath: string) => Promise<unknown[]>
         getRecent: () => Promise<{ path: string; name: string; openedAt: number }[]>
+        addRecent: (path: string, name: string) => Promise<void>
         removeRecent: (path: string) => Promise<void>
       }
       file: {
@@ -36,12 +37,22 @@ declare global {
         fullReindex: (vaultPath: string) => Promise<{ chunkCount: number }>
         reindexFile: (vaultPath: string, filePath: string) => Promise<{ chunkCount: number }>
         getStatus: () => Promise<{ chunkCount: number }>
-        query: (vaultPath: string, question: string) => Promise<{ answer: string; sources: Array<{ filePath: string; startLine: number; headingPath: string[]; score: number; contentPreview: string }> }>
+        query: (vaultPath: string, question: string) => Promise<{ answer: string; suggestedTitle: string; sources: Array<{ filePath: string; startLine: number; headingPath: string[]; score: number; contentPreview: string }> }>
+        purgeFolder: (vaultPath: string, folderPath: string) => Promise<{ chunkCount: number }>
         onIndexProgress: (callback: (payload: unknown) => void) => () => void
       }
       settings: {
         get: () => Promise<unknown>
         save: (settings: unknown) => Promise<{ ok: boolean }>
+      }
+      generatedDocs: {
+        save: (vaultPath: string, title: string, query: string, answer: string) => Promise<{ id: string; title: string; query: string; createdAt: string; filePath: string }>
+        list: (vaultPath: string) => Promise<Array<{ id: string; title: string; query: string; createdAt: string; filePath: string }>>
+        rename: (filePath: string, newTitle: string) => Promise<void>
+        makePermanent: (filePath: string, targetPath: string) => Promise<void>
+        delete: (filePath: string) => Promise<void>
+        cleanup: (vaultPath: string) => Promise<number>
+        listFolders: (vaultPath: string) => Promise<string[]>
       }
     }
   }
@@ -61,7 +72,8 @@ export const MarkdownView = React.memo(function MarkdownView() {
 
     window.axonize.file.read(selectedFile).then(async (content) => {
       if (cancelled) return
-      const rendered = await renderMarkdown(content)
+      const stripped = content.replace(/^---\n[\s\S]*?\n---\n/, '')
+      const rendered = await renderMarkdown(stripped)
       setHtml(rendered)
     })
 

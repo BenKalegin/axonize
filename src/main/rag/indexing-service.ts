@@ -222,11 +222,69 @@ export async function fullReindex(
   return { chunkCount: allMeta.length }
 }
 
+export async function purgeFolder(
+  vaultPath: string,
+  folderPath: string
+): Promise<{ chunkCount: number }> {
+  const state = await loadIndexState(vaultPath)
+  if (!state || state.chunkCount === 0) {
+    return { chunkCount: 0 }
+  }
+
+  const existingMetadata = await loadMetadata(vaultPath)
+  const existingVectors = await loadVectors(vaultPath)
+  const dims = state.dimensions
+
+  const keptMeta: ChunkMeta[] = []
+  const keptVectorRows: Float32Array[] = []
+
+  for (let i = 0; i < existingMetadata.length; i++) {
+    if (!isExcluded(existingMetadata[i].filePath, [folderPath])) {
+      keptMeta.push(existingMetadata[i])
+      keptVectorRows.push(existingVectors.subarray(i * dims, (i + 1) * dims))
+    }
+  }
+
+  const finalVectors = new Float32Array(keptMeta.length * dims)
+  let offset = 0
+  for (const row of keptVectorRows) {
+    finalVectors.set(row, offset)
+    offset += dims
+  }
+
+  const fileHashes = { ...state.fileHashes }
+  for (const key of Object.keys(fileHashes)) {
+    if (isExcluded(key, [folderPath])) {
+      delete fileHashes[key]
+    }
+  }
+
+  const newState: RagIndexState = {
+    version: state.version,
+    modelId: state.modelId,
+    dimensions: dims,
+    chunkCount: keptMeta.length,
+    fileHashes
+  }
+
+  await saveIndexState(vaultPath, newState)
+  await saveMetadata(vaultPath, keptMeta)
+  await saveVectors(vaultPath, finalVectors)
+
+  return { chunkCount: keptMeta.length }
+}
+
 export async function reindexFile(
   vaultPath: string,
   filePath: string,
   window: BrowserWindow | null
 ): Promise<{ chunkCount: number }> {
+  const settings = await getSettings()
+  const excluded = settings.excludedFolders ?? []
+  if (isExcluded(filePath, excluded)) {
+    throw new Error(`File "${filePath}" is in an excluded folder.`)
+  }
+
   const provider = await getEmbeddingProvider()
   const state = await loadIndexState(vaultPath)
   const existingMetadata = await loadMetadata(vaultPath)

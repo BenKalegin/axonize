@@ -1,51 +1,67 @@
 import { create } from 'zustand'
-import type { SemanticCard, CardRelation, SemanticProgress } from '../../core/semantic/types'
-import { computeRadialLayout } from '../../core/semantic/radial-layout'
-import type { PositionedCard } from '../../core/semantic/radial-layout'
+import type { SemanticCard, CardRelation, SemanticProgress, DimensionMeta } from '../../core/semantic/types'
+import { CardKind } from '../../core/semantic/types'
+import { resolveCardTitle } from '../../core/semantic/title-utils'
+
+export type VisibleDepth = -1 | 0 | 1 | 2
 
 interface GraphState {
   cards: SemanticCard[]
   relations: CardRelation[]
-  focusCardId: string | null
-  zoomLevel: number
-  positionedCards: PositionedCard[]
+  dimensions: DimensionMeta[]
+  visibleDepth: VisibleDepth
+  activeLens: string
+  hoveredNodeId: string | null
   isLoading: boolean
   progress: SemanticProgress | null
-  loadSemanticData: (cards: SemanticCard[], relations: CardRelation[]) => void
+  loadSemanticData: (cards: SemanticCard[], relations: CardRelation[], dimensions: DimensionMeta[]) => void
   setProgress: (progress: SemanticProgress | null) => void
   ensureLoaded: (vaultPath: string) => Promise<void>
   buildIndex: (vaultPath: string) => Promise<void>
-  setFocus: (cardId: string) => void
-  zoomIn: () => void
-  zoomOut: () => void
-  zoomTo: (level: number) => void
+  increaseDepth: () => void
+  decreaseDepth: () => void
+  setDepth: (depth: VisibleDepth) => void
+  setLens: (lens: string) => void
+  setHoveredNode: (nodeId: string | null) => void
   clear: () => void
 }
 
-function maxDepth(cards: SemanticCard[]): number {
-  if (cards.length === 0) return 0
-  return Math.max(...cards.map((c) => c.level))
+function resolveCardTitles(cards: SemanticCard[]): SemanticCard[] {
+  return cards.map((c) => ({
+    ...c,
+    title: resolveCardTitle(c.title, c.filePath, c.level)
+  }))
 }
 
-function recomputeLayout(state: Pick<GraphState, 'cards' | 'relations' | 'focusCardId' | 'zoomLevel'>): PositionedCard[] {
-  if (!state.focusCardId || state.cards.length === 0) return []
-  return computeRadialLayout(state.focusCardId, state.cards, state.relations, state.zoomLevel)
+export function visibleCards(cards: SemanticCard[], depth: VisibleDepth): SemanticCard[] {
+  return cards.filter((c) => {
+    const kind = c.kind ?? CardKind.Doc
+    if (kind === CardKind.Cluster) return depth === -1
+    if (kind === CardKind.Hub) return depth <= 0
+    return c.level <= depth
+  })
+}
+
+export function visibleRelations(
+  relations: CardRelation[],
+  cardIds: Set<string>
+): CardRelation[] {
+  return relations.filter((r) => cardIds.has(r.sourceId) && cardIds.has(r.targetId))
 }
 
 export const useGraphStore = create<GraphState>((set, get) => ({
   cards: [],
   relations: [],
-  focusCardId: null,
-  zoomLevel: 0,
-  positionedCards: [],
+  dimensions: [],
+  visibleDepth: 0,
+  activeLens: 'by_topic',
+  hoveredNodeId: null,
   isLoading: false,
   progress: null,
 
-  loadSemanticData: (cards, relations) => {
-    const level0 = cards.find((c) => c.level === 0)
-    const focusCardId = level0?.id ?? null
-    const positioned = computeRadialLayout(focusCardId ?? '', cards, relations, 0)
-    set({ cards, relations, focusCardId, zoomLevel: 0, positionedCards: positioned })
+  loadSemanticData: (rawCards, relations, dimensions = []) => {
+    const cards = resolveCardTitles(rawCards)
+    set({ cards, relations, dimensions, visibleDepth: 0, hoveredNodeId: null, activeLens: 'by_topic' })
   },
 
   setProgress: (progress) => set({ progress }),
@@ -57,7 +73,7 @@ export const useGraphStore = create<GraphState>((set, get) => ({
     try {
       const data = await window.axonize.semantic.load(vaultPath)
       if (data.cards.length > 0) {
-        get().loadSemanticData(data.cards, data.relations)
+        get().loadSemanticData(data.cards, data.relations, data.dimensions ?? [])
       }
     } catch { /* no cache available */ }
     set({ isLoading: false })
@@ -70,7 +86,7 @@ export const useGraphStore = create<GraphState>((set, get) => ({
       await window.axonize.semantic.build(vaultPath)
       const data = await window.axonize.semantic.load(vaultPath)
       if (data.cards.length > 0) {
-        get().loadSemanticData(data.cards, data.relations)
+        get().loadSemanticData(data.cards, data.relations, data.dimensions ?? [])
       }
       console.log('[semantic] Build complete,', data.cards.length, 'cards')
     } catch (err) {
@@ -79,41 +95,29 @@ export const useGraphStore = create<GraphState>((set, get) => ({
     set({ isLoading: false })
   },
 
-  setFocus: (cardId) => {
-    const { cards, relations } = get()
-    const card = cards.find((c) => c.id === cardId)
-    const zoomLevel = card?.level ?? 0
-    const positioned = computeRadialLayout(cardId, cards, relations, zoomLevel)
-    set({ focusCardId: cardId, zoomLevel, positionedCards: positioned })
+  increaseDepth: () => {
+    const { visibleDepth } = get()
+    if (visibleDepth < 2) set({ visibleDepth: (visibleDepth + 1) as VisibleDepth })
   },
 
-  zoomIn: () => {
-    const state = get()
-    const max = maxDepth(state.cards)
-    const newLevel = Math.min(state.zoomLevel + 0.2, max)
-    const positioned = recomputeLayout({ ...state, zoomLevel: newLevel })
-    set({ zoomLevel: newLevel, positionedCards: positioned })
+  decreaseDepth: () => {
+    const { visibleDepth } = get()
+    if (visibleDepth > -1) set({ visibleDepth: (visibleDepth - 1) as VisibleDepth })
   },
 
-  zoomOut: () => {
-    const state = get()
-    const newLevel = Math.max(state.zoomLevel - 0.2, -1)
-    const positioned = recomputeLayout({ ...state, zoomLevel: newLevel })
-    set({ zoomLevel: newLevel, positionedCards: positioned })
-  },
+  setDepth: (depth) => set({ visibleDepth: depth }),
 
-  zoomTo: (level) => {
-    const state = get()
-    const positioned = recomputeLayout({ ...state, zoomLevel: level })
-    set({ zoomLevel: level, positionedCards: positioned })
-  },
+  setLens: (lens) => set({ activeLens: lens }),
+
+  setHoveredNode: (nodeId) => set({ hoveredNodeId: nodeId }),
 
   clear: () => set({
     cards: [],
     relations: [],
-    focusCardId: null,
-    zoomLevel: 0,
-    positionedCards: [],
+    dimensions: [],
+    visibleDepth: 0,
+    activeLens: 'by_topic',
+    hoveredNodeId: null,
     isLoading: false,
     progress: null
   })

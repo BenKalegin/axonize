@@ -1,10 +1,13 @@
-import { useState, useEffect, useRef, useCallback } from 'react'
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import { TEST_IDS } from '../../lib/testids'
 import { useEditorStore } from '../../store/editor-store'
 import { useVaultStore } from '../../store/vault-store'
 import { useRagStore } from '../../store/rag-store'
+import { useGeneratedDocsStore } from '../../store/generated-docs-store'
 import { MarkdownView } from './MarkdownView'
 import { RAGAnswerView } from './RAGAnswerView'
+import { GeneratedDocHeader } from './GeneratedDocHeader'
+import { MakePermanentDialog } from '../Sidebar/MakePermanentDialog'
 import { GraphView } from '../Graph/GraphView'
 import { WelcomeScreen } from './WelcomeScreen'
 import { ZoomControls } from './ZoomControls'
@@ -15,7 +18,9 @@ export function ContentView() {
   const { viewMode, selectedFile } = useEditorStore()
   const { vaultPath } = useVaultStore()
   const { lastResponse, isQuerying } = useRagStore()
+  const { docs } = useGeneratedDocsStore()
   const [zoomPercent, setZoomPercent] = useState(100)
+  const [permanentDoc, setPermanentDoc] = useState<typeof docs[0] | null>(null)
   const scrollRef = useRef<HTMLDivElement>(null)
   const outerRef = useRef<HTMLDivElement>(null)
 
@@ -59,34 +64,48 @@ export function ContentView() {
     return () => el.removeEventListener('wheel', handleWheel)
   }, [zoomIn, zoomOut])
 
+  const generatedDoc = useMemo(
+    () => selectedFile ? docs.find((d) => d.filePath === selectedFile) ?? null : null,
+    [selectedFile, docs]
+  )
+
   const showZoom = vaultPath && (
     lastResponse ||
     (viewMode === 'markdown' && selectedFile)
   )
 
+  const isGraph = vaultPath && viewMode === 'graph'
+
   return (
     <div className="content-view" data-testid={TEST_IDS.CONTENT_VIEW} ref={outerRef}>
-      <div className="content-scroll" ref={scrollRef}>
-        {!vaultPath ? (
-          <WelcomeScreen />
-        ) : lastResponse || isQuerying ? (
-          isQuerying ? (
-            <div className="empty-state" data-testid={TEST_IDS.EMPTY_STATE}>
-              <p>Querying...</p>
-            </div>
+      {isGraph ? (
+        <GraphView />
+      ) : (
+        <div className="content-scroll" ref={scrollRef}>
+          {!vaultPath ? (
+            <WelcomeScreen />
+          ) : lastResponse || isQuerying ? (
+            isQuerying ? (
+              <div className="empty-state" data-testid={TEST_IDS.EMPTY_STATE}>
+                <p>Querying...</p>
+              </div>
+            ) : (
+              <RAGAnswerView />
+            )
+          ) : selectedFile ? (
+            <>
+              {generatedDoc && (
+                <GeneratedDocHeader doc={generatedDoc} onMakePermanent={() => setPermanentDoc(generatedDoc)} />
+              )}
+              <MarkdownView />
+            </>
           ) : (
-            <RAGAnswerView />
-          )
-        ) : viewMode === 'graph' ? (
-          <GraphView />
-        ) : selectedFile ? (
-          <MarkdownView />
-        ) : (
-          <div className="empty-state" data-testid={TEST_IDS.EMPTY_STATE}>
-            <p>Select a file to view</p>
-          </div>
-        )}
-      </div>
+            <div className="empty-state" data-testid={TEST_IDS.EMPTY_STATE}>
+              <p>Select a file to view</p>
+            </div>
+          )}
+        </div>
+      )}
       {showZoom && (
         <ZoomControls
           zoom={zoomPercent}
@@ -94,6 +113,9 @@ export function ContentView() {
           onZoomOut={zoomOut}
           onReset={resetZoom}
         />
+      )}
+      {permanentDoc && (
+        <MakePermanentDialog doc={permanentDoc} onClose={() => setPermanentDoc(null)} />
       )}
     </div>
   )
