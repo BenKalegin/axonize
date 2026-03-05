@@ -17,10 +17,11 @@ import { CardKind } from '../../core/semantic/types'
 import { llmCompleteWithRetry, sanitizeJSON, tryParseJSON } from './llm-helpers'
 import { discoverDimensions, extractFacets } from './facet-extraction-service'
 import { generateClusters, generateHubNodes, generateCuratedCrossDocRelations } from './cluster-hub-service'
+import { embedAndCacheSummaries } from './summary-embeddings'
 import type { DimensionMeta } from '../../core/semantic/types'
 import log from '../logger'
 
-const SEMANTIC_VERSION = 2
+export const SEMANTIC_VERSION = 3
 const INTER_DOC_DELAY = 1500
 const PROMPT_OVERHEAD_TOKENS = 250
 const AVG_OUTPUT_TOKENS_PER_FILE = 1500
@@ -84,7 +85,8 @@ function assignCardKinds(cards: SemanticCard[]): void {
     if (card.kind) continue
     if (card.level === 0) card.kind = CardKind.Doc
     else if (card.level === 1) card.kind = CardKind.Section
-    else card.kind = CardKind.Detail
+    else if (card.level === 2) card.kind = CardKind.Detail
+    else card.kind = CardKind.Chunk
   }
 }
 
@@ -133,15 +135,16 @@ interface DecompositionResult {
 function buildDecomposePrompt(content: string, filePath: string): string {
   return `Given the following markdown document, create a multi-level semantic decomposition.
 
-Level 0: One card — a 2-3 sentence summary of the entire document.
-Level 1: 3-7 cards — major sections/themes, each with a 1-2 sentence summary.
-Level 2: For each Level 1 card, 3-7 sub-cards if the content warrants deeper breakdown. Stop if a section covers 1 paragraph or less.
+Level 0: One card — full document summary. Title: the document's actual topic. Summary: 3-5 sentences.
+Level 1: 3-7 cards — major sections/themes. Title + 3-5 sentence summary.
+Level 2: For each Level 1 card, sub-sections if content warrants deeper breakdown. Title + 3-5 sentence summary. Stop if a section covers 1 paragraph or less.
+Level 3: Individual content chunks — paragraphs, diagrams, tables, code blocks. Only for substantive Level 2 sections with >2 paragraphs. Title: what this chunk is about. Summary: 3-5 sentences describing the content. Precise startLine/endLine.
 
 For each card provide:
 - id: a unique string (use format "card-<index>")
 - title: a descriptive name for this card (NOT generic like "Document Summary" or "Overview" — use the document's actual topic)
-- summary: 1-3 sentences
-- level: 0, 1, or 2
+- summary: 3-5 sentences
+- level: 0, 1, 2, or 3
 - parentId: the id of the parent card (null for level 0)
 - childIds: array of child card ids (empty array if no children)
 - startLine: approximate start line in the document (1-based)
@@ -348,6 +351,14 @@ export async function buildSemanticIndex(
   sendProgress(window, { phase: 'saving', current: 0, total: 1 })
   await saveSemanticCache(vaultPath, fileHashes, allCards, allRelations, dimensions)
 
+  sendProgress(window, { phase: 'embedding-summaries', current: 0, total: allCards.length })
+  try {
+    await embedAndCacheSummaries(vaultPath, allCards)
+  } catch (err) {
+    log.error('[semantic] Summary embedding failed:', err)
+    sendError(window, { file: '(vault)', phase: 'embedding-summaries', message: String(err) })
+  }
+
   sendProgress(window, { phase: 'done', current: allCards.length, total: allCards.length })
   log.info(`[semantic] Build complete: ${allCards.length} cards`)
   return { cardCount: allCards.length }
@@ -446,7 +457,7 @@ async function doIncrementalUpdate(
   }
 
   // Keep only per-file doc cards (remove old cluster/hub cards)
-  const keptDocCards = keptCards.filter((c) => !c.kind || c.kind === CardKind.Doc || c.kind === CardKind.Section || c.kind === CardKind.Detail)
+  const keptDocCards = keptCards.filter((c) => !c.kind || c.kind === CardKind.Doc || c.kind === CardKind.Section || c.kind === CardKind.Detail || c.kind === CardKind.Chunk)
   const allCards = [...keptDocCards, ...newCards]
   // Keep only intra-file relations, re-derive cross-doc + cluster + hub
   const allRelations = [...keptRelations, ...newRelations].filter((r) => {
@@ -459,6 +470,14 @@ async function doIncrementalUpdate(
 
   sendProgress(window, { phase: 'saving', current: 0, total: 1 })
   await saveSemanticCache(vaultPath, currentHashes, allCards, allRelations, dimensions)
+
+  sendProgress(window, { phase: 'embedding-summaries', current: 0, total: allCards.length })
+  try {
+    await embedAndCacheSummaries(vaultPath, allCards)
+  } catch (err) {
+    log.error('[semantic] Summary embedding failed:', err)
+    sendError(window, { file: '(vault)', phase: 'embedding-summaries', message: String(err) })
+  }
 
   sendProgress(window, { phase: 'done', current: allCards.length, total: allCards.length })
   return { cardCount: allCards.length }

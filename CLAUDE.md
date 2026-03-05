@@ -22,3 +22,9 @@
 - **Cross-service enums only in `@hobots/shared`.** Only enums genuinely imported by 2+ packages belong in `shared/src/enums.ts`. Single-package enums stay in that package (e.g. `fleetcontrol/src/enums.ts`).
 - **Enum const objects over raw strings.** Always use the `const` object member (`SquadPhase.Loading`, `WaitKind.Load`, `RobotStatus.Idle`) — never the raw string literal (`"loading"`, `"load"`, `"idle"`). This enables rename-safe refactors and compile-time exhaustiveness checks.
 - **Paired const + type pattern.** Every enum-like value uses `export const Foo = { ... } as const;` paired with `export type Foo = (typeof Foo)[keyof typeof Foo];`. Never use bare union string types when a named const object exists.
+
+## Semantic Index Versioning
+
+- **`SEMANTIC_VERSION`** in `src/main/semantic/decomposition-service.ts` controls when a full rebuild of the semantic index is required. When the vault's stored version is less than the app's `SEMANTIC_VERSION`, the incremental update automatically triggers a full rebuild.
+- **Increment `SEMANTIC_VERSION`** whenever you change the semantic schema: new `CardKind` values, new/changed decomposition prompt levels, new fields on `SemanticCard`, changes to `SemanticIndexState` shape, or changes to the summary-embedding storage format. This ensures existing vaults are automatically reindexed on the next open.
+- Never change the decomposition algorithm or card structure without bumping the version.

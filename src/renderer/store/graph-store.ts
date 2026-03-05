@@ -3,7 +3,12 @@ import type { SemanticCard, CardRelation, SemanticProgress, DimensionMeta } from
 import { CardKind } from '@core/semantic/types'
 import { resolveCardTitle } from '@core/semantic/title-utils'
 
-export type VisibleDepth = -1 | 0 | 1 | 2
+export type VisibleDepth = -1 | 0 | 1 | 2 | 3
+
+interface ClusterFocus {
+  clusterId: string
+  distances: Record<string, number>
+}
 
 interface GraphState {
   cards: SemanticCard[]
@@ -13,6 +18,7 @@ interface GraphState {
   activeLens: string
   hoveredNodeId: string | null
   focusedDocId: string | null
+  clusterFocus: ClusterFocus | null
   isLoading: boolean
   progress: SemanticProgress | null
   loadSemanticData: (cards: SemanticCard[], relations: CardRelation[], dimensions: DimensionMeta[]) => void
@@ -25,6 +31,8 @@ interface GraphState {
   setLens: (lens: string) => void
   setHoveredNode: (nodeId: string | null) => void
   focusDoc: (docId: string | null) => void
+  focusCluster: (vaultPath: string, clusterId: string) => Promise<void>
+  clearClusterFocus: () => void
   clear: () => void
 }
 
@@ -75,12 +83,13 @@ export const useGraphStore = create<GraphState>((set, get) => ({
   activeLens: 'by_topic',
   hoveredNodeId: null,
   focusedDocId: null,
+  clusterFocus: null,
   isLoading: false,
   progress: null,
 
   loadSemanticData: (rawCards, relations, dimensions = []) => {
     const cards = resolveCardTitles(rawCards)
-    set({ cards, relations, dimensions, visibleDepth: 0, hoveredNodeId: null, focusedDocId: null, activeLens: 'by_topic' })
+    set({ cards, relations, dimensions, visibleDepth: 0, hoveredNodeId: null, focusedDocId: null, clusterFocus: null, activeLens: 'by_topic' })
   },
 
   setProgress: (progress) => set({ progress }),
@@ -116,24 +125,40 @@ export const useGraphStore = create<GraphState>((set, get) => ({
 
   increaseDepth: () => {
     const { visibleDepth } = get()
-    if (visibleDepth < 2) set({ visibleDepth: (visibleDepth + 1) as VisibleDepth })
+    if (visibleDepth < 3) set({ visibleDepth: (visibleDepth + 1) as VisibleDepth })
   },
 
   decreaseDepth: () => {
     const { visibleDepth } = get()
     if (visibleDepth > -1) {
       const newDepth = (visibleDepth - 1) as VisibleDepth
-      set({ visibleDepth: newDepth, focusedDocId: newDepth <= 0 ? null : get().focusedDocId })
+      const clusterFocus = newDepth === -1 ? null : get().clusterFocus
+      set({ visibleDepth: newDepth, focusedDocId: newDepth <= 0 ? null : get().focusedDocId, clusterFocus })
     }
   },
 
-  setDepth: (depth) => set({ visibleDepth: depth, focusedDocId: depth <= 0 ? null : get().focusedDocId }),
+  setDepth: (depth) => {
+    const clusterFocus = depth === -1 ? null : get().clusterFocus
+    set({ visibleDepth: depth, focusedDocId: depth <= 0 ? null : get().focusedDocId, clusterFocus })
+  },
 
   setLens: (lens) => set({ activeLens: lens }),
 
   setHoveredNode: (nodeId) => set({ hoveredNodeId: nodeId }),
 
   focusDoc: (docId) => set({ focusedDocId: docId }),
+
+  focusCluster: async (vaultPath, clusterId) => {
+    try {
+      const distances = await window.axonize.semantic.distances(vaultPath, clusterId, 0)
+      set({ clusterFocus: { clusterId, distances }, visibleDepth: 0, focusedDocId: null })
+    } catch (err) {
+      console.error('[graph] focusCluster failed:', err)
+      set({ visibleDepth: 0, focusedDocId: null })
+    }
+  },
+
+  clearClusterFocus: () => set({ clusterFocus: null }),
 
   clear: () => set({
     cards: [],
@@ -143,6 +168,7 @@ export const useGraphStore = create<GraphState>((set, get) => ({
     activeLens: 'by_topic',
     hoveredNodeId: null,
     focusedDocId: null,
+    clusterFocus: null,
     isLoading: false,
     progress: null
   })

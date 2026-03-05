@@ -2,6 +2,7 @@ import { useRef, useCallback, useMemo, useState, useEffect } from 'react'
 import ForceGraph2D from 'react-force-graph-2d'
 import { TEST_IDS } from '@/lib/testids'
 import { useGraphStore, visibleCards, visibleRelations } from '@/store/graph-store'
+import type { VisibleDepth } from '@/store/graph-store'
 import {
   drawCard,
   drawRelationEdge,
@@ -15,6 +16,7 @@ import {
   CLUSTER_WIDTH
 } from './CardRenderer'
 import { useEditorStore } from '@/store/editor-store'
+import { useVaultStore } from '@/store/vault-store'
 import { forceCollide } from 'd3-force'
 import { computeInitialPositions, getForceConfig, linkDistanceByType } from '@core/semantic/force-layout'
 import { createLensForce } from '@core/semantic/lens-force'
@@ -42,9 +44,12 @@ interface GraphLink {
   type: string
 }
 
-const SCALE_BY_LEVEL: Record<number, number> = { 0: 1.0, 1: 0.8, 2: 0.6 }
+const SCALE_BY_LEVEL: Record<number, number> = { 0: 1.0, 1: 0.8, 2: 0.6, 3: 0.45 }
 const DEFAULT_SCALE = 0.6
 const EDGE_DIM_OPACITY = 0.08
+const CLUSTER_FOCUS_VISIBLE_COUNT = 10
+const CLUSTER_FOCUS_MIN_OPACITY = 0.08
+const CLUSTER_FOCUS_OPACITY_RANGE = 0.4
 const HUB_HIT_PADDING = 4
 const COLLISION_PAD = 5
 const COLLISION_STRENGTH = 0.8
@@ -58,10 +63,12 @@ const FIT_EDGE_MARGIN = 40
 const CENTER_ANIMATION_MS = 400
 
 // simulation tuning
-const COOLDOWN_TICKS = 200
+const WARMUP_TICKS = 150
+const COOLDOWN_TICKS = 20
+const COOLDOWN_TIME_MS = 500
 const DEPTH_CHANGE_TICKS = 30
-const ALPHA_DECAY = 0.02
-const VELOCITY_DECAY = 0.3
+const ALPHA_DECAY = 0.06
+const VELOCITY_DECAY = 0.65
 
 function useContainerSize(ref: React.RefObject<HTMLDivElement | null>): { width: number; height: number } {
   const [size, setSize] = useState({ width: 800, height: 500 })
@@ -86,7 +93,7 @@ export function ForceGraph() {
   const containerRef = useRef<HTMLDivElement>(null)
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const fgRef = useRef<any>(undefined)
-  const { cards, relations, dimensions, visibleDepth, activeLens, hoveredNodeId, focusedDocId, setHoveredNode } = useGraphStore()
+  const { cards, relations, dimensions, visibleDepth, activeLens, hoveredNodeId, focusedDocId, clusterFocus, setHoveredNode, clearClusterFocus } = useGraphStore()
   const { width, height } = useContainerSize(containerRef)
 
   const shown = useMemo(() => visibleCards(cards, visibleDepth, focusedDocId), [cards, visibleDepth, focusedDocId])
@@ -211,6 +218,22 @@ export function ForceGraph() {
     return map
   }, [dimensions])
 
+  const clusterOpacityMap = useMemo(() => {
+    if (!clusterFocus) return null
+    const entries = Object.entries(clusterFocus.distances)
+      .sort(([, a], [, b]) => b - a)
+    const map = new Map<string, number>()
+    for (let i = 0; i < entries.length; i++) {
+      const [id] = entries[i]
+      if (i < CLUSTER_FOCUS_VISIBLE_COUNT) {
+        map.set(id, 1.0 - (i / CLUSTER_FOCUS_VISIBLE_COUNT) * CLUSTER_FOCUS_OPACITY_RANGE)
+      } else {
+        map.set(id, CLUSTER_FOCUS_MIN_OPACITY)
+      }
+    }
+    return map
+  }, [clusterFocus])
+
   const nodeCanvasObject = useCallback(
     (node: GraphNode, ctx: CanvasRenderingContext2D, _globalScale: number) => {
       const x = node.x ?? 0
@@ -229,8 +252,9 @@ export function ForceGraph() {
         return
       }
 
+      const opacity = clusterOpacityMap?.get(node.id) ?? 1
       const scale = SCALE_BY_LEVEL[level] ?? DEFAULT_SCALE
-      drawCard(ctx, title, summary, x, y, scale, 1, level, isHovered)
+      drawCard(ctx, title, summary, x, y, scale, opacity, level, isHovered)
 
       if (facets && level === 0) {
         const w = CARD_WIDTH * scale
@@ -238,7 +262,7 @@ export function ForceGraph() {
         drawFacetBadges(ctx, facets, x, y, w, h, scale)
       }
     },
-    [hoveredNodeId, dimIndexMap]
+    [hoveredNodeId, dimIndexMap, clusterOpacityMap]
   )
 
   const nodePointerAreaPaint = useCallback(
@@ -277,12 +301,22 @@ export function ForceGraph() {
       if (src?.x == null || tgt?.x == null) return
 
       const connected = hoveredNodeId != null && (src.id === hoveredNodeId || tgt.id === hoveredNodeId)
-      const opacity = hoveredNodeId == null ? 1 : connected ? 1 : EDGE_DIM_OPACITY
+      let opacity = hoveredNodeId == null ? 1 : connected ? 1 : EDGE_DIM_OPACITY
+
+      if (clusterOpacityMap) {
+        const srcOpacity = clusterOpacityMap.get(src.id) ?? 1
+        const tgtOpacity = clusterOpacityMap.get(tgt.id) ?? 1
+        opacity = Math.min(opacity, srcOpacity, tgtOpacity)
+      }
 
       drawRelationEdge(ctx, src.x, src.y ?? 0, tgt.x, tgt.y ?? 0, link.type, opacity)
     },
-    [hoveredNodeId]
+    [hoveredNodeId, clusterOpacityMap]
   )
+
+  const handleBackgroundClick = useCallback(() => {
+    clearClusterFocus()
+  }, [clearClusterFocus])
 
   const handleNodeHover = useCallback(
     (node: GraphNode | null) => {
@@ -293,12 +327,17 @@ export function ForceGraph() {
 
   const handleNodeClick = useCallback(
     (node: GraphNode) => {
-      const { visibleDepth, increaseDepth, setDepth, focusDoc } = useGraphStore.getState()
+      const { visibleDepth, increaseDepth, setDepth, focusDoc, focusCluster } = useGraphStore.getState()
+      const vaultPath = useVaultStore.getState().vaultPath
       const { level, kind } = node._card
 
-      // Cluster click: drill down to docs level
+      // Cluster click: focus with semantic distances
       if (kind === CardKind.Cluster) {
-        setDepth(0)
+        if (vaultPath) {
+          focusCluster(vaultPath, node.id)
+        } else {
+          setDepth(0)
+        }
         fgRef.current?.centerAt(node.x, node.y, CENTER_ANIMATION_MS)
         return
       }
@@ -309,8 +348,8 @@ export function ForceGraph() {
         return
       }
 
-      // Detail card click: open the file
-      if (level === 2) {
+      // Detail/Chunk card click: open the file
+      if (level >= 2) {
         const card = cards.find((c) => c.id === node.id)
         if (card) {
           useEditorStore.getState().selectFile(card.filePath)
@@ -326,10 +365,10 @@ export function ForceGraph() {
         return
       }
 
-      if (level >= visibleDepth && visibleDepth < 2) {
+      if (level >= visibleDepth && visibleDepth < 3) {
         increaseDepth()
       } else if (level < visibleDepth) {
-        setDepth((level + 1) as -1 | 0 | 1 | 2)
+        setDepth((level + 1) as VisibleDepth)
       }
 
       fgRef.current?.centerAt(node.x, node.y, CENTER_ANIMATION_MS)
@@ -348,11 +387,14 @@ export function ForceGraph() {
         nodeId="id"
         onNodeClick={handleNodeClick}
         onNodeHover={handleNodeHover}
+        onBackgroundClick={handleBackgroundClick}
         onEngineStop={handleEngineStop}
         width={width}
         height={height}
         backgroundColor="#1e1e2e"
+        warmupTicks={WARMUP_TICKS}
         cooldownTicks={cooldownTicks}
+        cooldownTime={COOLDOWN_TIME_MS}
         d3AlphaDecay={ALPHA_DECAY}
         d3VelocityDecay={VELOCITY_DECAY}
         enableNodeDrag={true}

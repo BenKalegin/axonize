@@ -99,6 +99,22 @@ function truncate(text: string, maxLen: number): string {
   return text.length > maxLen ? text.slice(0, maxLen - 1) + '\u2026' : text
 }
 
+function fitText(ctx: CanvasRenderingContext2D, text: string, maxWidth: number): string {
+  if (ctx.measureText(text).width <= maxWidth) return text
+  const ellipsis = '\u2026'
+  let lo = 0
+  let hi = text.length
+  while (lo < hi) {
+    const mid = (lo + hi + 1) >>> 1
+    if (ctx.measureText(text.slice(0, mid) + ellipsis).width <= maxWidth) {
+      lo = mid
+    } else {
+      hi = mid - 1
+    }
+  }
+  return lo > 0 ? text.slice(0, lo) + ellipsis : ellipsis
+}
+
 function selectBorder(level: number, isHovered: boolean): string {
   if (isHovered) return HOVER_BORDER
   if (level === 0) return LEVEL_0_ACCENT
@@ -147,17 +163,25 @@ export function drawCard(
   ctx.lineWidth = snap((isHovered ? 2 : 1) * scale) || 1
   ctx.stroke()
 
+  // Clip to card bounds so text never bleeds outside
+  roundRect(ctx, rx, ry, w, h, r)
+  ctx.clip()
+
+  const textPad = 10 * scale
+  const maxTextWidth = w - textPad * 2
+
   // Title
   ctx.textAlign = 'center'
   ctx.textBaseline = 'middle'
   ctx.fillStyle = '#cdd6f4'
-  ctx.font = `bold ${Math.max(10, 14 * scale)}px sans-serif`
-  ctx.fillText(truncate(title, 38), x, y - h / 4)
+  const titleFontSize = Math.max(10, 14 * scale)
+  ctx.font = `bold ${titleFontSize}px sans-serif`
+  ctx.fillText(fitText(ctx, title, maxTextWidth), x, y - h / 4)
 
   // Summary
   ctx.fillStyle = '#a6adc8'
   ctx.font = `${Math.max(9, 12 * scale)}px sans-serif`
-  wrapText(ctx, summary, x, y + 6 * scale, w - 20 * scale, 14 * scale, 3)
+  wrapText(ctx, summary, x, y + 6 * scale, maxTextWidth, 14 * scale, 3)
 
   ctx.restore()
 }
@@ -262,13 +286,17 @@ export function drawClusterCard(
   ctx.stroke()
   ctx.setLineDash([])
 
+  // Clip to card bounds
+  roundRect(ctx, rx, ry, w, h, 10)
+  ctx.clip()
+
   // Title
   ctx.textAlign = 'center'
   ctx.textBaseline = 'middle'
   ctx.fillStyle = '#cdd6f4'
   ctx.font = 'bold 13px sans-serif'
   const topY = y - h / 2
-  ctx.fillText(truncate(title, 40), x, topY + 18)
+  ctx.fillText(fitText(ctx, title, w - 24), x, topY + 18)
 
   // Summary
   ctx.fillStyle = '#6c7086'

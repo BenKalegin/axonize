@@ -80,8 +80,9 @@ export interface AxonizeAPI {
     build: (vaultPath: string) => Promise<{ cardCount: number }>
     incremental: (vaultPath: string) => Promise<{ cardCount: number }>
     load: (vaultPath: string) => Promise<SemanticLoadResult>
-    status: (vaultPath: string) => Promise<{ version: number; fileHashes: Record<string, string> }>
+    status: (vaultPath: string) => Promise<{ appVersion: number; vaultVersion: number; needsReindex: boolean; fileHashes: Record<string, string> }>
     estimate: (vaultPath: string) => Promise<SemanticEstimateResult>
+    distances: (vaultPath: string, anchorCardId: string, targetLevel?: number) => Promise<Record<string, number>>
     onProgress: (callback: (payload: unknown) => void) => () => void
     onError: (callback: (payload: unknown) => void) => () => void
     onErrorsClear: (callback: () => void) => () => void
@@ -142,6 +143,8 @@ const api: AxonizeAPI = {
     load: (vaultPath: string) => ipcRenderer.invoke('semantic:load', { vaultPath }),
     status: (vaultPath: string) => ipcRenderer.invoke('semantic:status', { vaultPath }),
     estimate: (vaultPath: string) => ipcRenderer.invoke('semantic:estimate', { vaultPath }),
+    distances: (vaultPath: string, anchorCardId: string, targetLevel?: number) =>
+      ipcRenderer.invoke('semantic:distances', { vaultPath, anchorCardId, targetLevel }),
     onProgress: (callback: (payload: unknown) => void) => {
       const listener = (_event: unknown, payload: unknown) => callback(payload)
       ipcRenderer.on('semantic:progress', listener)

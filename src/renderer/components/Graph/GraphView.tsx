@@ -14,14 +14,16 @@ const PHASE_LABELS: Record<string, string> = {
   'facet-extraction': 'Extracting facets',
   clustering: 'Generating clusters',
   'cross-linking': 'Finding cross-doc relations',
-  saving: 'Saving cache'
+  saving: 'Saving cache',
+  'embedding-summaries': 'Embedding summaries'
 }
 
 const DEPTH_LABELS: { depth: VisibleDepth; label: string }[] = [
   { depth: -1, label: 'Clusters' },
   { depth: 0, label: 'Docs' },
   { depth: 1, label: 'Sections' },
-  { depth: 2, label: 'Details' }
+  { depth: 2, label: 'Details' },
+  { depth: 3, label: 'Chunks' }
 ]
 
 function ProgressBar({ progress }: { progress: SemanticProgress }) {

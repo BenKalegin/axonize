@@ -4,8 +4,12 @@ import {
   incrementalSemanticUpdate,
   loadSemanticIndex,
   loadSemanticState,
-  estimateSemanticBuild
+  estimateSemanticBuild,
+  loadCards,
+  SEMANTIC_VERSION
 } from './semantic/decomposition-service'
+import { loadSummaryVectors } from './semantic/summary-embeddings'
+import { cosineSimilarity } from '../core/rag/vector-math'
 import log from './logger'
 
 export function registerSemanticIpcHandlers(): void {
@@ -41,10 +45,42 @@ export function registerSemanticIpcHandlers(): void {
 
   ipcMain.handle('semantic:status', async (_event, payload: { vaultPath: string }) => {
     const state = await loadSemanticState(payload.vaultPath)
-    return state ?? { version: 0, fileHashes: {} }
+    return {
+      appVersion: SEMANTIC_VERSION,
+      vaultVersion: state?.version ?? 0,
+      needsReindex: !state || state.version < SEMANTIC_VERSION,
+      fileHashes: state?.fileHashes ?? {}
+    }
   })
 
   ipcMain.handle('semantic:estimate', async (_event, payload: { vaultPath: string }) => {
     return estimateSemanticBuild(payload.vaultPath)
+  })
+
+  ipcMain.handle('semantic:distances', async (_event, payload: {
+    vaultPath: string
+    anchorCardId: string
+    targetLevel?: number
+  }) => {
+    const data = await loadSummaryVectors(payload.vaultPath)
+    if (!data) return {}
+
+    const { cardIds, vectors, dims } = data
+    const anchorIndex = cardIds.indexOf(payload.anchorCardId)
+    if (anchorIndex === -1) return {}
+
+    const anchorVector = vectors.subarray(anchorIndex * dims, (anchorIndex + 1) * dims) as Float32Array
+    const cards = await loadCards(payload.vaultPath)
+    const cardLevelMap = new Map(cards.map((c) => [c.id, c.level]))
+
+    const result: Record<string, number> = {}
+    for (let i = 0; i < cardIds.length; i++) {
+      const id = cardIds[i]
+      if (id === payload.anchorCardId) continue
+      if (payload.targetLevel != null && cardLevelMap.get(id) !== payload.targetLevel) continue
+      const targetVector = vectors.subarray(i * dims, (i + 1) * dims) as Float32Array
+      result[id] = cosineSimilarity(anchorVector, targetVector)
+    }
+    return result
   })
 }

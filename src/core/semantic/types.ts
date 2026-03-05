@@ -21,6 +21,7 @@ export const CardKind = {
   Doc: 'doc',
   Section: 'section',
   Detail: 'detail',
+  Chunk: 'chunk',
   Cluster: 'cluster',
   Hub: 'hub'
 } as const
@@ -66,7 +67,7 @@ export interface SemanticIndexState {
 }
 
 export interface SemanticProgress {
-  phase: 'scanning' | 'decomposing' | 'discovering-dimensions' | 'facet-extraction' | 'clustering' | 'cross-linking' | 'saving' | 'done'
+  phase: 'scanning' | 'decomposing' | 'discovering-dimensions' | 'facet-extraction' | 'clustering' | 'cross-linking' | 'saving' | 'embedding-summaries' | 'done'
   current: number
   total: number
   file?: string
