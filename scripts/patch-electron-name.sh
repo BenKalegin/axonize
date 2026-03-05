@@ -10,6 +10,7 @@ fi
 # Patch main app plist
 plutil -replace CFBundleName -string "Axonize" "$MAIN"
 plutil -replace CFBundleDisplayName -string "Axonize" "$MAIN"
+plutil -replace CFBundleIdentifier -string "com.axonize.app" "$MAIN"
 
 # Patch all helper app plists
 for helper in \
