@@ -13,9 +13,11 @@ interface LayoutState {
   activePanelId: SidePanelId | null
   sidePanelWidth: number
   rightPanelWidth: number
+  rightDrawerOpen: boolean
   togglePanel: (id: SidePanelId) => void
   setSidePanelWidth: (w: number) => void
   setRightPanelWidth: (w: number) => void
+  toggleRightDrawer: () => void
   hydrateFromSettings: () => Promise<void>
   persistToSettings: () => Promise<void>
 }
@@ -24,6 +26,7 @@ export const useLayoutStore = create<LayoutState>((set, get) => ({
   activePanelId: 'files',
   sidePanelWidth: DEFAULT_PANEL_WIDTH,
   rightPanelWidth: DEFAULT_RIGHT_PANEL_WIDTH,
+  rightDrawerOpen: true,
 
   togglePanel: (id) =>
     set((s) => ({
@@ -36,6 +39,9 @@ export const useLayoutStore = create<LayoutState>((set, get) => ({
   setRightPanelWidth: (w) =>
     set({ rightPanelWidth: Math.min(MAX_PANEL_WIDTH, Math.max(MIN_PANEL_WIDTH, w)) }),
 
+  toggleRightDrawer: () =>
+    set((s) => ({ rightDrawerOpen: !s.rightDrawerOpen })),
+
   hydrateFromSettings: async () => {
     try {
       const settings = (await window.axonize.settings.get()) as {
@@ -47,7 +53,8 @@ export const useLayoutStore = create<LayoutState>((set, get) => ({
           sidePanelWidth: Math.min(
             MAX_PANEL_WIDTH,
             Math.max(MIN_PANEL_WIDTH, settings.ui.sidePanelWidth ?? DEFAULT_PANEL_WIDTH)
-          )
+          ),
+          rightDrawerOpen: (settings.ui as unknown as Record<string, unknown>).rightDrawerOpen !== false
         })
       }
     } catch {
@@ -57,11 +64,11 @@ export const useLayoutStore = create<LayoutState>((set, get) => ({
 
   persistToSettings: async () => {
     try {
-      const { activePanelId, sidePanelWidth } = get()
+      const { activePanelId, sidePanelWidth, rightDrawerOpen } = get()
       const settings = (await window.axonize.settings.get()) as Record<string, unknown>
       await window.axonize.settings.save({
         ...settings,
-        ui: { activePanelId, sidePanelWidth }
+        ui: { activePanelId, sidePanelWidth, rightDrawerOpen }
       })
     } catch {
       // ignore

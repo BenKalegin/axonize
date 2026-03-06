@@ -113,7 +113,12 @@ export const TEST_IDS = {
   // Semantic Errors Panel
   SEMANTIC_ERRORS_PANEL: 'semantic-errors-panel',
   SEMANTIC_ERROR_ENTRY: 'semantic-error-entry',
-  SEMANTIC_ERRORS_CLEAR_BTN: 'semantic-errors-clear-btn'
+  SEMANTIC_ERRORS_CLEAR_BTN: 'semantic-errors-clear-btn',
+
+  // Related Docs Panel
+  RELATED_DOCS_PANEL: 'related-docs-panel',
+  RELATED_DOC_CARD: 'related-doc-card',
+  RIGHT_DRAWER_COLLAPSED: 'right-drawer-collapsed'
 } as const
 
 export type TestId = (typeof TEST_IDS)[keyof typeof TEST_IDS]

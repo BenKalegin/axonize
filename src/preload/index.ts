@@ -53,6 +53,14 @@ export interface SemanticEstimateResult {
   filesToProcess: number
 }
 
+export interface RelatedDoc {
+  cardId: string
+  title: string
+  summary: string
+  filePath: string
+  score: number
+}
+
 export interface AxonizeAPI {
   vault: {
     open: () => Promise<string | null>
@@ -83,6 +91,7 @@ export interface AxonizeAPI {
     status: (vaultPath: string) => Promise<{ appVersion: number; vaultVersion: number; needsReindex: boolean; fileHashes: Record<string, string> }>
     estimate: (vaultPath: string) => Promise<SemanticEstimateResult>
     distances: (vaultPath: string, anchorCardId: string, targetLevel?: number) => Promise<Record<string, number>>
+    relatedDocs: (vaultPath: string, filePath: string, k?: number) => Promise<RelatedDoc[]>
     onProgress: (callback: (payload: unknown) => void) => () => void
     onError: (callback: (payload: unknown) => void) => () => void
     onErrorsClear: (callback: () => void) => () => void
@@ -145,6 +154,8 @@ const api: AxonizeAPI = {
     estimate: (vaultPath: string) => ipcRenderer.invoke('semantic:estimate', { vaultPath }),
     distances: (vaultPath: string, anchorCardId: string, targetLevel?: number) =>
       ipcRenderer.invoke('semantic:distances', { vaultPath, anchorCardId, targetLevel }),
+    relatedDocs: (vaultPath: string, filePath: string, k?: number) =>
+      ipcRenderer.invoke('semantic:relatedDocs', { vaultPath, filePath, k }),
     onProgress: (callback: (payload: unknown) => void) => {
       const listener = (_event: unknown, payload: unknown) => callback(payload)
       ipcRenderer.on('semantic:progress', listener)
