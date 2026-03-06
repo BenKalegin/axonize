@@ -295,6 +295,15 @@
   color: var(--accent);
 }
 
+.file-tree-node.focused {
+  outline: 1px solid var(--accent);
+  outline-offset: -1px;
+}
+
+.file-tree:focus {
+  outline: none;
+}
+
 .file-tree-node .toggle {
   width: 12px;
   display: inline-flex;
@@ -345,7 +354,7 @@
 }
 
 .markdown-view > *:not(.mermaid-diagram) {
-  max-width: 800px;
+  max-width: 100%;
 }
 
 .markdown-view h1 { font-size: 28px; margin: 24px 0 12px; color: var(--text-primary); }

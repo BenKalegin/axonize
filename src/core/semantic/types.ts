@@ -70,6 +70,7 @@ export interface SemanticProgress {
   phase: 'scanning' | 'decomposing' | 'discovering-dimensions' | 'facet-extraction' | 'clustering' | 'cross-linking' | 'saving' | 'embedding-summaries' | 'done'
   current: number
   total: number
+  inProgress: number
   file?: string
 }
 

@@ -15,21 +15,33 @@ interface FileTreeNodeProps {
   entry: FileEntry
   depth: number
   excluded?: boolean
-  defaultExpanded?: boolean
+  isExpanded: (path: string) => boolean
+  onToggle: (path: string) => void
+  focusedPath: string | null
+  onSelect?: (path: string) => void
 }
 
-export function FileTreeNode({ entry, depth, excluded, defaultExpanded }: FileTreeNodeProps) {
-  const [expanded, setExpanded] = useState(defaultExpanded ?? true)
+export function FileTreeNode({ entry, depth, excluded, isExpanded, onToggle, focusedPath, onSelect }: FileTreeNodeProps) {
   const [ctxMenu, setCtxMenu] = useState<{ x: number; y: number } | null>(null)
   const ctxRef = useRef<HTMLDivElement>(null)
+  const nodeRef = useRef<HTMLDivElement>(null)
   const { selectedFile, selectFile } = useEditorStore()
   const { excludeFolder, includeFolder, excludedFolders } = useVaultStore()
   const isSelected = selectedFile === entry.path
   const isExcluded = excluded || excludedFolders.includes(entry.relativePath)
+  const expanded = entry.isDirectory && isExpanded(entry.path)
+  const focused = focusedPath === entry.path
+
+  useEffect(() => {
+    if (focused && nodeRef.current) {
+      nodeRef.current.scrollIntoView({ block: 'nearest' })
+    }
+  }, [focused])
 
   const handleClick = () => {
+    onSelect?.(entry.path)
     if (entry.isDirectory) {
-      setExpanded(!expanded)
+      onToggle(entry.path)
     } else {
       selectFile(entry.path)
     }
@@ -66,7 +78,8 @@ export function FileTreeNode({ entry, depth, excluded, defaultExpanded }: FileTr
   return (
     <div data-testid={TEST_IDS.FILE_TREE_NODE} data-path={entry.relativePath}>
       <div
-        className={`file-tree-node ${isSelected ? 'selected' : ''} ${entry.isDirectory ? 'directory' : 'file'}${isExcluded ? ' excluded' : ''}`}
+        ref={nodeRef}
+        className={`file-tree-node ${isSelected ? 'selected' : ''} ${focused ? 'focused' : ''} ${entry.isDirectory ? 'directory' : 'file'}${isExcluded ? ' excluded' : ''}`}
         style={{ paddingLeft: `${depth * 16 + 8}px` }}
         onClick={handleClick}
         onContextMenu={handleContextMenu}
@@ -111,10 +124,19 @@ export function FileTreeNode({ entry, depth, excluded, defaultExpanded }: FileTr
           )}
         </div>
       )}
-      {entry.isDirectory && expanded && entry.children && (
+      {expanded && entry.children && (
         <div className="file-tree-children">
           {entry.children.map((child) => (
-            <FileTreeNode key={child.path} entry={child} depth={depth + 1} excluded={isExcluded} defaultExpanded={defaultExpanded} />
+            <FileTreeNode
+              key={child.path}
+              entry={child}
+              depth={depth + 1}
+              excluded={isExcluded}
+              isExpanded={isExpanded}
+              onToggle={onToggle}
+              focusedPath={focusedPath}
+              onSelect={onSelect}
+            />
           ))}
         </div>
       )}

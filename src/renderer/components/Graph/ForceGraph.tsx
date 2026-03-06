@@ -314,6 +314,20 @@ export function ForceGraph() {
     [hoveredNodeId, clusterOpacityMap]
   )
 
+  const isDraggingRef = useRef(false)
+
+  const handleNodeDrag = useCallback(() => {
+    if (!isDraggingRef.current) {
+      isDraggingRef.current = true
+      fgRef.current?.enableZoomPanInteraction(false)
+    }
+  }, [])
+
+  const handleNodeDragEnd = useCallback(() => {
+    isDraggingRef.current = false
+    fgRef.current?.enableZoomPanInteraction(true)
+  }, [])
+
   const handleBackgroundClick = useCallback(() => {
     clearClusterFocus()
   }, [clearClusterFocus])
@@ -387,6 +401,8 @@ export function ForceGraph() {
         nodeId="id"
         onNodeClick={handleNodeClick}
         onNodeHover={handleNodeHover}
+        onNodeDrag={handleNodeDrag}
+        onNodeDragEnd={handleNodeDragEnd}
         onBackgroundClick={handleBackgroundClick}
         onEngineStop={handleEngineStop}
         width={width}

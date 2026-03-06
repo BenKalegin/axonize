@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback } from 'react'
+import { useState, useMemo, useCallback, useRef } from 'react'
 import { TEST_IDS } from '@/lib/testids'
 import { useVaultStore } from '@/store/vault-store'
 import { useEditorStore } from '@/store/editor-store'
@@ -32,15 +32,43 @@ function filterTree(entries: FileEntry[], query: string): FileEntry[] {
   return result
 }
 
+function flattenTree(entries: FileEntry[], isExpanded: (path: string) => boolean): FileEntry[] {
+  const result: FileEntry[] = []
+  for (const entry of entries) {
+    result.push(entry)
+    if (entry.isDirectory && isExpanded(entry.path) && entry.children) {
+      result.push(...flattenTree(entry.children, isExpanded))
+    }
+  }
+  return result
+}
+
+function buildParentMap(entries: FileEntry[]): Map<string, string> {
+  const map = new Map<string, string>()
+  function walk(items: FileEntry[], parentPath: string | null): void {
+    for (const entry of items) {
+      if (parentPath) map.set(entry.path, parentPath)
+      if (entry.isDirectory && entry.children) {
+        walk(entry.children, entry.path)
+      }
+    }
+  }
+  walk(entries, null)
+  return map
+}
+
 export function FileExplorer() {
   const { fileTree, excludedFolders } = useVaultStore()
-  const { canGoBack, canGoForward, goBack, goForward } = useEditorStore()
+  const { selectedFile, selectFile, canGoBack, canGoForward, goBack, goForward } = useEditorStore()
   const { docs } = useGeneratedDocsStore()
   const [hiddenExpanded, setHiddenExpanded] = useState(false)
   const [generatedExpanded, setGeneratedExpanded] = useState(true)
   const [permanentDoc, setPermanentDoc] = useState<GeneratedDocMeta | null>(null)
   const [searchOpen, setSearchOpen] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
+  const [collapsedPaths, setCollapsedPaths] = useState<Set<string>>(new Set())
+  const [focusedPath, setFocusedPath] = useState<string | null>(null)
+  const treeRef = useRef<HTMLDivElement>(null)
 
   const { visible, excluded } = useMemo(() => {
     const excludedSet = new Set(excludedFolders)
@@ -60,6 +88,109 @@ export function FileExplorer() {
     if (!searchQuery) return visible
     return filterTree(visible as FileEntry[], searchQuery)
   }, [visible, searchQuery])
+
+  const isExpanded = useCallback((path: string): boolean => {
+    if (searchQuery) return true
+    return !collapsedPaths.has(path)
+  }, [searchQuery, collapsedPaths])
+
+  const handleToggle = useCallback((path: string) => {
+    setCollapsedPaths(prev => {
+      const next = new Set(prev)
+      if (next.has(path)) next.delete(path)
+      else next.add(path)
+      return next
+    })
+  }, [])
+
+  const handleNodeSelect = useCallback((path: string) => {
+    setFocusedPath(path)
+  }, [])
+
+  const flatItems = useMemo(() => {
+    return flattenTree(filteredVisible as FileEntry[], isExpanded)
+  }, [filteredVisible, isExpanded])
+
+  const parentMap = useMemo(() => {
+    return buildParentMap(filteredVisible as FileEntry[])
+  }, [filteredVisible])
+
+  const handleTreeFocus = useCallback(() => {
+    if (!focusedPath || !flatItems.some(i => i.path === focusedPath)) {
+      const sel = flatItems.find(i => i.path === selectedFile)
+      setFocusedPath(sel?.path ?? flatItems[0]?.path ?? null)
+    }
+  }, [focusedPath, flatItems, selectedFile])
+
+  const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
+    if (flatItems.length === 0) return
+
+    let idx = flatItems.findIndex(item => item.path === focusedPath)
+    if (idx < 0) idx = 0
+
+    switch (e.key) {
+      case 'ArrowDown': {
+        e.preventDefault()
+        const next = Math.min(idx + 1, flatItems.length - 1)
+        setFocusedPath(flatItems[next].path)
+        break
+      }
+      case 'ArrowUp': {
+        e.preventDefault()
+        const prev = Math.max(idx - 1, 0)
+        setFocusedPath(flatItems[prev].path)
+        break
+      }
+      case 'ArrowRight': {
+        e.preventDefault()
+        const item = flatItems[idx]
+        if (item.isDirectory) {
+          if (collapsedPaths.has(item.path)) {
+            handleToggle(item.path)
+          } else if (idx + 1 < flatItems.length) {
+            setFocusedPath(flatItems[idx + 1].path)
+          }
+        }
+        break
+      }
+      case 'ArrowLeft': {
+        e.preventDefault()
+        const item = flatItems[idx]
+        if (item.isDirectory && !collapsedPaths.has(item.path) && !searchQuery) {
+          handleToggle(item.path)
+        } else {
+          const parent = parentMap.get(item.path)
+          if (parent) setFocusedPath(parent)
+        }
+        break
+      }
+      case 'Enter': {
+        e.preventDefault()
+        const item = flatItems[idx]
+        if (item.isDirectory) {
+          handleToggle(item.path)
+        } else {
+          selectFile(item.path)
+        }
+        break
+      }
+    }
+  }, [flatItems, focusedPath, collapsedPaths, handleToggle, searchQuery, parentMap, selectFile])
+
+  const NAVIGATION_KEYS = new Set(['ArrowDown', 'ArrowUp', 'ArrowLeft', 'ArrowRight', 'Enter'])
+
+  const handleSearchKeyDown = useCallback((e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (NAVIGATION_KEYS.has(e.key)) {
+      if (!focusedPath || !flatItems.some(i => i.path === focusedPath)) {
+        const sel = flatItems.find(i => i.path === selectedFile)
+        setFocusedPath(sel?.path ?? flatItems[0]?.path ?? null)
+      }
+      handleKeyDown(e)
+    } else if (e.key === 'Escape') {
+      setSearchQuery('')
+      setSearchOpen(false)
+    }
+  }, [handleKeyDown, focusedPath, flatItems, selectedFile])
 
   const handleMakePermanent = useCallback((doc: GeneratedDocMeta) => {
     setPermanentDoc(doc)
@@ -114,12 +245,28 @@ export function FileExplorer() {
           placeholder="Filter files..."
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
+          onKeyDown={handleSearchKeyDown}
           autoFocus
         />
       )}
-      <div className="file-tree" data-testid={TEST_IDS.FILE_TREE}>
+      <div
+        ref={treeRef}
+        className="file-tree"
+        data-testid={TEST_IDS.FILE_TREE}
+        tabIndex={0}
+        onFocus={handleTreeFocus}
+        onKeyDown={handleKeyDown}
+      >
         {filteredVisible.map((entry) => (
-          <FileTreeNode key={entry.path} entry={entry} depth={0} defaultExpanded={!!searchQuery} />
+          <FileTreeNode
+            key={entry.path}
+            entry={entry}
+            depth={0}
+            isExpanded={isExpanded}
+            onToggle={handleToggle}
+            focusedPath={focusedPath}
+            onSelect={handleNodeSelect}
+          />
         ))}
         {docs.length > 0 && (
           <>
@@ -155,7 +302,16 @@ export function FileExplorer() {
               <span>Hidden ({excluded.length})</span>
             </div>
             {hiddenExpanded && excluded.map((entry) => (
-              <FileTreeNode key={entry.path} entry={entry} depth={0} excluded />
+              <FileTreeNode
+                key={entry.path}
+                entry={entry}
+                depth={0}
+                excluded
+                isExpanded={isExpanded}
+                onToggle={handleToggle}
+                focusedPath={null}
+                onSelect={handleNodeSelect}
+              />
             ))}
           </>
         )}

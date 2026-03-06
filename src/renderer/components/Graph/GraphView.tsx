@@ -30,6 +30,7 @@ function ProgressBar({ progress }: { progress: SemanticProgress }) {
   const pct = progress.total > 0 ? Math.round((progress.current / progress.total) * 100) : 0
   const label = PHASE_LABELS[progress.phase] ?? progress.phase
   const detail = progress.file ? `: ${progress.file}` : ''
+  const remaining = progress.total - progress.current - progress.inProgress
 
   return (
     <div className="semantic-progress">
@@ -37,7 +38,11 @@ function ProgressBar({ progress }: { progress: SemanticProgress }) {
       <div className="semantic-progress-track">
         <div className="semantic-progress-fill" style={{ width: `${pct}%` }} />
       </div>
-      <div className="semantic-progress-pct">{progress.current}/{progress.total}</div>
+      <div className="semantic-progress-pct">
+        {progress.inProgress > 0
+          ? `${progress.current} done · ${progress.inProgress} active · ${remaining} remaining`
+          : `${progress.current}/${progress.total}`}
+      </div>
     </div>
   )
 }

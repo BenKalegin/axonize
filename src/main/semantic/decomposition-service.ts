@@ -15,6 +15,7 @@ import type {
 } from '../../core/semantic/types'
 import { CardKind } from '../../core/semantic/types'
 import { llmCompleteWithRetry, sanitizeJSON, tryParseJSON } from './llm-helpers'
+import { poolMap } from './concurrency'
 import { discoverDimensions, extractFacets } from './facet-extraction-service'
 import { generateClusters, generateHubNodes, generateCuratedCrossDocRelations } from './cluster-hub-service'
 import { embedAndCacheSummaries } from './summary-embeddings'
@@ -22,7 +23,8 @@ import type { DimensionMeta } from '../../core/semantic/types'
 import log from '../logger'
 
 export const SEMANTIC_VERSION = 3
-const INTER_DOC_DELAY = 1500
+const LLM_CONCURRENCY = 5
+const LLM_TASK_TIMEOUT_MS = 120_000
 const PROMPT_OVERHEAD_TOKENS = 250
 const AVG_OUTPUT_TOKENS_PER_FILE = 1500
 const CROSS_DOC_OUTPUT_TOKENS = 500
@@ -74,10 +76,6 @@ function isExcluded(relativePath: string, excludedFolders: string[]): boolean {
   return excludedFolders.some(
     (folder) => relativePath === folder || relativePath.startsWith(folder + '/')
   )
-}
-
-function delay(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms))
 }
 
 function assignCardKinds(cards: SemanticCard[]): void {
@@ -244,7 +242,7 @@ async function runFacetAndClusterPhases(
 
   // Phase: dimension discovery
   let dimensions: DimensionMeta[] = []
-  sendProgress(window, { phase: 'discovering-dimensions', current: 0, total: 1 })
+  sendProgress(window, { phase: 'discovering-dimensions', current: 0, total: 1, inProgress: 0 })
   try {
     dimensions = await discoverDimensions(level0)
     log.info(`[semantic] Discovered ${dimensions.length} dimensions: ${dimensions.map((d) => d.key).join(', ')}`)
@@ -254,7 +252,7 @@ async function runFacetAndClusterPhases(
   }
 
   // Phase: facet extraction
-  sendProgress(window, { phase: 'facet-extraction', current: 0, total: 1 })
+  sendProgress(window, { phase: 'facet-extraction', current: 0, total: 1, inProgress: 0 })
   try {
     const facetMap = await extractFacets(level0, dimensions)
     for (const card of level0) {
@@ -268,7 +266,7 @@ async function runFacetAndClusterPhases(
   }
 
   // Phase: clustering + hubs
-  sendProgress(window, { phase: 'clustering', current: 0, total: 1 })
+  sendProgress(window, { phase: 'clustering', current: 0, total: 1, inProgress: 0 })
   try {
     const facetMap = new Map(level0.filter((c) => c.facets).map((c) => [c.id, c.facets!]))
     const clusters = await generateClusters(level0, facetMap)
@@ -282,7 +280,7 @@ async function runFacetAndClusterPhases(
   }
 
   // Phase: curated cross-doc relations
-  sendProgress(window, { phase: 'cross-linking', current: 0, total: 1 })
+  sendProgress(window, { phase: 'cross-linking', current: 0, total: 1, inProgress: 0 })
   try {
     const facetMap = new Map(level0.filter((c) => c.facets).map((c) => [c.id, c.facets!]))
     const crossRelations = await generateCuratedCrossDocRelations(level0, facetMap, dimensions)
@@ -301,7 +299,7 @@ export async function buildSemanticIndex(
   window: BrowserWindow | null
 ): Promise<{ cardCount: number }> {
   clearErrors(window)
-  sendProgress(window, { phase: 'scanning', current: 0, total: 0 })
+  sendProgress(window, { phase: 'scanning', current: 0, total: 0, inProgress: 0 })
 
   const settings = await getSettings()
   const excluded = settings.excludedFolders ?? []
@@ -314,44 +312,64 @@ export async function buildSemanticIndex(
   const allCards: SemanticCard[] = []
   const allRelations: CardRelation[] = []
 
-  for (let i = 0; i < mdFiles.length; i++) {
-    const file = mdFiles[i]
-    sendProgress(window, { phase: 'decomposing', current: i + 1, total: mdFiles.length, file: file.relativePath })
-    log.info(`[semantic] Decomposing ${i + 1}/${mdFiles.length}: ${file.relativePath}`)
+  let completed = 0
+  let active = 0
 
-    const content = await readFile(file.path, 'utf-8')
-    fileHashes[file.relativePath] = hashContent(content)
+  await poolMap(
+    mdFiles,
+    async (file) => {
+      active++
+      sendProgress(window, {
+        phase: 'decomposing',
+        current: completed,
+        total: mdFiles.length,
+        inProgress: active,
+        file: file.relativePath
+      })
+      log.info(`[semantic] Decomposing (${completed}/${mdFiles.length}, ${active} active): ${file.relativePath}`)
 
-    try {
-      const result = await decomposeDocument(file.relativePath, content)
-      allCards.push(...result.cards)
-      allRelations.push(...result.relations)
-    } catch (err) {
-      log.error(`Semantic decomposition failed for ${file.relativePath}:`, err)
-      sendError(window, { file: file.relativePath, phase: 'decomposition', message: String(err) })
-    }
+      const content = await readFile(file.path, 'utf-8')
+      fileHashes[file.relativePath] = hashContent(content)
 
-    if (i < mdFiles.length - 1) {
-      await delay(INTER_DOC_DELAY)
-    }
-  }
+      try {
+        const result = await decomposeDocument(file.relativePath, content)
+        allCards.push(...result.cards)
+        allRelations.push(...result.relations)
+      } catch (err) {
+        log.error(`Semantic decomposition failed for ${file.relativePath}:`, err)
+        sendError(window, { file: file.relativePath, phase: 'decomposition', message: String(err) })
+      } finally {
+        completed++
+        active--
+        sendProgress(window, {
+          phase: 'decomposing',
+          current: completed,
+          total: mdFiles.length,
+          inProgress: active,
+          file: file.relativePath
+        })
+      }
+    },
+    LLM_CONCURRENCY,
+    LLM_TASK_TIMEOUT_MS
+  )
 
   // Don't overwrite a valid cache with empty results from failed LLM calls
   if (allCards.length === 0 && mdFiles.length > 0) {
     const existing = await loadCards(vaultPath)
     if (existing.length > 0) {
       log.warn(`[semantic] All decompositions failed, keeping existing ${existing.length} cards`)
-      sendProgress(window, { phase: 'done', current: existing.length, total: existing.length })
+      sendProgress(window, { phase: 'done', current: existing.length, total: existing.length, inProgress: 0 })
       return { cardCount: existing.length }
     }
   }
 
   const dimensions = await runFacetAndClusterPhases(allCards, allRelations, window)
 
-  sendProgress(window, { phase: 'saving', current: 0, total: 1 })
+  sendProgress(window, { phase: 'saving', current: 0, total: 1, inProgress: 0 })
   await saveSemanticCache(vaultPath, fileHashes, allCards, allRelations, dimensions)
 
-  sendProgress(window, { phase: 'embedding-summaries', current: 0, total: allCards.length })
+  sendProgress(window, { phase: 'embedding-summaries', current: 0, total: allCards.length, inProgress: 0 })
   try {
     await embedAndCacheSummaries(vaultPath, allCards)
   } catch (err) {
@@ -359,7 +377,7 @@ export async function buildSemanticIndex(
     sendError(window, { file: '(vault)', phase: 'embedding-summaries', message: String(err) })
   }
 
-  sendProgress(window, { phase: 'done', current: allCards.length, total: allCards.length })
+  sendProgress(window, { phase: 'done', current: allCards.length, total: allCards.length, inProgress: 0 })
   log.info(`[semantic] Build complete: ${allCards.length} cards`)
   return { cardCount: allCards.length }
 }
@@ -393,7 +411,7 @@ async function doIncrementalUpdate(
   }
 
   clearErrors(window)
-  sendProgress(window, { phase: 'scanning', current: 0, total: 0 })
+  sendProgress(window, { phase: 'scanning', current: 0, total: 0, inProgress: 0 })
 
   const settings = await getSettings()
   const excluded = settings.excludedFolders ?? []
@@ -419,7 +437,7 @@ async function doIncrementalUpdate(
   }
 
   if (changedFiles.length === 0 && removedFiles.size === 0) {
-    sendProgress(window, { phase: 'done', current: existingCards.length, total: existingCards.length })
+    sendProgress(window, { phase: 'done', current: existingCards.length, total: existingCards.length, inProgress: 0 })
     return { cardCount: existingCards.length }
   }
 
@@ -435,26 +453,46 @@ async function doIncrementalUpdate(
   const newCards: SemanticCard[] = []
   const newRelations: CardRelation[] = []
 
-  for (let i = 0; i < changedFiles.length; i++) {
-    const relPath = changedFiles[i]
-    sendProgress(window, { phase: 'decomposing', current: i + 1, total: changedFiles.length, file: relPath })
+  let completed = 0
+  let active = 0
 
-    const fullPath = join(vaultPath, relPath)
-    const content = await readFile(fullPath, 'utf-8')
+  await poolMap(
+    changedFiles,
+    async (relPath) => {
+      active++
+      sendProgress(window, {
+        phase: 'decomposing',
+        current: completed,
+        total: changedFiles.length,
+        inProgress: active,
+        file: relPath
+      })
 
-    try {
-      const result = await decomposeDocument(relPath, content)
-      newCards.push(...result.cards)
-      newRelations.push(...result.relations)
-    } catch (err) {
-      log.error(`Semantic decomposition failed for ${relPath}:`, err)
-      sendError(window, { file: relPath, phase: 'decomposition', message: String(err) })
-    }
+      const fullPath = join(vaultPath, relPath)
+      const content = await readFile(fullPath, 'utf-8')
 
-    if (i < changedFiles.length - 1) {
-      await delay(INTER_DOC_DELAY)
-    }
-  }
+      try {
+        const result = await decomposeDocument(relPath, content)
+        newCards.push(...result.cards)
+        newRelations.push(...result.relations)
+      } catch (err) {
+        log.error(`Semantic decomposition failed for ${relPath}:`, err)
+        sendError(window, { file: relPath, phase: 'decomposition', message: String(err) })
+      } finally {
+        completed++
+        active--
+        sendProgress(window, {
+          phase: 'decomposing',
+          current: completed,
+          total: changedFiles.length,
+          inProgress: active,
+          file: relPath
+        })
+      }
+    },
+    LLM_CONCURRENCY,
+    LLM_TASK_TIMEOUT_MS
+  )
 
   // Keep only per-file doc cards (remove old cluster/hub cards)
   const keptDocCards = keptCards.filter((c) => !c.kind || c.kind === CardKind.Doc || c.kind === CardKind.Section || c.kind === CardKind.Detail || c.kind === CardKind.Chunk)
@@ -468,10 +506,10 @@ async function doIncrementalUpdate(
 
   const dimensions = await runFacetAndClusterPhases(allCards, allRelations, window)
 
-  sendProgress(window, { phase: 'saving', current: 0, total: 1 })
+  sendProgress(window, { phase: 'saving', current: 0, total: 1, inProgress: 0 })
   await saveSemanticCache(vaultPath, currentHashes, allCards, allRelations, dimensions)
 
-  sendProgress(window, { phase: 'embedding-summaries', current: 0, total: allCards.length })
+  sendProgress(window, { phase: 'embedding-summaries', current: 0, total: allCards.length, inProgress: 0 })
   try {
     await embedAndCacheSummaries(vaultPath, allCards)
   } catch (err) {
@@ -479,7 +517,7 @@ async function doIncrementalUpdate(
     sendError(window, { file: '(vault)', phase: 'embedding-summaries', message: String(err) })
   }
 
-  sendProgress(window, { phase: 'done', current: allCards.length, total: allCards.length })
+  sendProgress(window, { phase: 'done', current: allCards.length, total: allCards.length, inProgress: 0 })
   return { cardCount: allCards.length }
 }
 
