@@ -1,3 +1,4 @@
+/*noinspection CssUnresolvedCustomProperty*/
 .shell {
   display: grid;
   grid-template-areas:
@@ -390,6 +391,13 @@
   color: var(--text-muted);
   margin: 12px 0;
 }
+.markdown-view hr {
+  border: none;
+  border-top: 1px solid var(--border);
+  margin: 24px 0;
+  opacity: 0.75;
+}
+
 .markdown-view table {
   border-collapse: collapse;
   margin: 12px 0;
@@ -572,6 +580,7 @@
   text-overflow: ellipsis;
 }
 
+/*noinspection CssUnresolvedCustomProperty*/
 .semantic-progress-track {
   height: 6px;
   background: var(--bg-elevated);
@@ -593,6 +602,7 @@
   text-align: right;
 }
 
+/*noinspection CssUnresolvedCustomProperty*/
 .semantic-estimate {
   background: var(--bg-elevated);
   border: 1px solid var(--border);

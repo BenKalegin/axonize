@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import type { UILayoutConfig } from '../../core/rag/types'
+import type { UILayoutConfig } from '@core/rag/types'
 
 export type SidePanelId = 'files' | 'llm-log' | 'errors'
 

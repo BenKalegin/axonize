@@ -3,7 +3,7 @@ import { TEST_IDS } from '@/lib/testids'
 import { useEditorStore } from '@/store/editor-store'
 import { useVaultStore } from '@/store/vault-store'
 import { useLayoutStore } from '@/store/layout-store'
-import type { RelatedDoc } from '../../../preload/index'
+import type { RelatedDoc } from '../../../preload'
 
 const SUMMARY_MAX_LENGTH = 80
 const SCORE_PERCENTAGE = 100

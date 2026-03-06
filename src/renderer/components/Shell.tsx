@@ -1,4 +1,4 @@
-import { TEST_IDS } from '../lib/testids'
+import { TEST_IDS } from '@/lib/testids'
 import { Toolbar } from './Toolbar'
 import { ActivityBar } from './Sidebar/ActivityBar'
 import { SidePanel } from './Sidebar/SidePanel'
@@ -6,8 +6,8 @@ import { PropertiesPanel } from './Sidebar/PropertiesPanel'
 import { RelatedDocsPanel } from './Sidebar/RelatedDocsPanel'
 import { ContentView } from './Content/ContentView'
 import { CommandPalette } from './Command/CommandPalette'
-import { useLayoutStore, ACTIVITY_BAR_WIDTH } from '../store/layout-store'
-import { useEditorStore } from '../store/editor-store'
+import { useLayoutStore, ACTIVITY_BAR_WIDTH } from '@/store/layout-store'
+import { useEditorStore } from '@/store/editor-store'
 
 const COLLAPSED_DRAWER_WIDTH = 28
 
