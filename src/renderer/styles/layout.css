@@ -285,6 +285,7 @@
   font-size: 13px;
   color: var(--text-secondary);
   transition: background 0.1s;
+  line-height: 1.6;
 }
 
 .file-tree-node:hover {
@@ -293,7 +294,7 @@
 
 .file-tree-node.selected {
   background: var(--bg-overlay);
-  color: var(--accent);
+  color: var(--text-primary);
 }
 
 .file-tree-node.focused {
@@ -306,11 +307,27 @@
 }
 
 .file-tree-node .toggle {
-  width: 12px;
+  width: 14px;
+  flex-shrink: 0;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   color: var(--text-muted);
+}
+
+.file-tree-children {
+  position: relative;
+}
+
+.file-tree-children::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: var(--indent-guide-left);
+  width: 1px;
+  background: var(--border);
+  opacity: 0.4;
 }
 
 .file-name {
@@ -1427,11 +1444,18 @@
   margin-left: auto;
 }
 
-.file-search-input {
-  display: block;
-  width: calc(100% - 16px);
-  padding: 4px 8px;
-  margin: 4px 8px;
+.file-search-inline {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  min-width: 0;
+}
+
+.file-search-inline-input {
+  flex: 1;
+  min-width: 0;
+  padding: 2px 6px;
   font-size: 12px;
   color: var(--text-secondary);
   background: var(--bg-base);
@@ -1441,8 +1465,12 @@
   transition: border-color 0.15s;
 }
 
-.file-search-input:focus {
+.file-search-inline-input:focus {
   border-color: var(--accent);
+}
+
+.file-search-clear-btn {
+  flex-shrink: 0;
 }
 
 /* Refresh Vault Button */

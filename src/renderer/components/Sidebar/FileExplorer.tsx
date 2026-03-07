@@ -32,6 +32,48 @@ function filterTree(entries: FileEntry[], query: string): FileEntry[] {
   return result
 }
 
+function filterGeneratedDocs(docs: GeneratedDocMeta[], query: string): GeneratedDocMeta[] {
+  if (!query) return docs
+  const lower = query.toLowerCase()
+  return docs.filter((d) => d.title.toLowerCase().includes(lower))
+}
+
+function buildDisplayNameSet(entries: FileEntry[]): Set<string> {
+  const ambiguous = new Set<string>()
+  const stems = new Map<string, number>()
+  collectStems(entries, stems)
+  for (const [stem, count] of stems) {
+    if (count > 1) ambiguous.add(stem)
+  }
+  return ambiguous
+}
+
+function collectStems(entries: FileEntry[], stems: Map<string, number>): void {
+  for (const entry of entries) {
+    if (entry.isDirectory) {
+      if (entry.children) collectStems(entry.children, stems)
+    } else {
+      const stem = stripMdExtension(entry.name)
+      if (stem !== entry.name) {
+        const key = entry.path.replace(/\/[^/]+$/, '') + '/' + stem
+        stems.set(key, (stems.get(key) ?? 0) + 1)
+      }
+    }
+  }
+}
+
+function stripMdExtension(name: string): string {
+  return name.endsWith('.md') ? name.slice(0, -3) : name
+}
+
+function getDisplayName(entry: FileEntry, ambiguousStems: Set<string>): string {
+  if (entry.isDirectory) return entry.name
+  const stem = stripMdExtension(entry.name)
+  if (stem === entry.name) return entry.name
+  const key = entry.path.replace(/\/[^/]+$/, '') + '/' + stem
+  return ambiguousStems.has(key) ? entry.name : stem
+}
+
 function flattenTree(entries: FileEntry[], isExpanded: (path: string) => boolean): FileEntry[] {
   const result: FileEntry[] = []
   for (const entry of entries) {
@@ -88,6 +130,10 @@ export function FileExplorer() {
     if (!searchQuery) return visible
     return filterTree(visible as FileEntry[], searchQuery)
   }, [visible, searchQuery])
+
+  const ambiguousStems = useMemo(() => buildDisplayNameSet(fileTree as FileEntry[]), [fileTree])
+
+  const filteredDocs = useMemo(() => filterGeneratedDocs(docs, searchQuery), [docs, searchQuery])
 
   const isExpanded = useCallback((path: string): boolean => {
     if (searchQuery) return true
@@ -221,34 +267,45 @@ export function FileExplorer() {
             </svg>
           </button>
         </div>
-        <span>Files</span>
-        <button
-          className="toolbar-btn nav-btn file-search-btn"
-          onClick={() => {
-            setSearchOpen(!searchOpen)
-            if (searchOpen) setSearchQuery('')
-          }}
-          title="Search files"
-          data-testid={TEST_IDS.FILE_SEARCH_BTN}
-        >
-          <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
-            <circle cx="5" cy="5" r="3.5" stroke="currentColor" strokeWidth="1.5"/>
-            <path d="M8 8L11 11" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
-          </svg>
-        </button>
+        {searchOpen ? (
+          <div className="file-search-inline">
+            <input
+              className="file-search-inline-input"
+              data-testid={TEST_IDS.FILE_SEARCH_INPUT}
+              type="text"
+              placeholder="Filter..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              onKeyDown={handleSearchKeyDown}
+              autoFocus
+            />
+            <button
+              className="toolbar-btn nav-btn file-search-clear-btn"
+              onClick={() => { setSearchQuery(''); setSearchOpen(false) }}
+              title="Clear search"
+            >
+              <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
+                <path d="M2 2L8 8M8 2L2 8" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+              </svg>
+            </button>
+          </div>
+        ) : (
+          <>
+            <span>Files</span>
+            <button
+              className="toolbar-btn nav-btn file-search-btn"
+              onClick={() => setSearchOpen(true)}
+              title="Search files"
+              data-testid={TEST_IDS.FILE_SEARCH_BTN}
+            >
+              <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+                <circle cx="5" cy="5" r="3.5" stroke="currentColor" strokeWidth="1.5"/>
+                <path d="M8 8L11 11" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+              </svg>
+            </button>
+          </>
+        )}
       </div>
-      {searchOpen && (
-        <input
-          className="file-search-input"
-          data-testid={TEST_IDS.FILE_SEARCH_INPUT}
-          type="text"
-          placeholder="Filter files..."
-          value={searchQuery}
-          onChange={(e) => setSearchQuery(e.target.value)}
-          onKeyDown={handleSearchKeyDown}
-          autoFocus
-        />
-      )}
       <div
         ref={treeRef}
         className="file-tree"
@@ -266,9 +323,10 @@ export function FileExplorer() {
             onToggle={handleToggle}
             focusedPath={focusedPath}
             onSelect={handleNodeSelect}
+            getDisplayName={(e) => getDisplayName(e, ambiguousStems)}
           />
         ))}
-        {docs.length > 0 && (
+        {filteredDocs.length > 0 && (
           <>
             <div
               className="hidden-folders-header generated-docs-header"
@@ -280,9 +338,9 @@ export function FileExplorer() {
                   <path d={generatedExpanded ? 'M1 3L5 7L9 3' : 'M3 1L7 5L3 9'} />
                 </svg>
               </span>
-              <span>Generated ({docs.length})</span>
+              <span>Generated ({filteredDocs.length})</span>
             </div>
-            {generatedExpanded && docs.map((doc) => (
+            {generatedExpanded && filteredDocs.map((doc) => (
               <GeneratedDocNode key={doc.id} doc={doc} onMakePermanent={handleMakePermanent} />
             ))}
           </>
@@ -311,6 +369,7 @@ export function FileExplorer() {
                 onToggle={handleToggle}
                 focusedPath={null}
                 onSelect={handleNodeSelect}
+                getDisplayName={(e) => getDisplayName(e, ambiguousStems)}
               />
             ))}
           </>

@@ -19,9 +19,10 @@ interface FileTreeNodeProps {
   onToggle: (path: string) => void
   focusedPath: string | null
   onSelect?: (path: string) => void
+  getDisplayName?: (entry: FileEntry) => string
 }
 
-export function FileTreeNode({ entry, depth, excluded, isExpanded, onToggle, focusedPath, onSelect }: FileTreeNodeProps) {
+export function FileTreeNode({ entry, depth, excluded, isExpanded, onToggle, focusedPath, onSelect, getDisplayName }: FileTreeNodeProps) {
   const [ctxMenu, setCtxMenu] = useState<{ x: number; y: number } | null>(null)
   const ctxRef = useRef<HTMLDivElement>(null)
   const nodeRef = useRef<HTMLDivElement>(null)
@@ -80,22 +81,28 @@ export function FileTreeNode({ entry, depth, excluded, isExpanded, onToggle, foc
       <div
         ref={nodeRef}
         className={`file-tree-node ${isSelected ? 'selected' : ''} ${focused ? 'focused' : ''} ${entry.isDirectory ? 'directory' : 'file'}${isExcluded ? ' excluded' : ''}`}
-        style={{ paddingLeft: `${depth * 16 + 8}px` }}
+        style={{ paddingLeft: `${depth * 20 + 8}px` }}
         onClick={handleClick}
         onContextMenu={handleContextMenu}
       >
-        {entry.isDirectory && (
-          <span
-            className={`toggle ${expanded ? 'expanded' : ''}`}
-            data-testid={TEST_IDS.FILE_TREE_NODE_TOGGLE}
-          >
-            <svg width="10" height="10" viewBox="0 0 10 10" fill="currentColor">
-              <path d={expanded ? 'M1 3L5 7L9 3' : 'M3 1L7 5L3 9'} />
+        <span
+          className={`toggle ${expanded ? 'expanded' : ''}`}
+          data-testid={TEST_IDS.FILE_TREE_NODE_TOGGLE}
+        >
+          {entry.isDirectory && (
+            <svg width="10" height="10" viewBox="0 0 8 8" fill="none">
+              <path
+                d={expanded ? 'M1 2.5L4 5.5L7 2.5' : 'M2.5 1L5.5 4L2.5 7'}
+                stroke="currentColor"
+                strokeWidth="1.2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
             </svg>
-          </span>
-        )}
+          )}
+        </span>
         <span data-testid={TEST_IDS.FILE_TREE_NODE_LABEL} className="file-name">
-          {entry.name}
+          {getDisplayName ? getDisplayName(entry) : entry.name}
         </span>
       </div>
       {ctxMenu && (
@@ -125,7 +132,10 @@ export function FileTreeNode({ entry, depth, excluded, isExpanded, onToggle, foc
         </div>
       )}
       {expanded && entry.children && (
-        <div className="file-tree-children">
+        <div
+          className="file-tree-children"
+          style={{ '--indent-guide-left': `${depth * 20 + 15}px` } as React.CSSProperties}
+        >
           {entry.children.map((child) => (
             <FileTreeNode
               key={child.path}
@@ -136,6 +146,7 @@ export function FileTreeNode({ entry, depth, excluded, isExpanded, onToggle, foc
               onToggle={onToggle}
               focusedPath={focusedPath}
               onSelect={onSelect}
+              getDisplayName={getDisplayName}
             />
           ))}
         </div>
