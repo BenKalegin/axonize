@@ -14,6 +14,8 @@
   --border: #313244;
   --scrollbar-bg: #181825;
   --scrollbar-thumb: #45475a;
+  --bg-elevated: #313244;
+  --indent-guide-left: 11px;
 }
 
 * {

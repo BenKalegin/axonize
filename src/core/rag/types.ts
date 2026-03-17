@@ -52,12 +52,17 @@ export interface UILayoutConfig {
   sidePanelWidth: number
 }
 
+export interface AppearanceConfig {
+  themeId: string
+}
+
 export interface AppSettings {
   llm: LLMConfig
   rag: RagConfig
   ui?: UILayoutConfig
   excludedFolders: string[]
   generatedDocs: GeneratedDocsConfig
+  appearance?: AppearanceConfig
 }
 
 export interface LLMMessage {
@@ -122,5 +127,8 @@ export const DEFAULT_SETTINGS: AppSettings = {
   excludedFolders: [],
   generatedDocs: {
     retentionDays: 7
+  },
+  appearance: {
+    themeId: 'catppuccin-mocha'
   }
 }

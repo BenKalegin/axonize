@@ -52,7 +52,7 @@ export function registerIpcHandlers(): void {
 
   ipcMain.handle('file:read', async (_event, filePath: string) => {
     try {
-      return await readFile(filePath, 'utf-8')
+      return readFile(filePath, 'utf-8')
     } catch (e) {
       log.error('file:read failed:', filePath, e)
       throw e
