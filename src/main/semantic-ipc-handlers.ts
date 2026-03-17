@@ -132,17 +132,9 @@ export function registerSemanticIpcHandlers(): void {
     k?: number
   }) => {
     const data = await loadSummaryVectors(payload.vaultPath)
-    if (!data) {
-      log.info('[semantic] relatedDocs: no summary vectors found')
-      return []
-    }
+    if (!data) return []
 
     const cards = await loadCards(payload.vaultPath)
-    log.info(`[semantic] relatedDocs: ${cards.length} cards, ${data.cardIds.length} vectors, looking for "${payload.filePath}"`)
-    const level0 = cards.filter((c) => c.level === LEVEL_ZERO)
-    log.info(`[semantic] relatedDocs: ${level0.length} level-0 cards, sample paths: ${level0.slice(0, 3).map((c) => c.filePath).join(', ')}`)
-    const result = findRelatedDocs(cards, data, payload.filePath, payload.k ?? DEFAULT_RELATED_K)
-    log.info(`[semantic] relatedDocs: returning ${result.length} results`)
-    return result
+    return findRelatedDocs(cards, data, payload.filePath, payload.k ?? DEFAULT_RELATED_K)
   })
 }

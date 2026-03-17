@@ -1,11 +1,13 @@
-import { ipcMain, dialog, BrowserWindow } from 'electron'
-import { readVaultFiles } from './file-service'
-import { readFile } from 'fs/promises'
-import { getRecentVaults, addRecentVault, removeRecentVault } from './recent-vaults-service'
-import { registerRAGIpcHandlers, setCurrentVaultPath } from './rag-ipc-handlers'
-import { registerGeneratedDocsIpcHandlers } from './generated-docs-ipc-handlers'
-import { registerSemanticIpcHandlers } from './semantic-ipc-handlers'
-import { startWatching, stopWatching } from './file-watcher'
+import {BrowserWindow, dialog, ipcMain} from 'electron'
+import {readVaultFiles} from './file-service'
+import {mkdir, readFile, writeFile} from 'fs/promises'
+import {join} from 'path'
+import {addRecentVault, getRecentVaults, removeRecentVault} from './recent-vaults-service'
+import {registerRAGIpcHandlers, setCurrentVaultPath} from './rag-ipc-handlers'
+import {registerGeneratedDocsIpcHandlers} from './generated-docs-ipc-handlers'
+import {registerSemanticIpcHandlers} from './semantic-ipc-handlers'
+import {registerLLMIpcHandlers} from './llm-ipc-handlers'
+import {startWatching, stopWatching} from './file-watcher'
 import log from './logger'
 
 const DOC_SLUGS = new Set(['doc', 'docs'])
@@ -50,10 +52,18 @@ export function registerIpcHandlers(): void {
 
   ipcMain.handle('file:read', async (_event, filePath: string) => {
     try {
-      const content = await readFile(filePath, 'utf-8')
-      return content
+      return await readFile(filePath, 'utf-8')
     } catch (e) {
       log.error('file:read failed:', filePath, e)
+      throw e
+    }
+  })
+
+  ipcMain.handle('file:write', async (_event, filePath: string, content: string) => {
+    try {
+      await writeFile(filePath, content, 'utf-8')
+    } catch (e) {
+      log.error('file:write failed:', filePath, e)
       throw e
     }
   })
@@ -81,7 +91,36 @@ export function registerIpcHandlers(): void {
     stopWatching()
   })
 
+  const RECENT_FILES_MAX = 10
+
+  ipcMain.handle('vault:getRecentFiles', async (_event, vaultPath: string) => {
+    try {
+      const filePath = join(vaultPath, '.axonize', 'recent-files.json')
+      const data = await readFile(filePath, 'utf-8')
+      return JSON.parse(data) as Array<{ path: string; openedAt: number }>
+    } catch {
+      return []
+    }
+  })
+
+  ipcMain.handle('vault:addRecentFile', async (_event, vaultPath: string, filePath: string) => {
+    const jsonPath = join(vaultPath, '.axonize', 'recent-files.json')
+    let entries: Array<{ path: string; openedAt: number }> = []
+    try {
+      const data = await readFile(jsonPath, 'utf-8')
+      entries = JSON.parse(data)
+    } catch { /* no file yet */ }
+
+    entries = entries.filter((e) => e.path !== filePath)
+    entries.unshift({ path: filePath, openedAt: Date.now() })
+    entries = entries.slice(0, RECENT_FILES_MAX)
+
+    await mkdir(join(vaultPath, '.axonize'), { recursive: true })
+    await writeFile(jsonPath, JSON.stringify(entries, null, 2), 'utf-8')
+  })
+
   registerRAGIpcHandlers()
   registerGeneratedDocsIpcHandlers()
   registerSemanticIpcHandlers()
+  registerLLMIpcHandlers()
 }

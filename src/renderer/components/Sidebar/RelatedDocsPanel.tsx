@@ -39,14 +39,12 @@ function useRelatedDocs(selectedFile: string | null, vaultPath: string | null) {
     const relativePath = toRelativePath(selectedFile, vaultPath)
 
     setLoading(true)
-    console.log('[RelatedDocs] fetching for:', relativePath, 'vault:', vaultPath)
     window.axonize.semantic
       .relatedDocs(vaultPath, relativePath)
       .then((result) => {
         if (!cancelled) setDocs(result)
       })
-      .catch((err) => {
-        console.error('[RelatedDocs] fetch failed:', err)
+      .catch(() => {
         if (!cancelled) setDocs([])
       })
       .finally(() => {

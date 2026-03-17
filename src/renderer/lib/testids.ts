@@ -115,6 +115,18 @@ export const TEST_IDS = {
   SEMANTIC_ERROR_ENTRY: 'semantic-error-entry',
   SEMANTIC_ERRORS_CLEAR_BTN: 'semantic-errors-clear-btn',
 
+  // Section Editor
+  SECTION_BLOCK: 'section-block',
+  SECTION_EDIT_BTN: 'section-edit-btn',
+  SECTION_EDITOR: 'section-editor',
+  SECTION_SAVE_BTN: 'section-save-btn',
+  SECTION_CANCEL_BTN: 'section-cancel-btn',
+  SECTION_AI_BTN: 'section-ai-btn',
+  SECTION_LLM_INPUT: 'section-llm-input',
+  CONFLICT_DIALOG: 'conflict-dialog',
+  CONFLICT_OVERRIDE_BTN: 'conflict-override-btn',
+  CONFLICT_RELOAD_BTN: 'conflict-reload-btn',
+
   // Related Docs Panel
   RELATED_DOCS_PANEL: 'related-docs-panel',
   RELATED_DOC_CARD: 'related-doc-card',

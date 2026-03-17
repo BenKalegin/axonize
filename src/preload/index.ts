@@ -74,6 +74,9 @@ export interface AxonizeAPI {
   }
   file: {
     read: (filePath: string) => Promise<string>
+    write: (filePath: string, content: string) => Promise<void>
+    getRecent: (vaultPath: string) => Promise<Array<{ path: string; openedAt: number }>>
+    addRecent: (vaultPath: string, filePath: string) => Promise<void>
   }
   rag: {
     indexVault: (vaultPath: string) => Promise<{ chunkCount: number }>
@@ -95,6 +98,9 @@ export interface AxonizeAPI {
     onProgress: (callback: (payload: unknown) => void) => () => void
     onError: (callback: (payload: unknown) => void) => () => void
     onErrorsClear: (callback: () => void) => () => void
+  }
+  llm: {
+    rewriteSection: (section: string, instruction: string) => Promise<string>
   }
   settings: {
     get: () => Promise<unknown>
@@ -129,7 +135,10 @@ const api: AxonizeAPI = {
     }
   },
   file: {
-    read: (filePath: string) => ipcRenderer.invoke('file:read', filePath)
+    read: (filePath: string) => ipcRenderer.invoke('file:read', filePath),
+    write: (filePath: string, content: string) => ipcRenderer.invoke('file:write', filePath, content),
+    getRecent: (vaultPath: string) => ipcRenderer.invoke('vault:getRecentFiles', vaultPath),
+    addRecent: (vaultPath: string, filePath: string) => ipcRenderer.invoke('vault:addRecentFile', vaultPath, filePath)
   },
   rag: {
     indexVault: (vaultPath: string) => ipcRenderer.invoke('rag:indexVault', { vaultPath }),
@@ -177,6 +186,10 @@ const api: AxonizeAPI = {
         ipcRenderer.removeListener('semantic:errors-clear', listener)
       }
     }
+  },
+  llm: {
+    rewriteSection: (section: string, instruction: string) =>
+      ipcRenderer.invoke('llm:rewriteSection', { section, instruction })
   },
   settings: {
     get: () => ipcRenderer.invoke('settings:get'),

@@ -1,13 +1,18 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react'
 import mermaid from 'mermaid'
+import elkLayouts from '@mermaid-js/layout-elk'
 import { TEST_IDS } from '@/lib/testids'
 import { useEditorStore } from '@/store/editor-store'
 import { useVaultStore } from '@/store/vault-store'
-import { renderMarkdown } from '@/lib/markdown-renderer'
+import { splitSections, type MarkdownSection } from '@/lib/section-splitter'
+import { SectionBlock } from './SectionBlock'
+import { ConflictDialog } from './ConflictDialog'
 
+mermaid.registerLayoutLoaders(elkLayouts)
 mermaid.initialize({
   startOnLoad: false,
   theme: 'dark',
+  layout: 'elk',
   flowchart: { useMaxWidth: false },
   sequence: { useMaxWidth: false },
   gantt: { useMaxWidth: false },
@@ -25,105 +30,162 @@ declare global {
   }
 }
 
-let mermaidCounter = 0
+const FRONTMATTER_RE = /^---\n[\s\S]*?\n---\n/
+
+function hashSimple(str: string): string {
+  let h = 0
+  for (let i = 0; i < str.length; i++) {
+    h = (Math.imul(31, h) + str.charCodeAt(i)) | 0
+  }
+  return h.toString(36)
+}
 
 export const MarkdownView = React.memo(function MarkdownView() {
   const { selectedFile, selectFile } = useEditorStore()
   const { vaultPath, fileTree } = useVaultStore()
-  const [html, setHtml] = useState('')
-  const containerRef = useRef<HTMLDivElement>(null)
+
+  const [sections, setSections] = useState<MarkdownSection[]>([])
+  const [rawContent, setRawContent] = useState('')
+  const [frontmatter, setFrontmatter] = useState('')
+  const [fileHash, setFileHash] = useState('')
+  const [conflict, setConflict] = useState<{ sectionId: string; newMarkdown: string } | null>(null)
+
+  const rawContentRef = useRef(rawContent)
+  rawContentRef.current = rawContent
+  const fileHashRef = useRef(fileHash)
+  fileHashRef.current = fileHash
+  const frontmatterRef = useRef(frontmatter)
+  frontmatterRef.current = frontmatter
+
+  const loadFile = useCallback(async (filePath: string) => {
+    const content = await window.axonize.file.read(filePath)
+    const fmMatch = content.match(FRONTMATTER_RE)
+    const fm = fmMatch ? fmMatch[0] : ''
+    const stripped = fm ? content.slice(fm.length) : content
+    const hash = hashSimple(content)
+
+    setFrontmatter(fm)
+    setRawContent(stripped)
+    setFileHash(hash)
+    setSections(splitSections(stripped))
+  }, [])
 
   useEffect(() => {
     if (!selectedFile) return
     let cancelled = false
-
-    window.axonize.file.read(selectedFile).then(async (content) => {
+    loadFile(selectedFile).then(() => {
       if (cancelled) return
-      const stripped = content.replace(/^---\n[\s\S]*?\n---\n/, '')
-      const rendered = await renderMarkdown(stripped)
-      setHtml(rendered)
     })
-
     return () => {
       cancelled = true
     }
-  }, [selectedFile, fileTree])
+  }, [selectedFile, fileTree, loadFile])
 
-  useEffect(() => {
-    if (!html || !containerRef.current) return
+  const handleSave = useCallback(
+    async (sectionId: string, newMarkdown: string) => {
+      if (!selectedFile) return
 
-    const codeBlocks = containerRef.current.querySelectorAll('pre code.language-mermaid')
-    if (codeBlocks.length === 0) return
+      const diskContent = await window.axonize.file.read(selectedFile)
+      const diskHash = hashSimple(diskContent)
 
-    let cancelled = false
-
-    ;(async () => {
-      for (const codeEl of codeBlocks) {
-        if (cancelled) return
-        const pre = codeEl.parentElement
-        if (!pre) continue
-
-        const source = codeEl.textContent ?? ''
-        if (!source.trim()) continue
-
-        try {
-          const id = `mermaid-${++mermaidCounter}`
-          const { svg } = await mermaid.render(id, source)
-          if (cancelled) return
-
-          const wrapper = document.createElement('div')
-          wrapper.className = 'mermaid-diagram'
-          wrapper.innerHTML = svg
-          pre.replaceWith(wrapper)
-        } catch {
-          // leave original code block on render failure
-        }
+      if (diskHash !== fileHashRef.current) {
+        setConflict({ sectionId, newMarkdown })
+        return
       }
-    })()
 
-    return () => {
-      cancelled = true
-    }
-  }, [html])
+      await writeSection(selectedFile, sectionId, newMarkdown)
+    },
+    [selectedFile]
+  )
 
-  const handleClick = useCallback((e: React.MouseEvent) => {
-    const anchor = (e.target as HTMLElement).closest('a')
-    if (!anchor) return
+  const writeSection = useCallback(
+    async (filePath: string, sectionId: string, newMarkdown: string) => {
+      const current = rawContentRef.current
+      const lines = current.split('\n')
 
-    const href = anchor.getAttribute('href')
-    if (!href) return
+      const sec = splitSections(current).find((s) => s.id === sectionId)
+      if (!sec) return
 
-    // Ignore external links and anchors
-    if (href.startsWith('http://') || href.startsWith('https://') || href.startsWith('#')) return
+      const before = lines.slice(0, sec.startLine - 1)
+      const after = lines.slice(sec.endLine)
+      const updated = [...before, newMarkdown, ...after].join('\n')
 
-    e.preventDefault()
+      const fullContent = frontmatterRef.current + updated
+      await window.axonize.file.write(filePath, fullContent)
 
-    // Resolve relative link against current file's directory
-    const currentDir = selectedFile ? selectedFile.replace(/\/[^/]+$/, '') : vaultPath
-    if (!currentDir) return
+      setRawContent(updated)
+      setFileHash(hashSimple(fullContent))
+      setSections(splitSections(updated))
 
-    // Strip any anchor fragment
-    const cleanHref = href.split('#')[0]
-    if (!cleanHref) return
+      triggerReindex(filePath)
+    },
+    []
+  )
 
-    // Add .md extension if not present
-    const target = cleanHref.endsWith('.md') ? cleanHref : `${cleanHref}.md`
+  const triggerReindex = useCallback(
+    (filePath: string) => {
+      if (!vaultPath) return
+      const relative = filePath.startsWith(vaultPath)
+        ? filePath.slice(vaultPath.length + 1)
+        : filePath
+      window.axonize.rag.reindexFile(vaultPath, relative).catch(() => {})
+      window.axonize.semantic.incremental(vaultPath).catch(() => {})
+    },
+    [vaultPath]
+  )
 
-    // Resolve the path
-    const fullPath = target.startsWith('/')
-      ? target
-      : `${currentDir}/${target}`
+  const handleConflictOverride = useCallback(async () => {
+    if (!conflict || !selectedFile) return
+    await writeSection(selectedFile, conflict.sectionId, conflict.newMarkdown)
+    setConflict(null)
+  }, [conflict, selectedFile, writeSection])
 
-    selectFile(fullPath)
-  }, [selectedFile, vaultPath, selectFile])
+  const handleConflictReload = useCallback(async () => {
+    if (!selectedFile) return
+    await loadFile(selectedFile)
+    setConflict(null)
+  }, [selectedFile, loadFile])
+
+  const handleLinkClick = useCallback(
+    (e: React.MouseEvent) => {
+      const anchor = (e.target as HTMLElement).closest('a')
+      if (!anchor) return
+
+      const href = anchor.getAttribute('href')
+      if (!href) return
+
+      if (href.startsWith('http://') || href.startsWith('https://') || href.startsWith('#'))
+        return
+
+      e.preventDefault()
+
+      const currentDir = selectedFile ? selectedFile.replace(/\/[^/]+$/, '') : vaultPath
+      if (!currentDir) return
+
+      const cleanHref = href.split('#')[0]
+      if (!cleanHref) return
+
+      const target = cleanHref.endsWith('.md') ? cleanHref : `${cleanHref}.md`
+      const fullPath = target.startsWith('/') ? target : `${currentDir}/${target}`
+
+      selectFile(fullPath)
+    },
+    [selectedFile, vaultPath, selectFile]
+  )
 
   return (
-    <div
-      ref={containerRef}
-      className="markdown-view"
-      data-testid={TEST_IDS.MARKDOWN_VIEW}
-      dangerouslySetInnerHTML={{ __html: html }}
-      onClick={handleClick}
-    />
+    <div className="markdown-view" data-testid={TEST_IDS.MARKDOWN_VIEW}>
+      {sections.map((section) => (
+        <SectionBlock
+          key={section.id}
+          section={section}
+          onSave={handleSave}
+          onLinkClick={handleLinkClick}
+        />
+      ))}
+      {conflict && (
+        <ConflictDialog onOverride={handleConflictOverride} onReload={handleConflictReload} />
+      )}
+    </div>
   )
 })

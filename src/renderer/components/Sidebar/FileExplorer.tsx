@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback, useRef } from 'react'
+import { useState, useMemo, useCallback, useRef, useEffect } from 'react'
 import { TEST_IDS } from '@/lib/testids'
 import { useVaultStore } from '@/store/vault-store'
 import { useEditorStore } from '@/store/editor-store'
@@ -99,8 +99,13 @@ function buildParentMap(entries: FileEntry[]): Map<string, string> {
   return map
 }
 
+interface RecentFile {
+  path: string
+  openedAt: number
+}
+
 export function FileExplorer() {
-  const { fileTree, excludedFolders } = useVaultStore()
+  const { fileTree, vaultPath, excludedFolders } = useVaultStore()
   const { selectedFile, selectFile, canGoBack, canGoForward, goBack, goForward } = useEditorStore()
   const { docs } = useGeneratedDocsStore()
   const [hiddenExpanded, setHiddenExpanded] = useState(false)
@@ -110,7 +115,41 @@ export function FileExplorer() {
   const [searchQuery, setSearchQuery] = useState('')
   const [collapsedPaths, setCollapsedPaths] = useState<Set<string>>(new Set())
   const [focusedPath, setFocusedPath] = useState<string | null>(null)
+  const [recentFiles, setRecentFiles] = useState<RecentFile[]>([])
+  const [recentOpen, setRecentOpen] = useState(false)
   const treeRef = useRef<HTMLDivElement>(null)
+  const recentRef = useRef<HTMLDivElement>(null)
+
+  const handleRecentToggle = useCallback(async () => {
+    if (recentOpen) {
+      setRecentOpen(false)
+      return
+    }
+    if (!vaultPath) return
+    try {
+      const files = await window.axonize.file.getRecent(vaultPath)
+      setRecentFiles(files)
+    } catch {
+      setRecentFiles([])
+    }
+    setRecentOpen(true)
+  }, [recentOpen, vaultPath])
+
+  const handleRecentSelect = useCallback((path: string) => {
+    selectFile(path)
+    setRecentOpen(false)
+  }, [selectFile])
+
+  useEffect(() => {
+    if (!recentOpen) return
+    const handleClickOutside = (e: MouseEvent) => {
+      if (recentRef.current && !recentRef.current.contains(e.target as Node)) {
+        setRecentOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [recentOpen])
 
   const { visible, excluded } = useMemo(() => {
     const excludedSet = new Set(excludedFolders)
@@ -292,17 +331,54 @@ export function FileExplorer() {
         ) : (
           <>
             <span>Files</span>
-            <button
-              className="toolbar-btn nav-btn file-search-btn"
-              onClick={() => setSearchOpen(true)}
-              title="Search files"
-              data-testid={TEST_IDS.FILE_SEARCH_BTN}
-            >
-              <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
-                <circle cx="5" cy="5" r="3.5" stroke="currentColor" strokeWidth="1.5"/>
-                <path d="M8 8L11 11" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
-              </svg>
-            </button>
+            <div className="sidebar-header-actions">
+              <div ref={recentRef} className="recent-files-wrapper">
+                <button
+                  className="toolbar-btn nav-btn"
+                  onClick={handleRecentToggle}
+                  title="Recent files"
+                >
+                  <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+                    <circle cx="6" cy="6" r="5" stroke="currentColor" strokeWidth="1.2"/>
+                    <path d="M6 3V6L8 7.5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"/>
+                  </svg>
+                </button>
+                {recentOpen && recentFiles.length > 0 && (
+                  <div className="recent-files-dropdown">
+                    {recentFiles.map((rf) => {
+                      const name = rf.path.split('/').pop() ?? rf.path
+                      const displayName = name.endsWith('.md') ? name.slice(0, -3) : name
+                      return (
+                        <button
+                          key={rf.path}
+                          className={`recent-files-item${rf.path === selectedFile ? ' recent-files-item--active' : ''}`}
+                          onClick={() => handleRecentSelect(rf.path)}
+                          title={rf.path}
+                        >
+                          {displayName}
+                        </button>
+                      )
+                    })}
+                  </div>
+                )}
+                {recentOpen && recentFiles.length === 0 && (
+                  <div className="recent-files-dropdown">
+                    <div className="recent-files-empty">No recent files</div>
+                  </div>
+                )}
+              </div>
+              <button
+                className="toolbar-btn nav-btn file-search-btn"
+                onClick={() => setSearchOpen(true)}
+                title="Search files"
+                data-testid={TEST_IDS.FILE_SEARCH_BTN}
+              >
+                <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+                  <circle cx="5" cy="5" r="3.5" stroke="currentColor" strokeWidth="1.5"/>
+                  <path d="M8 8L11 11" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+                </svg>
+              </button>
+            </div>
           </>
         )}
       </div>

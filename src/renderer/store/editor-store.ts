@@ -1,4 +1,5 @@
 import { create } from 'zustand'
+import { useVaultStore } from './vault-store'
 
 type ViewMode = 'markdown' | 'graph'
 
@@ -39,6 +40,10 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       canGoBack: newIndex > 0,
       canGoForward: false
     })
+    const vaultPath = useVaultStore.getState().vaultPath
+    if (vaultPath) {
+      window.axonize.file.addRecent(vaultPath, path).catch(() => {})
+    }
   },
 
   goBack: () => {
