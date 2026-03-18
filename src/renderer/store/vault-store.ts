@@ -3,6 +3,7 @@ import type { AppSettings } from '@core/rag/types'
 import { useGeneratedDocsStore } from './generated-docs-store'
 import { useRagStore } from './rag-store'
 import { useGraphStore } from './graph-store'
+import { useEditorStore } from './editor-store'
 
 async function loadSemanticCache(vaultPath: string): Promise<void> {
   const { cards, relations, dimensions } = await window.axonize.semantic.load(vaultPath)
@@ -30,6 +31,15 @@ async function runSemanticIndex(vaultPath: string): Promise<void> {
   } catch (err) {
     console.error('[semantic] Decomposition failed:', err)
   }
+}
+
+async function restoreLastFile(vaultPath: string): Promise<void> {
+  try {
+    const recentFiles = await window.axonize.file.getRecent(vaultPath)
+    if (recentFiles.length > 0) {
+      useEditorStore.getState().selectFile(recentFiles[0].path)
+    }
+  } catch { /* no recent files */ }
 }
 
 const DOC_SLUGS = new Set(['doc', 'docs'])
@@ -91,6 +101,7 @@ export const useVaultStore = create<VaultState>((set, get) => ({
       set({ fileTree: files })
       await get().loadRecentVaults()
       await get().loadExcludedFolders()
+      restoreLastFile(path).catch(() => {})
       useGeneratedDocsStore.getState().runCleanup(path).catch(() => {})
       runSemanticIndex(path).catch(() => {})
       window.axonize.vault.startWatch(path).catch(() => {})
@@ -125,6 +136,7 @@ export const useVaultStore = create<VaultState>((set, get) => ({
     await window.axonize.vault.addRecent(path, name)
     await get().loadRecentVaults()
     await get().loadExcludedFolders()
+    restoreLastFile(path).catch(() => {})
     useGeneratedDocsStore.getState().runCleanup(path).catch(() => {})
     runSemanticIndex(path).catch(() => {})
     window.axonize.vault.startWatch(path).catch(() => {})

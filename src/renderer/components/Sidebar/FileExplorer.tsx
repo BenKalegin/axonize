@@ -74,6 +74,35 @@ function getDisplayName(entry: FileEntry, ambiguousStems: Set<string>): string {
   return ambiguousStems.has(key) ? entry.name : stem
 }
 
+function collectAllDirPaths(entries: FileEntry[]): Set<string> {
+  const dirs = new Set<string>()
+  for (const entry of entries) {
+    if (entry.isDirectory) {
+      dirs.add(entry.path)
+      if (entry.children) {
+        for (const d of collectAllDirPaths(entry.children)) dirs.add(d)
+      }
+    }
+  }
+  return dirs
+}
+
+function ancestorDirPaths(filePath: string, entries: FileEntry[]): Set<string> {
+  const ancestors = new Set<string>()
+  function walk(items: FileEntry[]): boolean {
+    for (const entry of items) {
+      if (entry.path === filePath) return true
+      if (entry.isDirectory && entry.children && walk(entry.children)) {
+        ancestors.add(entry.path)
+        return true
+      }
+    }
+    return false
+  }
+  walk(entries)
+  return ancestors
+}
+
 function flattenTree(entries: FileEntry[], isExpanded: (path: string) => boolean): FileEntry[] {
   const result: FileEntry[] = []
   for (const entry of entries) {
@@ -104,6 +133,8 @@ interface RecentFile {
   openedAt: number
 }
 
+const NAVIGATION_KEYS = new Set(['ArrowDown', 'ArrowUp', 'ArrowLeft', 'ArrowRight', 'Enter'])
+
 export function FileExplorer() {
   const { fileTree, vaultPath, excludedFolders } = useVaultStore()
   const { selectedFile, selectFile, canGoBack, canGoForward, goBack, goForward } = useEditorStore()
@@ -119,6 +150,23 @@ export function FileExplorer() {
   const [recentOpen, setRecentOpen] = useState(false)
   const treeRef = useRef<HTMLDivElement>(null)
   const recentRef = useRef<HTMLDivElement>(null)
+
+  // Collapse all folders by default, expand only ancestors of the selected file
+  const treeInitRef = useRef<string | null>(null)
+  useEffect(() => {
+    if (fileTree.length === 0) return
+    const treeKey = fileTree.map(e => e.path).join('\n')
+    if (treeInitRef.current === treeKey) return
+    treeInitRef.current = treeKey
+
+    const allDirs = collectAllDirPaths(fileTree as FileEntry[])
+    const openDirs = selectedFile ? ancestorDirPaths(selectedFile, fileTree as FileEntry[]) : new Set<string>()
+    const collapsed = new Set<string>()
+    for (const dir of allDirs) {
+      if (!openDirs.has(dir)) collapsed.add(dir)
+    }
+    setCollapsedPaths(collapsed)
+  }, [fileTree, selectedFile])
 
   const handleRecentToggle = useCallback(async () => {
     if (recentOpen) {
@@ -261,8 +309,6 @@ export function FileExplorer() {
       }
     }
   }, [flatItems, focusedPath, collapsedPaths, handleToggle, searchQuery, parentMap, selectFile])
-
-  const NAVIGATION_KEYS = new Set(['ArrowDown', 'ArrowUp', 'ArrowLeft', 'ArrowRight', 'Enter'])
 
   const handleSearchKeyDown = useCallback((e: React.KeyboardEvent<HTMLInputElement>) => {
     if (NAVIGATION_KEYS.has(e.key)) {

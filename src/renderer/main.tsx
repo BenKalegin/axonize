@@ -74,12 +74,10 @@ useLayoutStore.getState().hydrateFromSettings()
 useVaultStore.getState().loadRecentVaults().then(() => {
   const { recentVaults, openRecentVault } = useVaultStore.getState()
   if (recentVaults.length > 0) {
-    openRecentVault(recentVaults[0].path).then(() => {
+    const vaultPath = recentVaults[0].path
+    openRecentVault(vaultPath).then(() => {
       // Fire-and-forget: index vault after opening
-      const { vaultPath } = useVaultStore.getState()
-      if (vaultPath) {
-        useRagStore.getState().indexVault(vaultPath)
-      }
+      useRagStore.getState().indexVault(vaultPath)
     })
   }
 })
