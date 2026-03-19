@@ -95,6 +95,7 @@ export const useVaultStore = create<VaultState>((set, get) => ({
   openVault: async () => {
     const path = await window.axonize.vault.open()
     if (path) {
+      useEditorStore.getState().clear()
       const name = vaultNameFromPath(path)
       set({ vaultPath: path, vaultName: name })
       const files = await window.axonize.vault.readFiles(path) as FileEntry[]
@@ -129,6 +130,7 @@ export const useVaultStore = create<VaultState>((set, get) => ({
   },
 
   openRecentVault: async (path: string) => {
+    useEditorStore.getState().clear()
     const name = vaultNameFromPath(path)
     set({ vaultPath: path, vaultName: name })
     const files = await window.axonize.vault.readFiles(path) as FileEntry[]

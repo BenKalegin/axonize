@@ -12,6 +12,7 @@ interface EditorState {
   canGoForward: boolean
   setViewMode: (mode: ViewMode) => void
   selectFile: (path: string) => void
+  clear: () => void
   goBack: () => void
   goForward: () => void
 }
@@ -45,6 +46,15 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       window.axonize.file.addRecent(vaultPath, path).catch(() => {})
     }
   },
+
+  clear: () => set({
+    selectedFile: null,
+    viewMode: 'markdown',
+    history: [],
+    historyIndex: -1,
+    canGoBack: false,
+    canGoForward: false
+  }),
 
   goBack: () => {
     const { history, historyIndex } = get()

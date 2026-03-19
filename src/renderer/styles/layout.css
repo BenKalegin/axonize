@@ -391,6 +391,11 @@
   background: transparent;
   padding: 0;
   border-radius: 0;
+  font-size: 13px;
+}
+.markdown-view pre code.hljs {
+  background: transparent;
+  padding: 0;
 }
 .markdown-view pre {
   background: rgba(255, 255, 255, 0.03);
@@ -398,7 +403,7 @@
   border-radius: 6px;
   overflow-x: auto;
   margin: 12px 0;
-  line-height: 1;
+  line-height: 1.5;
 }
 .markdown-view ul, .markdown-view ol { padding-left: 24px; margin: 8px 0; }
 .markdown-view li { margin: 4px 0; color: var(--text-secondary); }
