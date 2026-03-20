@@ -7,6 +7,9 @@
   "scripts": {
     "dev": "electron-vite dev",
     "build": "electron-vite build",
+    "build:win": "electron-vite build && electron-builder --win",
+    "build:mac": "electron-vite build && electron-builder --mac",
+    "build:all": "electron-vite build && electron-builder --win --mac",
     "preview": "electron-vite preview",
     "test": "vitest run",
     "test:watch": "vitest",
@@ -33,6 +36,29 @@
     "unified": "^11.0.0",
     "zustand": "^5.0.0"
   },
+  "build": {
+    "appId": "com.axonize.app",
+    "productName": "Axonize",
+    "files": [
+      "out/**/*"
+    ],
+    "directories": {
+      "output": "dist"
+    },
+    "win": {
+      "target": [
+        "nsis",
+        "portable"
+      ]
+    },
+    "mac": {
+      "target": [
+        "dmg",
+        "zip"
+      ],
+      "category": "public.app-category.productivity"
+    }
+  },
   "pnpm": {
     "onlyBuiltDependencies": [
       "electron",
@@ -49,6 +75,7 @@
     "@typescript-eslint/parser": "^8.0.0",
     "@vitejs/plugin-react": "^4.2.0",
     "electron": "^35.0.0",
+    "electron-builder": "^26.8.1",
     "electron-vite": "^2.0.0",
     "eslint": "^9.0.0",
     "eslint-plugin-react": "^7.33.0",
