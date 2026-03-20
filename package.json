@@ -40,7 +40,8 @@
     "appId": "com.axonize.app",
     "productName": "Axonize",
     "files": [
-      "out/**/*"
+      "out/**/*",
+      "package.json"
     ],
     "directories": {
       "output": "dist"
@@ -49,14 +50,16 @@
       "target": [
         "nsis",
         "portable"
-      ]
+      ],
+      "icon": null
     },
     "mac": {
       "target": [
         "dmg",
         "zip"
       ],
-      "category": "public.app-category.productivity"
+      "category": "public.app-category.productivity",
+      "icon": null
     }
   },
   "pnpm": {
