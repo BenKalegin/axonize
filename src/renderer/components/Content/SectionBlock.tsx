@@ -194,14 +194,51 @@ export const SectionBlock = React.memo(function SectionBlock({
   )
 })
 
+const SHAPE_WRAPPERS: [string, string][] = [
+  ['((', '))'], ['(', ')'],
+  ['[[', ']]'], ['[', ']'],
+  ['{{', '}}'], ['{', '}'],
+  ['/', '/'], ['/', '\\'], ['\\', '/'], ['\\', '\\'],
+  ['>', ']']
+]
+
+/**
+ * Replace literal `\n` inside bracket-delimited node labels with `<br/>`
+ * and wrap the text in quotes so mermaid treats parentheses as text.
+ */
+function normalizeMermaidSource(src: string): string {
+  return src.replace(/\[([^\]]*\\n[^\]]*)\]/g, (_match, content: string) => {
+    let prefix = ''
+    let suffix = ''
+    let text = content
+
+    for (const [p, s] of SHAPE_WRAPPERS) {
+      if (text.startsWith(p) && text.endsWith(s)) {
+        prefix = p
+        suffix = s
+        text = text.slice(p.length, -s.length)
+        break
+      }
+    }
+
+    if (text.startsWith('"') && text.endsWith('"')) {
+      text = text.slice(1, -1)
+    }
+    text = text.replace(/\\n/g, '<br/>')
+
+    return `[${prefix}"${text}"${suffix}]`
+  })
+}
+
 async function replaceMermaidBlocks(container: HTMLElement): Promise<void> {
   const codeBlocks = container.querySelectorAll('pre code.language-mermaid')
   for (const codeEl of codeBlocks) {
     const pre = codeEl.parentElement
     if (!pre) continue
 
-    const source = codeEl.textContent ?? ''
-    if (!source.trim()) continue
+    const raw = codeEl.textContent ?? ''
+    if (!raw.trim()) continue
+    const source = normalizeMermaidSource(raw)
 
     try {
       const id = `mermaid-${++mermaidCounter}`
@@ -210,8 +247,8 @@ async function replaceMermaidBlocks(container: HTMLElement): Promise<void> {
       wrapper.className = 'mermaid-diagram'
       wrapper.innerHTML = svg
       pre.replaceWith(wrapper)
-    } catch {
-      // leave original code block on render failure
+    } catch (err) {
+      console.error('[mermaid] render failed:', err)
     }
   }
 }

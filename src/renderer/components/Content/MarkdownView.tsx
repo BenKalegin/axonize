@@ -154,10 +154,15 @@ export const MarkdownView = React.memo(function MarkdownView() {
       const href = anchor.getAttribute('href')
       if (!href) return
 
-      if (href.startsWith('http://') || href.startsWith('https://') || href.startsWith('#'))
+      if (href.startsWith('http://') || href.startsWith('https://'))
         return
 
       e.preventDefault()
+
+      if (href.startsWith('#')) {
+        if (selectedFile) selectFile(`${selectedFile}${href}`)
+        return
+      }
 
       const currentDir = selectedFile ? selectedFile.replace(/\/[^/]+$/, '') : vaultPath
       if (!currentDir) return
@@ -165,10 +170,11 @@ export const MarkdownView = React.memo(function MarkdownView() {
       const cleanHref = href.split('#')[0]
       if (!cleanHref) return
 
+      const hash = href.includes('#') ? href.slice(href.indexOf('#')) : ''
       const target = cleanHref.endsWith('.md') ? cleanHref : `${cleanHref}.md`
       const fullPath = target.startsWith('/') ? target : `${currentDir}/${target}`
 
-      selectFile(fullPath)
+      selectFile(`${fullPath}${hash}`)
     },
     [selectedFile, vaultPath, selectFile]
   )

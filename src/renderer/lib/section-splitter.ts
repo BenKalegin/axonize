@@ -57,6 +57,7 @@ function groupAstNodes(children: Content[]): RawGroup[] {
         startLine: nodeStartLine(node),
         endLine: nodeEndLine(node)
       })
+      current = null
       continue
     }
 
