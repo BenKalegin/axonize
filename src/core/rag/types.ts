@@ -33,7 +33,7 @@ export interface RagIndexState {
 }
 
 export interface LLMConfig {
-  provider: 'anthropic' | 'openai' | 'ollama'
+  provider: 'anthropic' | 'openai' | 'ollama' | 'claude-code'
   apiKey?: string
   model: string
   maxTokens: number
@@ -109,9 +109,8 @@ export interface IndexProgress {
 
 export const DEFAULT_SETTINGS: AppSettings = {
   llm: {
-    provider: 'anthropic',
-    apiKey: '',
-    model: 'claude-sonnet-4-20250514',
+    provider: 'claude-code',
+    model: 'claude-sonnet-4-6',
     maxTokens: 1024,
     temperature: 0.3
   },

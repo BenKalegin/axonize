@@ -201,7 +201,7 @@ function GeneralTab({
       <div className="settings-section">
         <div className="settings-section-title">LLM Configuration</div>
         <LLMProviderField settings={settings} updateLLM={updateLLM} />
-        {settings.llm.provider !== 'ollama' && (
+        {settings.llm.provider !== 'ollama' && settings.llm.provider !== 'claude-code' && (
           <div className="settings-field">
             <label>API Key</label>
             <input
@@ -382,9 +382,10 @@ function LLMProviderField({ settings, updateLLM }: LLMFieldProps) {
           }
         }}
       >
-        <option value="anthropic">Anthropic</option>
-        <option value="openai">OpenAI</option>
-        <option value="ollama">Ollama</option>
+        <option value="claude-code">Claude Code (subscription)</option>
+        <option value="anthropic">Anthropic (API key)</option>
+        <option value="openai">OpenAI (API key)</option>
+        <option value="ollama">Ollama (local)</option>
       </select>
     </div>
   )
