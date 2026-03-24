@@ -6,12 +6,21 @@ export interface RecentVault {
   openedAt: number
 }
 
+export interface GeneratedDocSource {
+  filePath: string
+  startLine: number
+  headingPath: string[]
+  score: number
+  contentPreview: string
+}
+
 export interface GeneratedDocMeta {
   id: string
   title: string
   query: string
   createdAt: string
   filePath: string
+  sources: GeneratedDocSource[]
 }
 
 export interface SemanticLoadResult {
@@ -75,6 +84,8 @@ export interface AxonizeAPI {
   file: {
     read: (filePath: string) => Promise<string>
     write: (filePath: string, content: string) => Promise<void>
+    rename: (oldPath: string, newPath: string) => Promise<void>
+    delete: (filePath: string) => Promise<void>
     getRecent: (vaultPath: string) => Promise<Array<{ path: string; openedAt: number }>>
     addRecent: (vaultPath: string, filePath: string) => Promise<void>
   }
@@ -107,7 +118,7 @@ export interface AxonizeAPI {
     save: (settings: unknown) => Promise<{ ok: boolean }>
   }
   generatedDocs: {
-    save: (vaultPath: string, title: string, query: string, answer: string) => Promise<GeneratedDocMeta>
+    save: (vaultPath: string, title: string, query: string, answer: string, sources: GeneratedDocSource[]) => Promise<GeneratedDocMeta>
     list: (vaultPath: string) => Promise<GeneratedDocMeta[]>
     rename: (filePath: string, newTitle: string) => Promise<void>
     makePermanent: (filePath: string, targetPath: string) => Promise<void>
@@ -137,6 +148,8 @@ const api: AxonizeAPI = {
   file: {
     read: (filePath: string) => ipcRenderer.invoke('file:read', filePath),
     write: (filePath: string, content: string) => ipcRenderer.invoke('file:write', filePath, content),
+    rename: (oldPath: string, newPath: string) => ipcRenderer.invoke('file:rename', oldPath, newPath),
+    delete: (filePath: string) => ipcRenderer.invoke('file:delete', filePath),
     getRecent: (vaultPath: string) => ipcRenderer.invoke('vault:getRecentFiles', vaultPath),
     addRecent: (vaultPath: string, filePath: string) => ipcRenderer.invoke('vault:addRecentFile', vaultPath, filePath)
   },
@@ -196,8 +209,8 @@ const api: AxonizeAPI = {
     save: (settings: unknown) => ipcRenderer.invoke('settings:save', { settings })
   },
   generatedDocs: {
-    save: (vaultPath: string, title: string, query: string, answer: string) =>
-      ipcRenderer.invoke('generated-docs:save', { vaultPath, title, query, answer }),
+    save: (vaultPath: string, title: string, query: string, answer: string, sources: GeneratedDocSource[]) =>
+      ipcRenderer.invoke('generated-docs:save', { vaultPath, title, query, answer, sources }),
     list: (vaultPath: string) =>
       ipcRenderer.invoke('generated-docs:list', { vaultPath }),
     rename: (filePath: string, newTitle: string) =>

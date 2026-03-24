@@ -92,12 +92,21 @@ export interface GeneratedDocsConfig {
   retentionDays: number
 }
 
+export interface GeneratedDocSource {
+  filePath: string
+  startLine: number
+  headingPath: string[]
+  score: number
+  contentPreview: string
+}
+
 export interface GeneratedDocMeta {
   id: string
   title: string
   query: string
   createdAt: string
   filePath: string
+  sources: GeneratedDocSource[]
 }
 
 export interface IndexProgress {

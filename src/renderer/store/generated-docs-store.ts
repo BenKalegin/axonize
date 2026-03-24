@@ -4,7 +4,7 @@ import type { GeneratedDocMeta } from '@core/rag/types'
 interface GeneratedDocsState {
   docs: GeneratedDocMeta[]
   loadDocs: (vaultPath: string) => Promise<void>
-  saveDoc: (vaultPath: string, title: string, query: string, answer: string) => Promise<GeneratedDocMeta>
+  saveDoc: (vaultPath: string, title: string, query: string, answer: string, sources: Array<{ filePath: string; startLine: number; headingPath: string[]; score: number; contentPreview: string }>) => Promise<GeneratedDocMeta>
   renameDoc: (filePath: string, newTitle: string) => Promise<void>
   makePermanent: (filePath: string, targetPath: string) => Promise<void>
   deleteDoc: (filePath: string) => Promise<void>
@@ -19,8 +19,8 @@ export const useGeneratedDocsStore = create<GeneratedDocsState>((set, get) => ({
     set({ docs })
   },
 
-  saveDoc: async (vaultPath: string, title: string, query: string, answer: string) => {
-    const meta = await window.axonize.generatedDocs.save(vaultPath, title, query, answer)
+  saveDoc: async (vaultPath: string, title: string, query: string, answer: string, sources: Array<{ filePath: string; startLine: number; headingPath: string[]; score: number; contentPreview: string }>) => {
+    const meta = await window.axonize.generatedDocs.save(vaultPath, title, query, answer, sources)
     set({ docs: [meta, ...get().docs] })
     return meta
   },

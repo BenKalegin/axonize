@@ -99,7 +99,8 @@ export const useRagStore = create<RagState>((set) => ({
         vaultPath,
         result.suggestedTitle,
         question,
-        result.answer
+        result.answer,
+        result.sources
       ).catch(() => { /* best-effort save */ })
     } catch (e) {
       const errorMsg = e instanceof Error ? e.message : String(e)

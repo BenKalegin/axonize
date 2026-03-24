@@ -2,13 +2,10 @@ import React, { useEffect, useState } from 'react'
 import { TEST_IDS } from '../../lib/testids'
 import { renderMarkdown } from '../../lib/markdown-renderer'
 import { useRagStore } from '../../store/rag-store'
-import { useEditorStore } from '../../store/editor-store'
-import { useVaultStore } from '../../store/vault-store'
+import { SourcesList } from './SourcesList'
 
 export const RAGAnswerView = React.memo(function RAGAnswerView() {
   const { lastResponse, clearResponse } = useRagStore()
-  const { selectFile } = useEditorStore()
-  const { vaultPath } = useVaultStore()
   const [answerHtml, setAnswerHtml] = useState('')
 
   useEffect(() => {
@@ -22,12 +19,6 @@ export const RAGAnswerView = React.memo(function RAGAnswerView() {
 
   if (!lastResponse) return null
 
-  const handleSourceClick = (filePath: string) => {
-    const fullPath = filePath.startsWith('/') ? filePath : `${vaultPath}/${filePath}`
-    selectFile(fullPath)
-    clearResponse()
-  }
-
   return (
     <div className="rag-answer-view" data-testid={TEST_IDS.RAG_ANSWER_VIEW}>
       <div
@@ -35,25 +26,7 @@ export const RAGAnswerView = React.memo(function RAGAnswerView() {
         dangerouslySetInnerHTML={{ __html: answerHtml }}
       />
       {lastResponse.sources.length > 0 && (
-        <div className="rag-answer-sources">
-          <h4 className="rag-sources-heading">Sources</h4>
-          {lastResponse.sources.map((source, i) => {
-            const label = source.headingPath.length > 0
-              ? `${source.filePath} > ${source.headingPath.join(' > ')}`
-              : source.filePath
-            return (
-              <button
-                key={`${source.filePath}:${source.startLine}:${i}`}
-                className="rag-source-link"
-                data-testid={TEST_IDS.RAG_SOURCE_LINK}
-                onClick={() => handleSourceClick(source.filePath)}
-              >
-                <span className="source-label">{label}</span>
-                <span className="source-score">{(source.score * 100).toFixed(1)}%</span>
-              </button>
-            )
-          })}
-        </div>
+        <SourcesList sources={lastResponse.sources} onNavigate={clearResponse} />
       )}
     </div>
   )

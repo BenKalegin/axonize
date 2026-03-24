@@ -11,9 +11,9 @@ import {
 import log from './logger'
 
 export function registerGeneratedDocsIpcHandlers(): void {
-  ipcMain.handle('generated-docs:save', async (_event, args: { vaultPath: string; title: string; query: string; answer: string }) => {
+  ipcMain.handle('generated-docs:save', async (_event, args: { vaultPath: string; title: string; query: string; answer: string; sources?: Array<{ filePath: string; startLine: number; headingPath: string[]; score: number; contentPreview: string }> }) => {
     try {
-      return await saveGeneratedDoc(args.vaultPath, args.title, args.query, args.answer)
+      return await saveGeneratedDoc(args.vaultPath, args.title, args.query, args.answer, args.sources ?? [])
     } catch (e) {
       log.error('generated-docs:save failed:', e)
       throw e

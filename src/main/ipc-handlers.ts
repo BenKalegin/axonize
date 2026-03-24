@@ -1,6 +1,6 @@
 import {BrowserWindow, dialog, ipcMain} from 'electron'
 import {readVaultFiles} from './file-service'
-import {mkdir, readFile, writeFile} from 'fs/promises'
+import {mkdir, readFile, writeFile, rename, unlink} from 'fs/promises'
 import {join} from 'path'
 import {addRecentVault, getRecentVaults, removeRecentVault} from './recent-vaults-service'
 import {registerRAGIpcHandlers, setCurrentVaultPath} from './rag-ipc-handlers'
@@ -64,6 +64,24 @@ export function registerIpcHandlers(): void {
       await writeFile(filePath, content, 'utf-8')
     } catch (e) {
       log.error('file:write failed:', filePath, e)
+      throw e
+    }
+  })
+
+  ipcMain.handle('file:rename', async (_event, oldPath: string, newPath: string) => {
+    try {
+      await rename(oldPath, newPath)
+    } catch (e) {
+      log.error('file:rename failed:', oldPath, '->', newPath, e)
+      throw e
+    }
+  })
+
+  ipcMain.handle('file:delete', async (_event, filePath: string) => {
+    try {
+      await unlink(filePath)
+    } catch (e) {
+      log.error('file:delete failed:', filePath, e)
       throw e
     }
   })

@@ -7,6 +7,7 @@ import { useGeneratedDocsStore } from '@/store/generated-docs-store'
 import { MarkdownView } from './MarkdownView'
 import { RAGAnswerView } from './RAGAnswerView'
 import { GeneratedDocHeader } from './GeneratedDocHeader'
+import { SourcesList } from './SourcesList'
 import { MakePermanentDialog } from '../Sidebar/MakePermanentDialog'
 import { GraphView } from '../Graph/GraphView'
 import { WelcomeScreen } from './WelcomeScreen'
@@ -98,6 +99,9 @@ export function ContentView() {
                 <GeneratedDocHeader doc={generatedDoc} onMakePermanent={() => setPermanentDoc(generatedDoc)} />
               )}
               <MarkdownView />
+              {generatedDoc && generatedDoc.sources.length > 0 && (
+                <SourcesList sources={generatedDoc.sources} />
+              )}
             </>
           ) : (
             <div className="empty-state" data-testid={TEST_IDS.EMPTY_STATE}>

@@ -83,8 +83,17 @@ export const TEST_IDS = {
   ZOOM_OUT_BTN: 'zoom-out-btn',
   ZOOM_LEVEL: 'zoom-level',
 
-  // Exclude Folders
+  // Folder Actions
   CONTEXT_MENU: 'context-menu',
+  FOLDER_ACTIONS_BTN: 'folder-actions-btn',
+  FOLDER_ACTIONS_MENU: 'folder-actions-menu',
+  NEW_DOC_BTN: 'new-doc-btn',
+  NEW_DOC_INPUT: 'new-doc-input',
+  FILE_ACTIONS_BTN: 'file-actions-btn',
+  FILE_ACTIONS_MENU: 'file-actions-menu',
+  RENAME_FILE_BTN: 'rename-file-btn',
+  RENAME_FILE_INPUT: 'rename-file-input',
+  DELETE_FILE_BTN: 'delete-file-btn',
   EXCLUDE_FOLDER_BTN: 'exclude-folder-btn',
   INCLUDE_FOLDER_BTN: 'include-folder-btn',
   HIDDEN_FOLDERS_HEADER: 'hidden-folders-header',

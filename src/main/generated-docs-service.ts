@@ -2,7 +2,7 @@ import { readFile, writeFile, readdir, unlink, mkdir, rename, stat } from 'fs/pr
 import { join, dirname } from 'path'
 import { randomUUID } from 'crypto'
 import { getSettings } from './settings-service'
-import type { GeneratedDocMeta } from '../core/rag/types'
+import type { GeneratedDocMeta, GeneratedDocSource } from '../core/rag/types'
 import log from './logger'
 
 const GENERATED_DIR = '.axonize/generated'
@@ -11,11 +11,22 @@ function generatedDir(vaultPath: string): string {
   return join(vaultPath, GENERATED_DIR)
 }
 
-function buildFrontmatter(title: string, query: string, createdAt: string): string {
-  return `---\ntitle: "${title.replace(/"/g, '\\"')}"\nquery: "${query.replace(/"/g, '\\"')}"\ncreatedAt: "${createdAt}"\n---\n\n`
+function buildFrontmatter(title: string, query: string, createdAt: string, sources: GeneratedDocSource[]): string {
+  const sourcesJson = JSON.stringify(sources)
+  return `---\ntitle: "${title.replace(/"/g, '\\"')}"\nquery: "${query.replace(/"/g, '\\"')}"\ncreatedAt: "${createdAt}"\nsources: ${sourcesJson}\n---\n\n`
 }
 
-function parseFrontmatter(content: string): { title: string; query: string; createdAt: string; body: string } | null {
+function parseSources(raw: string | undefined): GeneratedDocSource[] {
+  if (!raw) return []
+  try {
+    const parsed = JSON.parse(raw)
+    return Array.isArray(parsed) ? parsed : []
+  } catch {
+    return []
+  }
+}
+
+function parseFrontmatter(content: string): { title: string; query: string; createdAt: string; sources: GeneratedDocSource[]; body: string } | null {
   const match = content.match(/^---\n([\s\S]*?)\n---\n/)
   if (!match) return null
 
@@ -24,14 +35,17 @@ function parseFrontmatter(content: string): { title: string; query: string; crea
   const title = frontmatter.match(/title:\s*"(.*)"/)?.[1] ?? ''
   const query = frontmatter.match(/query:\s*"(.*)"/)?.[1] ?? ''
   const createdAt = frontmatter.match(/createdAt:\s*"(.*)"/)?.[1] ?? ''
-  return { title, query, createdAt, body }
+  const sourcesRaw = frontmatter.match(/sources:\s*(\[.*\])/)?.[1]
+  const sources = parseSources(sourcesRaw)
+  return { title, query, createdAt, sources, body }
 }
 
 export async function saveGeneratedDoc(
   vaultPath: string,
   title: string,
   query: string,
-  answer: string
+  answer: string,
+  sources: GeneratedDocSource[] = []
 ): Promise<GeneratedDocMeta> {
   const dir = generatedDir(vaultPath)
   await mkdir(dir, { recursive: true })
@@ -39,13 +53,13 @@ export async function saveGeneratedDoc(
   const id = randomUUID()
   const createdAt = new Date().toISOString()
   const filePath = join(dir, `${id}.md`)
-  const content = buildFrontmatter(title, query, createdAt) + answer
+  const content = buildFrontmatter(title, query, createdAt, sources) + answer
 
   const tempPath = `${filePath}.tmp`
   await writeFile(tempPath, content, 'utf-8')
   await rename(tempPath, filePath)
 
-  return { id, title, query, createdAt, filePath }
+  return { id, title, query, createdAt, filePath, sources }
 }
 
 export async function listGeneratedDocs(vaultPath: string): Promise<GeneratedDocMeta[]> {
@@ -66,7 +80,7 @@ export async function listGeneratedDocs(vaultPath: string): Promise<GeneratedDoc
       const parsed = parseFrontmatter(content)
       if (!parsed) continue
       const id = entry.replace(/\.md$/, '')
-      docs.push({ id, title: parsed.title, query: parsed.query, createdAt: parsed.createdAt, filePath })
+      docs.push({ id, title: parsed.title, query: parsed.query, createdAt: parsed.createdAt, filePath, sources: parsed.sources })
     } catch {
       log.warn('Failed to read generated doc:', entry)
     }
@@ -81,7 +95,7 @@ export async function renameGeneratedDoc(filePath: string, newTitle: string): Pr
   const parsed = parseFrontmatter(content)
   if (!parsed) throw new Error('Invalid generated doc format')
 
-  const updated = buildFrontmatter(newTitle, parsed.query, parsed.createdAt) + parsed.body
+  const updated = buildFrontmatter(newTitle, parsed.query, parsed.createdAt, parsed.sources) + parsed.body
   const tempPath = `${filePath}.tmp`
   await writeFile(tempPath, updated, 'utf-8')
   await rename(tempPath, filePath)

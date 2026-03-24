@@ -1466,6 +1466,100 @@
   opacity: 0.6;
 }
 
+/* Folder actions button (three dots) */
+.folder-actions-wrapper {
+  margin-left: auto;
+  position: relative;
+  flex-shrink: 0;
+}
+
+.folder-actions-btn {
+  display: none;
+  align-items: center;
+  justify-content: center;
+  padding: 2px;
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  border-radius: 3px;
+  opacity: 0.6;
+}
+
+.file-tree-node:hover .folder-actions-btn {
+  display: flex;
+}
+
+.file-tree-node.excluded .folder-actions-btn {
+  display: flex;
+  opacity: 0.8;
+}
+
+.folder-actions-btn:hover {
+  opacity: 1;
+  background: var(--bg-overlay);
+}
+
+/* Folder actions dropdown menu */
+.folder-actions-menu {
+  position: absolute;
+  right: 0;
+  top: 100%;
+  z-index: 1000;
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 4px 0;
+  min-width: 170px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+}
+
+.folder-actions-menu .context-menu-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 6px 12px;
+  background: none;
+  border: none;
+  color: var(--text-secondary);
+  font-size: 12px;
+  cursor: pointer;
+  text-align: left;
+  white-space: nowrap;
+}
+
+.folder-actions-menu .context-menu-item:hover {
+  background: var(--bg-overlay);
+  color: var(--text-primary);
+}
+
+.folder-actions-menu .context-menu-item--danger {
+  color: var(--error, #f44);
+}
+
+.folder-actions-menu .context-menu-item--danger:hover {
+  background: var(--bg-overlay);
+  color: var(--error, #f44);
+}
+
+/* Inline new document input */
+.new-doc-input-row {
+  opacity: 1 !important;
+}
+
+.new-doc-inline-input {
+  flex: 1;
+  background: var(--bg-input, var(--bg-surface));
+  border: 1px solid var(--accent);
+  border-radius: 3px;
+  color: var(--text-primary);
+  font-size: 12px;
+  padding: 2px 6px;
+  outline: none;
+  min-width: 0;
+}
+
 /* Settings Excluded Folders */
 .settings-excluded-empty {
   font-size: 12px;
