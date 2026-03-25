@@ -1,8 +1,10 @@
 import { useCallback, useRef } from 'react'
-import { TEST_IDS } from '../../lib/testids'
-import { useLayoutStore } from '../../store/layout-store'
+import { TEST_IDS } from '@/lib/testids'
+import { useLayoutStore } from '@/store/layout-store'
 import { FileExplorer } from './FileExplorer'
+import { GitPanel } from './GitPanel'
 import { LLMLogPanel } from './LLMLogPanel'
+import { OutlinePanel } from './OutlinePanel'
 import { SemanticErrorsPanel } from './SemanticErrorsPanel'
 
 export function SidePanel() {
@@ -48,6 +50,8 @@ export function SidePanel() {
     >
       <div className="side-panel-content">
         {activePanelId === 'files' && <FileExplorer />}
+        {activePanelId === 'git' && <GitPanel />}
+        {activePanelId === 'outline' && <OutlinePanel />}
         {activePanelId === 'llm-log' && <LLMLogPanel />}
         {activePanelId === 'errors' && <SemanticErrorsPanel />}
       </div>

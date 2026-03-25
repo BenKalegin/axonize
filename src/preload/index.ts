@@ -70,6 +70,8 @@ export interface RelatedDoc {
   score: number
 }
 
+export type { GitStatus, GitFileStatus } from '../core/git/types'
+
 export interface AxonizeAPI {
   vault: {
     open: () => Promise<string | null>
@@ -116,6 +118,18 @@ export interface AxonizeAPI {
   settings: {
     get: () => Promise<unknown>
     save: (settings: unknown) => Promise<{ ok: boolean }>
+  }
+  git: {
+    isRepo: (cwd: string) => Promise<boolean>
+    root: (cwd: string) => Promise<string | null>
+    status: (cwd: string) => Promise<GitFileStatus[]>
+    diff: (cwd: string, staged: boolean) => Promise<string>
+    stage: (cwd: string, filePath: string) => Promise<void>
+    unstage: (cwd: string, filePath: string) => Promise<void>
+    stageAll: (cwd: string) => Promise<void>
+    unstageAll: (cwd: string) => Promise<void>
+    commit: (cwd: string, message: string) => Promise<void>
+    suggestCommitMessage: (cwd: string) => Promise<string>
   }
   generatedDocs: {
     save: (vaultPath: string, title: string, query: string, answer: string, sources: GeneratedDocSource[]) => Promise<GeneratedDocMeta>
@@ -207,6 +221,18 @@ const api: AxonizeAPI = {
   settings: {
     get: () => ipcRenderer.invoke('settings:get'),
     save: (settings: unknown) => ipcRenderer.invoke('settings:save', { settings })
+  },
+  git: {
+    isRepo: (cwd: string) => ipcRenderer.invoke('git:isRepo', { cwd }),
+    root: (cwd: string) => ipcRenderer.invoke('git:root', { cwd }),
+    status: (cwd: string) => ipcRenderer.invoke('git:status', { cwd }),
+    diff: (cwd: string, staged: boolean) => ipcRenderer.invoke('git:diff', { cwd, staged }),
+    stage: (cwd: string, filePath: string) => ipcRenderer.invoke('git:stage', { cwd, filePath }),
+    unstage: (cwd: string, filePath: string) => ipcRenderer.invoke('git:unstage', { cwd, filePath }),
+    stageAll: (cwd: string) => ipcRenderer.invoke('git:stageAll', { cwd }),
+    unstageAll: (cwd: string) => ipcRenderer.invoke('git:unstageAll', { cwd }),
+    commit: (cwd: string, message: string) => ipcRenderer.invoke('git:commit', { cwd, message }),
+    suggestCommitMessage: (cwd: string) => ipcRenderer.invoke('git:suggestCommitMessage', { cwd })
   },
   generatedDocs: {
     save: (vaultPath: string, title: string, query: string, answer: string, sources: GeneratedDocSource[]) =>

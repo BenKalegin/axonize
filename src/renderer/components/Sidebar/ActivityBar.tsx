@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react'
-import { TEST_IDS } from '../../lib/testids'
-import { useLayoutStore, type SidePanelId } from '../../store/layout-store'
+import { TEST_IDS } from '@/lib/testids'
+import { useLayoutStore, type SidePanelId } from '@/store/layout-store'
 
 interface ActivityItem {
   id: SidePanelId
@@ -31,8 +31,25 @@ const ErrorsIcon = () => (
   </svg>
 )
 
+const GitIcon = () => (
+  <svg width="20" height="20" viewBox="0 0 20 20" fill="currentColor">
+    <path d="M17.78 9.36l-7.14-7.14a.76.76 0 0 0-1.08 0L7.72 4.06l1.36 1.36a.9.9 0 0 1 1.16.17.9.9 0 0 1 .17 1.01l1.31 1.31a.91.91 0 1 1-.54.51L9.92 7.16v3.93a.91.91 0 1 1-.75-.03V7.09a.91.91 0 0 1-.49-1.19L7.35 4.57 2.22 9.7a.76.76 0 0 0 0 1.08l7.14 7.14a.76.76 0 0 0 1.08 0l7.34-7.34a.76.76 0 0 0 0-1.08z" />
+  </svg>
+)
+
+const OutlineIcon = () => (
+  <svg width="20" height="20" viewBox="0 0 20 20" fill="currentColor">
+    <rect x="3" y="3" width="10" height="2" rx="0.5" />
+    <rect x="6" y="7" width="10" height="2" rx="0.5" />
+    <rect x="6" y="11" width="10" height="2" rx="0.5" />
+    <rect x="3" y="15" width="10" height="2" rx="0.5" />
+  </svg>
+)
+
 const ACTIVITY_ITEMS: ActivityItem[] = [
   { id: 'files', label: 'Explorer', icon: <FilesIcon /> },
+  { id: 'git', label: 'Source Control', icon: <GitIcon /> },
+  { id: 'outline', label: 'Outline', icon: <OutlineIcon /> },
   { id: 'llm-log', label: 'LLM Log', icon: <LLMLogIcon /> },
   { id: 'errors', label: 'Errors', icon: <ErrorsIcon /> }
 ]

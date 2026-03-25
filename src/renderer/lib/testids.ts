@@ -136,6 +136,17 @@ export const TEST_IDS = {
   CONFLICT_OVERRIDE_BTN: 'conflict-override-btn',
   CONFLICT_RELOAD_BTN: 'conflict-reload-btn',
 
+  // Outline Panel
+  OUTLINE_PANEL: 'outline-panel',
+  OUTLINE_HEADING: 'outline-heading',
+
+  // Git Panel
+  GIT_PANEL: 'git-panel',
+  GIT_FILE_ROW: 'git-file-row',
+  GIT_COMMIT_INPUT: 'git-commit-input',
+  GIT_COMMIT_BTN: 'git-commit-btn',
+  GIT_SUGGEST_BTN: 'git-suggest-btn',
+
   // Related Docs Panel
   RELATED_DOCS_PANEL: 'related-docs-panel',
   RELATED_DOC_CARD: 'related-doc-card',
