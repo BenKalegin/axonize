@@ -2,20 +2,27 @@ import { randomUUID } from 'crypto'
 import type { SemanticCard, CardRelation, Facet, DimensionMeta } from '../../core/semantic/types'
 import { CardKind } from '../../core/semantic/types'
 import { llmCompleteWithRetry, sanitizeJSON, tryParseJSON } from './llm-helpers'
+import { loadSummaryVectors } from './summary-embeddings'
+import { kMeansClusters } from '../../core/rag/vector-math'
 import log from '../logger'
 
 // --- Clusters (LLM) ---
+
+const SUMMARY_PREVIEW_LENGTH = 120
 
 function buildClusterPrompt(level0Cards: SemanticCard[], facetMap: Map<string, Facet>): string {
   const docs = level0Cards
     .map((c) => {
       const f = facetMap.get(c.id)
       const topics = f?.topics?.join(', ') ?? ''
-      return `- id: "${c.id}" | title: "${c.title}" | topics: [${topics}]`
+      const summary = c.summary.slice(0, SUMMARY_PREVIEW_LENGTH)
+      return `- id: "${c.id}" | title: "${c.title}" | summary: "${summary}" | topics: [${topics}]`
     })
     .join('\n')
 
-  return `Group these documents into 5-7 thematic clusters.
+  return `Group these documents into thematic clusters.
+Use as many clusters as the content naturally requires — typically between 4 and 10.
+Do not force documents into a cluster if they don't fit; prefer a coherent smaller cluster over a bloated one.
 
 Documents:
 ${docs}
@@ -25,7 +32,11 @@ For each cluster provide:
 - summary: a comma-separated list of 3-5 key themes covered (e.g. "fleet coordination, task scheduling, load balancing"). Do NOT start with "This cluster" or any filler.
 - docIds: array of document ids that belong to this cluster
 
-Each document should belong to exactly one cluster. Output ONLY valid JSON (no markdown fences):
+Each document should belong to its 1-2 most relevant clusters.
+A document may appear in at most 2 clusters if it genuinely spans both.
+Avoid over-splitting: prefer fewer clusters with broader membership over many narrow ones.
+
+Output ONLY valid JSON (no markdown fences):
 [{"title": "...", "summary": "...", "docIds": ["..."]}]`
 }
 
@@ -56,12 +67,116 @@ function parseClusterResponse(raw: string): RawCluster[] {
   })
 }
 
+const MIN_DOCS_FOR_CLUSTERING = 3
+
+function autoK(docCount: number): number {
+  const MIN_K = 4
+  return Math.max(MIN_K, Math.round(Math.sqrt(docCount)))
+}
+
 export async function generateClusters(
+  level0Cards: SemanticCard[],
+  facetMap: Map<string, Facet>,
+  vaultPath?: string
+): Promise<SemanticCard[]> {
+  if (level0Cards.length < MIN_DOCS_FOR_CLUSTERING) return []
+
+  const rawClusters = vaultPath
+    ? await tryEmbeddingClusters(vaultPath, level0Cards, facetMap)
+    : null
+
+  if (rawClusters) return rawClusters
+
+  return generateClustersViaLLM(level0Cards, facetMap)
+}
+
+async function tryEmbeddingClusters(
+  vaultPath: string,
+  level0Cards: SemanticCard[],
+  facetMap: Map<string, Facet>
+): Promise<SemanticCard[] | null> {
+  const data = await loadSummaryVectors(vaultPath)
+  if (!data) return null
+
+  const { cardIds, vectors, dims } = data
+  const level0Ids = new Set(level0Cards.map((c) => c.id))
+  const indices: number[] = []
+  const filteredIds: string[] = []
+  for (let i = 0; i < cardIds.length; i++) {
+    if (level0Ids.has(cardIds[i])) {
+      indices.push(i)
+      filteredIds.push(cardIds[i])
+    }
+  }
+
+  if (filteredIds.length < MIN_DOCS_FOR_CLUSTERING) return null
+
+  // Extract vectors for level-0 cards only
+  const filteredVectors = new Float32Array(filteredIds.length * dims)
+  for (let i = 0; i < indices.length; i++) {
+    const src = vectors.subarray(indices[i] * dims, (indices[i] + 1) * dims)
+    filteredVectors.set(src, i * dims)
+  }
+
+  const k = autoK(filteredIds.length)
+  const groups = kMeansClusters(filteredVectors, dims, k)
+
+  log.info(`[semantic] Embedding clustering: ${groups.length} clusters from ${filteredIds.length} docs`)
+
+  // Build naming prompt from groups
+  const cardMap = new Map(level0Cards.map((c) => [c.id, c]))
+  const groupDescriptions = groups.map((group, i) => {
+    const docs = group.map((idx) => {
+      const card = cardMap.get(filteredIds[idx])
+      const f = card ? facetMap.get(card.id) : null
+      const topics = f?.topics?.join(', ') ?? ''
+      const summary = card?.summary.slice(0, SUMMARY_PREVIEW_LENGTH) ?? ''
+      return `  - "${card?.title ?? filteredIds[idx]}" | summary: "${summary}" | topics: [${topics}]`
+    }).join('\n')
+    return `Group ${i + 1}:\n${docs}`
+  }).join('\n\n')
+
+  const namingPrompt = `Name these ${groups.length} document groups. For each group provide:
+- title: a short descriptive name (3-5 words)
+- summary: a comma-separated list of 3-5 key themes. Do NOT start with "This cluster" or filler.
+
+Groups:
+${groupDescriptions}
+
+Output ONLY valid JSON (no markdown fences):
+[{"title": "...", "summary": "..."}]`
+
+  const responseContent = await llmCompleteWithRetry([
+    { role: 'system', content: 'You are a precise document analyzer. Output only valid JSON.' },
+    { role: 'user', content: namingPrompt }
+  ])
+
+  const cleaned = sanitizeJSON(responseContent)
+  const parsed = (tryParseJSON(cleaned) ?? tryParseJSON(cleaned + ']')) as Array<{ title?: string; summary?: string }> | null
+  if (!parsed || parsed.length !== groups.length) {
+    log.warn('[semantic] Naming response mismatch, falling back to LLM clustering')
+    return null
+  }
+
+  return groups.map((group, i) => ({
+    id: randomUUID(),
+    filePath: '__cluster__',
+    level: -1,
+    parentId: null,
+    title: String(parsed[i].title ?? `Cluster ${i + 1}`),
+    summary: stripClusterFiller(String(parsed[i].summary ?? '')),
+    childIds: [],
+    startLine: 0,
+    endLine: 0,
+    kind: CardKind.Cluster,
+    clusterDocIds: group.map((idx) => filteredIds[idx])
+  }))
+}
+
+async function generateClustersViaLLM(
   level0Cards: SemanticCard[],
   facetMap: Map<string, Facet>
 ): Promise<SemanticCard[]> {
-  if (level0Cards.length < 3) return []
-
   const prompt = buildClusterPrompt(level0Cards, facetMap)
   const responseContent = await llmCompleteWithRetry([
     { role: 'system', content: 'You are a precise document analyzer. Output only valid JSON.' },

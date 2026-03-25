@@ -93,10 +93,10 @@ export function ForceGraph() {
   const containerRef = useRef<HTMLDivElement>(null)
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const fgRef = useRef<any>(undefined)
-  const { cards, relations, dimensions, visibleDepth, activeLens, hoveredNodeId, focusedDocId, clusterFocus, setHoveredNode, clearClusterFocus } = useGraphStore()
+  const { cards, relations, dimensions, visibleDepth, activeLens, hoveredNodeId, focusedDocId, clusterFocus, setHoveredNode } = useGraphStore()
   const { width, height } = useContainerSize(containerRef)
 
-  const shown = useMemo(() => visibleCards(cards, visibleDepth, focusedDocId), [cards, visibleDepth, focusedDocId])
+  const shown = useMemo(() => visibleCards(cards, visibleDepth, focusedDocId, clusterFocus), [cards, visibleDepth, focusedDocId, clusterFocus])
   const shownIds = useMemo(() => new Set(shown.map((c) => c.id)), [shown])
   const shownRelations = useMemo(() => visibleRelations(relations, shownIds), [relations, shownIds])
 
@@ -143,6 +143,7 @@ export function ForceGraph() {
   // Configure d3 forces — short settle on depth change, full reheat on lens change
   const prevLensRef = useRef(activeLens)
   const prevDepthRef = useRef(visibleDepth)
+  const prevClusterFocusRef = useRef(clusterFocus)
   const [cooldownTicks, setCooldownTicks] = useState(COOLDOWN_TICKS)
   useEffect(() => {
     const fg = fgRef.current
@@ -176,12 +177,17 @@ export function ForceGraph() {
 
     const lensChanged = prevLensRef.current !== activeLens
     const depthChanged = prevDepthRef.current !== visibleDepth
+    const clusterFocusChanged = prevClusterFocusRef.current !== clusterFocus
     prevLensRef.current = activeLens
     prevDepthRef.current = visibleDepth
+    prevClusterFocusRef.current = clusterFocus
+
+    // Skip full reheat when only cluster focus changed — just reposition
+    if (clusterFocusChanged && !lensChanged && !depthChanged) return
 
     setCooldownTicks(depthChanged && !lensChanged ? DEPTH_CHANGE_TICKS : COOLDOWN_TICKS)
     fg.d3ReheatSimulation()
-  }, [graphData, shown, shownRelations, activeLens, visibleDepth])
+  }, [graphData, shown, shownRelations, activeLens, visibleDepth, clusterFocus])
 
   const fitPadding = useMemo(() => {
     const maxCardHalf = shown.reduce((max, c) => {
@@ -317,20 +323,21 @@ export function ForceGraph() {
   const isDraggingRef = useRef(false)
 
   const handleNodeDrag = useCallback(() => {
-    if (!isDraggingRef.current) {
-      isDraggingRef.current = true
-      fgRef.current?.enableZoomPanInteraction(false)
-    }
+    isDraggingRef.current = true
   }, [])
 
   const handleNodeDragEnd = useCallback(() => {
     isDraggingRef.current = false
-    fgRef.current?.enableZoomPanInteraction(true)
   }, [])
 
   const handleBackgroundClick = useCallback(() => {
-    clearClusterFocus()
-  }, [clearClusterFocus])
+    const { visibleDepth, clusterFocus, setDepth, clearClusterFocus } = useGraphStore.getState()
+    if (clusterFocus) {
+      clearClusterFocus()
+      return
+    }
+    if (visibleDepth === 0) setDepth(-1)
+  }, [])
 
   const handleNodeHover = useCallback(
     (node: GraphNode | null) => {

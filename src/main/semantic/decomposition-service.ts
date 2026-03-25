@@ -22,7 +22,7 @@ import { embedAndCacheSummaries } from './summary-embeddings'
 import type { DimensionMeta } from '../../core/semantic/types'
 import log from '../logger'
 
-export const SEMANTIC_VERSION = 3
+export const SEMANTIC_VERSION = 4
 const LLM_CONCURRENCY = 5
 const LLM_TASK_TIMEOUT_MS = 120_000
 const PROMPT_OVERHEAD_TOKENS = 250
@@ -235,7 +235,8 @@ async function saveSemanticCache(
 async function runFacetAndClusterPhases(
   allCards: SemanticCard[],
   allRelations: CardRelation[],
-  window: BrowserWindow | null
+  window: BrowserWindow | null,
+  vaultPath: string
 ): Promise<DimensionMeta[]> {
   const level0 = allCards.filter((c) => c.level === 0)
   assignCardKinds(allCards)
@@ -269,7 +270,7 @@ async function runFacetAndClusterPhases(
   sendProgress(window, { phase: 'clustering', current: 0, total: 1, inProgress: 0 })
   try {
     const facetMap = new Map(level0.filter((c) => c.facets).map((c) => [c.id, c.facets!]))
-    const clusters = await generateClusters(level0, facetMap)
+    const clusters = await generateClusters(level0, facetMap, vaultPath)
     const { hubs, hubRelations } = generateHubNodes(level0, facetMap, dimensions)
     allCards.push(...clusters, ...hubs)
     allRelations.push(...hubRelations)
@@ -364,7 +365,7 @@ export async function buildSemanticIndex(
     }
   }
 
-  const dimensions = await runFacetAndClusterPhases(allCards, allRelations, window)
+  const dimensions = await runFacetAndClusterPhases(allCards, allRelations, window, vaultPath)
 
   sendProgress(window, { phase: 'saving', current: 0, total: 1, inProgress: 0 })
   await saveSemanticCache(vaultPath, fileHashes, allCards, allRelations, dimensions)
@@ -504,7 +505,7 @@ async function doIncrementalUpdate(
     return srcCard && tgtCard && srcCard.filePath === tgtCard.filePath
   })
 
-  const dimensions = await runFacetAndClusterPhases(allCards, allRelations, window)
+  const dimensions = await runFacetAndClusterPhases(allCards, allRelations, window, vaultPath)
 
   sendProgress(window, { phase: 'saving', current: 0, total: 1, inProgress: 0 })
   await saveSemanticCache(vaultPath, currentHashes, allCards, allRelations, dimensions)

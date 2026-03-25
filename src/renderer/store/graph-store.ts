@@ -5,7 +5,7 @@ import { resolveCardTitle } from '@core/semantic/title-utils'
 
 export type VisibleDepth = -1 | 0 | 1 | 2 | 3
 
-interface ClusterFocus {
+export interface ClusterFocus {
   clusterId: string
   distances: Record<string, number>
 }
@@ -43,14 +43,31 @@ function resolveCardTitles(cards: SemanticCard[]): SemanticCard[] {
   }))
 }
 
-export function visibleCards(cards: SemanticCard[], depth: VisibleDepth, focusedDocId: string | null): SemanticCard[] {
+export function visibleCards(
+  cards: SemanticCard[],
+  depth: VisibleDepth,
+  focusedDocId: string | null,
+  clusterFocus: ClusterFocus | null
+): SemanticCard[] {
   const focusedSubtree = focusedDocId ? collectSubtreeIds(cards, focusedDocId) : null
 
   return cards.filter((c) => {
     const kind = c.kind ?? CardKind.Doc
-    if (kind === CardKind.Cluster) return depth === -1
-    if (kind === CardKind.Hub) return depth <= 0 && !focusedSubtree
+
+    if (kind === CardKind.Cluster) {
+      if (clusterFocus && c.id === clusterFocus.clusterId) return depth === 0
+      return depth === -1
+    }
+
+    if (kind === CardKind.Hub) return depth <= 0 && !focusedSubtree && !clusterFocus
+
     if (focusedSubtree && c.level > 0) return focusedSubtree.has(c.id)
+
+    if (depth === 0 && clusterFocus) {
+      const cluster = cards.find((x) => x.id === clusterFocus.clusterId)
+      return c.level === 0 && (cluster?.clusterDocIds ?? []).includes(c.id)
+    }
+
     return c.level <= depth
   })
 }
@@ -158,7 +175,7 @@ export const useGraphStore = create<GraphState>((set, get) => ({
     }
   },
 
-  clearClusterFocus: () => set({ clusterFocus: null }),
+  clearClusterFocus: () => set({ clusterFocus: null, visibleDepth: -1 }),
 
   clear: () => set({
     cards: [],
