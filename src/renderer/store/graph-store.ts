@@ -106,7 +106,8 @@ export const useGraphStore = create<GraphState>((set, get) => ({
 
   loadSemanticData: (rawCards, relations, dimensions = []) => {
     const cards = resolveCardTitles(rawCards)
-    set({ cards, relations, dimensions, visibleDepth: 0, hoveredNodeId: null, focusedDocId: null, clusterFocus: null, activeLens: 'by_topic' })
+    const hasCluster = cards.some((c) => c.kind === CardKind.Cluster)
+    set({ cards, relations, dimensions, visibleDepth: hasCluster ? -1 : 0, hoveredNodeId: null, focusedDocId: null, clusterFocus: null, activeLens: 'by_topic', progress: null })
   },
 
   setProgress: (progress) => set({ progress }),
