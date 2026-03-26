@@ -238,6 +238,7 @@
   background: var(--bg-surface);
   border-right: 1px solid var(--border);
   overflow-y: auto;
+  overflow-x: hidden;
 }
 
 .right-sidebar {
