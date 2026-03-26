@@ -580,7 +580,7 @@ export async function estimateSemanticBuild(vaultPath: string): Promise<Semantic
 }
 
 function estimateInputCost(provider: string, model: string): number {
-  if (provider === 'ollama') return 0
+  if (provider === 'ollama' || provider === 'claude-code' || provider === 'codex') return 0
   if (provider === 'anthropic') return model.includes('haiku') ? 0.25 : 3.0
   // OpenAI
   if (model.includes('gpt-4o-mini')) return 0.15
@@ -590,7 +590,7 @@ function estimateInputCost(provider: string, model: string): number {
 }
 
 function estimateOutputCost(provider: string, model: string): number {
-  if (provider === 'ollama') return 0
+  if (provider === 'ollama' || provider === 'claude-code' || provider === 'codex') return 0
   if (provider === 'anthropic') return model.includes('haiku') ? 1.25 : 15.0
   // OpenAI
   if (model.includes('gpt-4o-mini')) return 0.6

@@ -33,7 +33,7 @@ export interface RagIndexState {
 }
 
 export interface LLMConfig {
-  provider: 'anthropic' | 'openai' | 'ollama' | 'claude-code'
+  provider: 'anthropic' | 'openai' | 'ollama' | 'claude-code' | 'codex'
   apiKey?: string
   model: string
   maxTokens: number

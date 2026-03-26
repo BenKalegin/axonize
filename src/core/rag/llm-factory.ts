@@ -3,6 +3,7 @@ import { AnthropicProvider } from './llm-anthropic'
 import { OpenAIProvider } from './llm-openai'
 import { OllamaProvider } from './llm-ollama'
 import { ClaudeCodeProvider } from './llm-claude-code'
+import { CodexProvider } from './llm-codex'
 import type { LLMConfig } from './types'
 
 export function createLLMProvider(config: LLMConfig): LLMProvider {
@@ -15,6 +16,8 @@ export function createLLMProvider(config: LLMConfig): LLMProvider {
       return new OllamaProvider(config)
     case 'claude-code':
       return new ClaudeCodeProvider(config)
+    case 'codex':
+      return new CodexProvider(config)
     default:
       throw new Error(`Unknown LLM provider: ${String(config.provider)}`)
   }
