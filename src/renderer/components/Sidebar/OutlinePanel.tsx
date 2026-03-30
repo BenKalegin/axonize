@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
+import GithubSlugger from 'github-slugger'
 import { TEST_IDS } from '@/lib/testids'
 import { useEditorStore } from '@/store/editor-store'
 import { splitSections, type MarkdownSection } from '@/lib/section-splitter'
@@ -12,22 +13,14 @@ interface HeadingEntry {
   slug: string
 }
 
-function slugify(text: string): string {
-  return text
-    .toLowerCase()
-    .replace(/[^\w\s-]/g, '')
-    .replace(/\s+/g, '-')
-    .replace(/-+/g, '-')
-    .replace(/^-|-$/g, '')
-}
-
 function extractHeadings(sections: MarkdownSection[]): HeadingEntry[] {
+  const slugger = new GithubSlugger()
   return sections
     .filter((s) => s.kind === 'heading' && s.title)
     .map((s) => ({
       title: s.title,
       depth: s.depth,
-      slug: slugify(s.title)
+      slug: slugger.slug(s.title)
     }))
 }
 
