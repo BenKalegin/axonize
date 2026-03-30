@@ -6,6 +6,7 @@ import { useEditorStore } from '@/store/editor-store'
 import { useVaultStore } from '@/store/vault-store'
 import { splitSections, type MarkdownSection } from '@/lib/section-splitter'
 import { SectionBlock } from './SectionBlock'
+import { SectionInsert } from './SectionInsert'
 import { ConflictDialog } from './ConflictDialog'
 
 mermaid.registerLayoutLoaders(elkLayouts)
@@ -13,15 +14,15 @@ mermaid.initialize({
   startOnLoad: false,
   theme: 'dark',
   layout: 'elk',
-  flowchart: { useMaxWidth: false },
-  sequence: { useMaxWidth: false },
-  gantt: { useMaxWidth: false },
-  journey: { useMaxWidth: false },
-  class: { useMaxWidth: false },
-  state: { useMaxWidth: false },
-  er: { useMaxWidth: false },
-  pie: { useMaxWidth: false },
-  architecture: { useMaxWidth: false }
+  flowchart: { useMaxWidth: true },
+  sequence: { useMaxWidth: true },
+  gantt: { useMaxWidth: true },
+  journey: { useMaxWidth: true },
+  class: { useMaxWidth: true },
+  state: { useMaxWidth: true },
+  er: { useMaxWidth: true },
+  pie: { useMaxWidth: true },
+  architecture: { useMaxWidth: true }
 })
 
 declare global {
@@ -81,21 +82,16 @@ export const MarkdownView = React.memo(function MarkdownView() {
     }
   }, [selectedFile, fileTree, loadFile])
 
-  const handleSave = useCallback(
-    async (sectionId: string, newMarkdown: string) => {
-      if (!selectedFile) return
-
-      const diskContent = await window.axonize.file.read(selectedFile)
-      const diskHash = hashSimple(diskContent)
-
-      if (diskHash !== fileHashRef.current) {
-        setConflict({ sectionId, newMarkdown })
-        return
-      }
-
-      await writeSection(selectedFile, sectionId, newMarkdown)
+  const triggerReindex = useCallback(
+    (filePath: string) => {
+      if (!vaultPath) return
+      const relative = filePath.startsWith(vaultPath)
+        ? filePath.slice(vaultPath.length + 1)
+        : filePath
+      window.axonize.rag.reindexFile(vaultPath, relative).catch(() => {})
+      window.axonize.semantic.incremental(vaultPath).catch(() => {})
     },
-    [selectedFile]
+    [vaultPath]
   )
 
   const writeSection = useCallback(
@@ -119,19 +115,24 @@ export const MarkdownView = React.memo(function MarkdownView() {
 
       triggerReindex(filePath)
     },
-    []
+    [triggerReindex]
   )
 
-  const triggerReindex = useCallback(
-    (filePath: string) => {
-      if (!vaultPath) return
-      const relative = filePath.startsWith(vaultPath)
-        ? filePath.slice(vaultPath.length + 1)
-        : filePath
-      window.axonize.rag.reindexFile(vaultPath, relative).catch(() => {})
-      window.axonize.semantic.incremental(vaultPath).catch(() => {})
+  const handleSave = useCallback(
+    async (sectionId: string, newMarkdown: string) => {
+      if (!selectedFile) return
+
+      const diskContent = await window.axonize.file.read(selectedFile)
+      const diskHash = hashSimple(diskContent)
+
+      if (diskHash !== fileHashRef.current) {
+        setConflict({ sectionId, newMarkdown })
+        return
+      }
+
+      await writeSection(selectedFile, sectionId, newMarkdown)
     },
-    [vaultPath]
+    [selectedFile, writeSection]
   )
 
   const handleConflictOverride = useCallback(async () => {
@@ -145,6 +146,30 @@ export const MarkdownView = React.memo(function MarkdownView() {
     await loadFile(selectedFile)
     setConflict(null)
   }, [selectedFile, loadFile])
+
+  const handleInsert = useCallback(
+    async (afterLine: number, headingLevel: number) => {
+      if (!selectedFile) return
+      const hashes = '#'.repeat(headingLevel)
+      const newSection = `\n${hashes} New Section\n\n`
+
+      const current = rawContentRef.current
+      const lines = current.split('\n')
+      const before = lines.slice(0, afterLine)
+      const after = lines.slice(afterLine)
+      const updated = [...before, newSection, ...after].join('\n')
+
+      const fullContent = frontmatterRef.current + updated
+      await window.axonize.file.write(selectedFile, fullContent)
+
+      setRawContent(updated)
+      setFileHash(hashSimple(fullContent))
+      setSections(splitSections(updated))
+
+      triggerReindex(selectedFile)
+    },
+    [selectedFile, triggerReindex]
+  )
 
   const handleLinkClick = useCallback(
     (e: React.MouseEvent) => {
@@ -181,13 +206,22 @@ export const MarkdownView = React.memo(function MarkdownView() {
 
   return (
     <div className="markdown-view" data-testid={TEST_IDS.MARKDOWN_VIEW}>
-      {sections.map((section) => (
-        <SectionBlock
-          key={section.id}
-          section={section}
-          onSave={handleSave}
-          onLinkClick={handleLinkClick}
-        />
+      {sections.length === 0 && (
+        <SectionInsert afterLine={0} onInsert={handleInsert} />
+      )}
+      {sections.map((section, _) => (
+        <React.Fragment key={section.id}>
+          <SectionBlock
+            section={section}
+            onSave={handleSave}
+            onLinkClick={handleLinkClick}
+          />
+          <SectionInsert
+            afterLine={section.endLine}
+            contextDepth={section.depth}
+            onInsert={handleInsert}
+          />
+        </React.Fragment>
       ))}
       {conflict && (
         <ConflictDialog onOverride={handleConflictOverride} onReload={handleConflictReload} />

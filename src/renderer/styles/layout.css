@@ -2,10 +2,10 @@
 .shell {
   display: grid;
   grid-template-areas:
-    "toolbar toolbar toolbar toolbar"
-    "actbar left-sidebar content right-sidebar"
-    "command command command command";
-  grid-template-columns: var(--activity-bar-w) var(--side-panel-w) 1fr var(--right-panel-w, 0px);
+    "toolbar toolbar toolbar toolbar toolbar"
+    "actbar left-sidebar content right-sidebar right-actbar"
+    "command command command command command";
+  grid-template-columns: var(--activity-bar-w) var(--side-panel-w) 1fr var(--right-panel-w, 0px) var(--activity-bar-w);
   grid-template-rows: 40px 1fr 36px;
   height: 100vh;
   width: 100vw;
@@ -168,6 +168,18 @@
   flex-direction: column;
   align-items: center;
   padding-top: 4px;
+}
+
+.activity-bar--right {
+  grid-area: right-actbar;
+  border-right: none;
+  border-left: 1px solid var(--border);
+}
+
+.activity-bar--right .activity-bar-btn.active::before {
+  left: auto;
+  right: -4px;
+  border-radius: 2px 0 0 2px;
 }
 
 .activity-bar-btn {
@@ -498,6 +510,95 @@
 .section-edit-btn:hover {
   opacity: 1;
   color: var(--text-primary);
+}
+
+.section-insert {
+  position: relative;
+  height: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.section-insert-line {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.section-insert-line::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: var(--border);
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+
+.section-insert:hover .section-insert-line::before {
+  opacity: 1;
+}
+
+.section-insert-btn {
+  position: relative;
+  z-index: 2;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  border: 1px solid var(--border);
+  background: var(--bg-surface);
+  color: var(--text-muted);
+  font-size: 14px;
+  line-height: 1;
+  cursor: pointer;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.15s, color 0.15s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+}
+
+.section-insert:hover .section-insert-btn {
+  opacity: 0.7;
+  pointer-events: auto;
+}
+
+.section-insert-btn:hover {
+  opacity: 1;
+  color: var(--text-primary);
+}
+
+.section-insert-options {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(16px, -50%);
+  display: flex;
+  gap: 4px;
+  z-index: 10;
+}
+
+.section-insert-option {
+  padding: 2px 8px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-muted);
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  cursor: pointer;
+  transition: color 0.15s, background 0.15s;
+}
+
+.section-insert-option:hover {
+  color: var(--text-primary);
+  background: var(--bg-hover);
 }
 
 .section-editor {

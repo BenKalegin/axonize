@@ -111,7 +111,7 @@ export function RelatedDocsPanel() {
   const selectedFile = useEditorStore((s) => s.selectedFile)
   const selectFile = useEditorStore((s) => s.selectFile)
   const vaultPath = useVaultStore((s) => s.vaultPath)
-  const toggleRightDrawer = useLayoutStore((s) => s.toggleRightDrawer)
+  const toggleRightPanel = useLayoutStore((s) => s.toggleRightPanel)
   const { docs, loading } = useRelatedDocs(selectedFile, vaultPath)
   const { onPointerDown, onPointerMove, onPointerUp } = useResizeHandle()
 
@@ -125,7 +125,7 @@ export function RelatedDocsPanel() {
       />
       <div className="sidebar-header">
         Related
-        <button className="toolbar-btn" onClick={toggleRightDrawer} type="button" title="Collapse panel">
+        <button className="toolbar-btn" onClick={() => toggleRightPanel('related')} type="button" title="Collapse panel">
           &#x25B8;
         </button>
       </div>
