@@ -6,7 +6,7 @@ import { useRagStore } from '@/store/rag-store'
 import { SettingsDialog } from './SettingsDialog'
 
 export function Toolbar() {
-  const { vaultPath, vaultName, openVault, recentVaults, openRecentVault, loadRecentVaults, removeRecentVault, refreshVault } = useVaultStore()
+  const { vaultPath, vaultName, openVault, recentVaults, openRecentVault, openVaultInNewWindow, loadRecentVaults, removeRecentVault, refreshVault } = useVaultStore()
   const { viewMode, setViewMode, presentationMode, setPresentationMode } = useEditorStore()
   const { chunkCount } = useRagStore()
   const [dropdownOpen, setDropdownOpen] = useState(false)
@@ -73,6 +73,20 @@ export function Toolbar() {
                         <span className="vault-dropdown-item-name">{vault.name}</span>
                         <span className="vault-dropdown-item-path">{vault.path}</span>
                       </div>
+                      <button
+                        className="vault-dropdown-newwin"
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          openVaultInNewWindow(vault.path)
+                          setDropdownOpen(false)
+                        }}
+                        title="Open in new window"
+                      >
+                        <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+                          <rect x="1" y="3" width="7" height="7" rx="1" stroke="currentColor" strokeWidth="1.2"/>
+                          <path d="M4 3V2a1 1 0 0 1 1-1h5a1 1 0 0 1 1 1v5a1 1 0 0 1-1 1H9" stroke="currentColor" strokeWidth="1.2"/>
+                        </svg>
+                      </button>
                       <button
                         className="vault-dropdown-remove"
                         data-testid={TEST_IDS.VAULT_DROPDOWN_REMOVE}

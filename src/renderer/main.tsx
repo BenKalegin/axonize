@@ -71,17 +71,34 @@ window.axonize.vault.onFilesChanged(() => {
 // Hydrate layout settings on startup
 useLayoutStore.getState().hydrateFromSettings()
 
-// Load recent vaults on startup, auto-open the most recent one
-useVaultStore.getState().loadRecentVaults().then(() => {
-  const { recentVaults, openRecentVault } = useVaultStore.getState()
-  if (recentVaults.length > 0) {
-    const vaultPath = recentVaults[0].path
-    openRecentVault(vaultPath).then(() => {
-      // Fire-and-forget: index vault after opening
-      useRagStore.getState().indexVault(vaultPath)
+// Check if a vault was requested via URL hash (from "open in new window")
+function getVaultFromHash(): string | null {
+  const hash = window.location.hash.slice(1)
+  const params = new URLSearchParams(hash)
+  return params.get('vault') ? decodeURIComponent(params.get('vault')!) : null
+}
+
+const requestedVault = getVaultFromHash()
+
+if (requestedVault) {
+  // Opened via "open in new window" — open the specified vault directly
+  useVaultStore.getState().loadRecentVaults().then(() => {
+    useVaultStore.getState().openRecentVault(requestedVault).then(() => {
+      useRagStore.getState().indexVault(requestedVault)
     })
-  }
-})
+  })
+} else {
+  // Normal startup — auto-open the most recent vault
+  useVaultStore.getState().loadRecentVaults().then(() => {
+    const { recentVaults, openRecentVault } = useVaultStore.getState()
+    if (recentVaults.length > 0) {
+      const vaultPath = recentVaults[0].path
+      openRecentVault(vaultPath).then(() => {
+        useRagStore.getState().indexVault(vaultPath)
+      })
+    }
+  })
+}
 
 const root = document.getElementById('root')!
 createRoot(root).render(<App />)

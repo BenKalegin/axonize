@@ -18,16 +18,21 @@ function debouncedSave(win: BrowserWindow) {
   }, 300)
 }
 
-function createWindow(): BrowserWindow {
+const WINDOW_OFFSET_PX = 30
+
+function createWindow(vaultPath?: string): BrowserWindow {
   const iconPath = join(__dirname, '../../resources/icon.png')
   const state = loadWindowState()
 
+  const existingWindows = BrowserWindow.getAllWindows().length
+  const offset = existingWindows * WINDOW_OFFSET_PX
+
   const win = new BrowserWindow({
-    title: 'Axonize',
+    title: APP_NAME,
     width: state.width,
     height: state.height,
-    x: state.x,
-    y: state.y,
+    x: (state.x ?? 0) + offset,
+    y: (state.y ?? 0) + offset,
     minWidth: 800,
     minHeight: 600,
     backgroundColor: '#1e1e2e',
@@ -38,7 +43,7 @@ function createWindow(): BrowserWindow {
     }
   })
 
-  if (state.maximized) win.maximize()
+  if (state.maximized && existingWindows === 0) win.maximize()
 
   // Prevent the HTML <title> from overriding our window title (fixes dev mode showing "Electron")
   win.on('page-title-updated', (e) => e.preventDefault())
@@ -63,10 +68,14 @@ function createWindow(): BrowserWindow {
     shell.openExternal(url)
   })
 
+  const hash = vaultPath ? `#vault=${encodeURIComponent(vaultPath)}` : ''
+
   if (process.env.ELECTRON_RENDERER_URL) {
-    win.loadURL(process.env.ELECTRON_RENDERER_URL)
+    win.loadURL(`${process.env.ELECTRON_RENDERER_URL}${hash}`)
   } else {
-    win.loadFile(join(__dirname, '../renderer/index.html'))
+    win.loadFile(join(__dirname, '../renderer/index.html'), {
+      hash: vaultPath ? `vault=${encodeURIComponent(vaultPath)}` : undefined
+    })
   }
 
   return win
@@ -140,11 +149,15 @@ app.whenReady().then(() => {
     app.dock.setIcon(nativeImage.createFromPath(iconPath))
   }
 
-  ipcMain.handle('window:setTitle', (_event, vaultName: string | null) => {
-    const win = BrowserWindow.getFocusedWindow()
+  ipcMain.handle('window:setTitle', (event, vaultName: string | null) => {
+    const win = BrowserWindow.fromWebContents(event.sender)
     if (!win) return
     const title = vaultName ? `${vaultName} — ${APP_NAME}` : APP_NAME
     win.setTitle(title)
+  })
+
+  ipcMain.handle('window:openNew', (_event, vaultPath?: string) => {
+    createWindow(vaultPath)
   })
 
   registerIpcHandlers()

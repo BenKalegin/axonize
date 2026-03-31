@@ -5,14 +5,16 @@ import { executeQuery } from './rag/query-service'
 import { loadIndexState } from './rag/embedding-store'
 import type { AppSettings } from '../core/rag/types'
 
-let currentVaultPath = ''
+const vaultPathByWindow = new Map<number, string>()
 
-export function setCurrentVaultPath(path: string): void {
-  currentVaultPath = path
+export function setCurrentVaultPath(path: string, windowId?: number): void {
+  if (windowId != null) {
+    vaultPathByWindow.set(windowId, path)
+  }
 }
 
-function resolveVaultPath(payload?: { vaultPath?: string }): string {
-  const path = payload?.vaultPath || currentVaultPath
+function resolveVaultPath(event: Electron.IpcMainInvokeEvent, payload?: { vaultPath?: string }): string {
+  const path = payload?.vaultPath || vaultPathByWindow.get(event.sender.id) || ''
   if (!path) {
     throw new Error('No vault path set. Open a vault first.')
   }
@@ -20,39 +22,40 @@ function resolveVaultPath(payload?: { vaultPath?: string }): string {
 }
 
 export function registerRAGIpcHandlers(): void {
-  ipcMain.handle('rag:indexVault', async (_event, payload?: { vaultPath?: string }) => {
-    const vaultPath = resolveVaultPath(payload)
-    const win = BrowserWindow.getFocusedWindow()
+  ipcMain.handle('rag:indexVault', async (event, payload?: { vaultPath?: string }) => {
+    const vaultPath = resolveVaultPath(event, payload)
+    const win = BrowserWindow.fromWebContents(event.sender)
     return incrementalReindex(vaultPath, win)
   })
 
-  ipcMain.handle('rag:fullReindex', async (_event, payload?: { vaultPath?: string }) => {
-    const vaultPath = resolveVaultPath(payload)
-    const win = BrowserWindow.getFocusedWindow()
+  ipcMain.handle('rag:fullReindex', async (event, payload?: { vaultPath?: string }) => {
+    const vaultPath = resolveVaultPath(event, payload)
+    const win = BrowserWindow.fromWebContents(event.sender)
     return fullReindex(vaultPath, win)
   })
 
-  ipcMain.handle('rag:reindexFile', async (_event, payload: { vaultPath?: string; filePath: string }) => {
-    const vaultPath = resolveVaultPath(payload)
-    const win = BrowserWindow.getFocusedWindow()
+  ipcMain.handle('rag:reindexFile', async (event, payload: { vaultPath?: string; filePath: string }) => {
+    const vaultPath = resolveVaultPath(event, payload)
+    const win = BrowserWindow.fromWebContents(event.sender)
     return reindexFile(vaultPath, payload.filePath, win)
   })
 
-  ipcMain.handle('rag:purgeFolder', async (_event, payload: { vaultPath?: string; folderPath: string }) => {
-    const vaultPath = resolveVaultPath(payload)
+  ipcMain.handle('rag:purgeFolder', async (event, payload: { vaultPath?: string; folderPath: string }) => {
+    const vaultPath = resolveVaultPath(event, payload)
     return purgeFolder(vaultPath, payload.folderPath)
   })
 
-  ipcMain.handle('rag:getStatus', async () => {
-    if (!currentVaultPath) {
+  ipcMain.handle('rag:getStatus', async (event) => {
+    const path = vaultPathByWindow.get(event.sender.id) || ''
+    if (!path) {
       return { version: 0, modelId: '', dimensions: 0, chunkCount: 0, fileHashes: {} }
     }
-    const state = await loadIndexState(currentVaultPath)
+    const state = await loadIndexState(path)
     return state ?? { version: 0, modelId: '', dimensions: 0, chunkCount: 0, fileHashes: {} }
   })
 
-  ipcMain.handle('rag:query', async (_event, payload: { vaultPath?: string; question: string }) => {
-    const vaultPath = resolveVaultPath(payload)
+  ipcMain.handle('rag:query', async (event, payload: { vaultPath?: string; question: string }) => {
+    const vaultPath = resolveVaultPath(event, payload)
     return executeQuery(vaultPath, payload.question)
   })
 

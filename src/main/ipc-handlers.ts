@@ -23,8 +23,8 @@ function vaultNameFromPath(p: string): string {
 }
 
 export function registerIpcHandlers(): void {
-  ipcMain.handle('vault:open', async () => {
-    const win = BrowserWindow.getFocusedWindow()
+  ipcMain.handle('vault:open', async (event) => {
+    const win = BrowserWindow.fromWebContents(event.sender)
     if (!win) return null
 
     const result = await dialog.showOpenDialog(win, {
@@ -37,13 +37,13 @@ export function registerIpcHandlers(): void {
     const vaultPath = result.filePaths[0]
     const name = vaultNameFromPath(vaultPath)
     await addRecentVault(vaultPath, name)
-    setCurrentVaultPath(vaultPath)
+    setCurrentVaultPath(vaultPath, event.sender.id)
     return vaultPath
   })
 
-  ipcMain.handle('vault:readFiles', async (_event, vaultPath: string) => {
+  ipcMain.handle('vault:readFiles', async (event, vaultPath: string) => {
     try {
-      setCurrentVaultPath(vaultPath)
+      setCurrentVaultPath(vaultPath, event.sender.id)
       return readVaultFiles(vaultPath)
     } catch (e) {
       log.error('vault:readFiles failed:', e)
@@ -99,15 +99,18 @@ export function registerIpcHandlers(): void {
     await removeRecentVault(path)
   })
 
-  ipcMain.handle('vault:startWatch', (_event, path: string) => {
-    const win = BrowserWindow.getFocusedWindow()
+  ipcMain.handle('vault:startWatch', (event, path: string) => {
+    const win = BrowserWindow.fromWebContents(event.sender)
     if (win) {
       startWatching(path, win)
     }
   })
 
-  ipcMain.handle('vault:stopWatch', () => {
-    stopWatching()
+  ipcMain.handle('vault:stopWatch', (event) => {
+    const win = BrowserWindow.fromWebContents(event.sender)
+    if (win) {
+      stopWatching(win.id)
+    }
   })
 
   const RECENT_FILES_MAX = 10

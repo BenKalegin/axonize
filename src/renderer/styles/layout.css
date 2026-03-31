@@ -128,8 +128,8 @@
 
 .vault-dropdown-item {
   display: flex;
-  flex-direction: column;
-  gap: 2px;
+  align-items: center;
+  gap: 4px;
   padding: 8px 12px;
   cursor: pointer;
   transition: background 0.1s;
@@ -2188,6 +2188,7 @@
   flex: 1;
 }
 
+.vault-dropdown-newwin,
 .vault-dropdown-remove {
   width: 20px;
   height: 20px;
@@ -2202,8 +2203,14 @@
   transition: opacity 0.15s, background 0.15s, color 0.15s;
 }
 
+.vault-dropdown-item:hover .vault-dropdown-newwin,
 .vault-dropdown-item:hover .vault-dropdown-remove {
   opacity: 1;
+}
+
+.vault-dropdown-newwin:hover {
+  background: var(--bg-overlay);
+  color: var(--text-primary);
 }
 
 .vault-dropdown-remove:hover {

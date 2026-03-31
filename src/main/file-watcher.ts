@@ -6,8 +6,12 @@ import log from './logger'
 const DEBOUNCE_MS = 1000
 const IGNORED_DIRS = new Set(['.axonize', 'node_modules', '.git'])
 
-let watcher: FSWatcher | null = null
-let debounceTimer: ReturnType<typeof setTimeout> | null = null
+interface WatcherEntry {
+  watcher: FSWatcher
+  timer: ReturnType<typeof setTimeout> | null
+}
+
+const watchers = new Map<number, WatcherEntry>()
 
 function isIgnored(filename: string): boolean {
   const parts = filename.split('/')
@@ -18,41 +22,42 @@ function isMarkdown(filename: string): boolean {
   return extname(basename(filename)) === '.md'
 }
 
-export function startWatching(vaultPath: string, window: BrowserWindow): void {
-  stopWatching()
+export function startWatching(vaultPath: string, win: BrowserWindow): void {
+  stopWatching(win.id)
 
   try {
-    watcher = watch(vaultPath, { recursive: true }, (_eventType, filename) => {
+    const entry: WatcherEntry = { watcher: null!, timer: null }
+
+    entry.watcher = watch(vaultPath, { recursive: true }, (_eventType, filename) => {
       if (!filename) return
       if (isIgnored(filename)) return
       if (!isMarkdown(filename)) return
 
-      if (debounceTimer) clearTimeout(debounceTimer)
-      debounceTimer = setTimeout(() => {
-        if (window && !window.isDestroyed()) {
-          window.webContents.send('vault:filesChanged')
+      if (entry.timer) clearTimeout(entry.timer)
+      entry.timer = setTimeout(() => {
+        if (!win.isDestroyed()) {
+          win.webContents.send('vault:filesChanged')
         }
       }, DEBOUNCE_MS)
     })
 
-    watcher.on('error', (err) => {
-      log.error('[file-watcher] Error:', err)
+    entry.watcher.on('error', (err) => {
+      log.error(`[file-watcher] Error (window ${win.id}):`, err)
     })
 
-    log.info(`[file-watcher] Watching ${vaultPath}`)
+    watchers.set(win.id, entry)
+    log.info(`[file-watcher] Watching ${vaultPath} (window ${win.id})`)
   } catch (err) {
     log.error('[file-watcher] Failed to start:', err)
   }
 }
 
-export function stopWatching(): void {
-  if (debounceTimer) {
-    clearTimeout(debounceTimer)
-    debounceTimer = null
-  }
-  if (watcher) {
-    watcher.close()
-    watcher = null
-    log.info('[file-watcher] Stopped')
-  }
+export function stopWatching(windowId: number): void {
+  const entry = watchers.get(windowId)
+  if (!entry) return
+
+  if (entry.timer) clearTimeout(entry.timer)
+  entry.watcher.close()
+  watchers.delete(windowId)
+  log.info(`[file-watcher] Stopped (window ${windowId})`)
 }

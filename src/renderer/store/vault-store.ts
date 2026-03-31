@@ -83,6 +83,7 @@ interface VaultState {
   excludeFolder: (relativePath: string) => Promise<void>
   includeFolder: (relativePath: string) => Promise<void>
   refreshVault: () => Promise<void>
+  openVaultInNewWindow: (path: string) => Promise<void>
 }
 
 export const useVaultStore = create<VaultState>((set, get) => ({
@@ -181,5 +182,9 @@ export const useVaultStore = create<VaultState>((set, get) => ({
     set({ fileTree: files })
     await get().loadExcludedFolders()
     runSemanticIndex(vaultPath).catch(() => {})
+  },
+
+  openVaultInNewWindow: async (path: string) => {
+    await window.axonize.window.openNew(path)
   }
 }))

@@ -75,6 +75,7 @@ export type { GitStatus, GitFileStatus } from '../core/git/types'
 export interface AxonizeAPI {
   window: {
     setTitle: (vaultName: string | null) => Promise<void>
+    openNew: (vaultPath?: string) => Promise<void>
   }
   vault: {
     open: () => Promise<string | null>
@@ -147,7 +148,8 @@ export interface AxonizeAPI {
 
 const api: AxonizeAPI = {
   window: {
-    setTitle: (vaultName: string | null) => ipcRenderer.invoke('window:setTitle', vaultName)
+    setTitle: (vaultName: string | null) => ipcRenderer.invoke('window:setTitle', vaultName),
+    openNew: (vaultPath?: string) => ipcRenderer.invoke('window:openNew', vaultPath)
   },
   vault: {
     open: () => ipcRenderer.invoke('vault:open'),
