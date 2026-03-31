@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react'
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import mermaid from 'mermaid'
 import elkLayouts from '@mermaid-js/layout-elk'
 import { TEST_IDS } from '@/lib/testids'
@@ -42,7 +42,13 @@ function hashSimple(str: string): string {
 }
 
 export const MarkdownView = React.memo(function MarkdownView() {
-  const { selectedFile, selectFile } = useEditorStore()
+  const {
+    selectedFile,
+    selectFile,
+    presentationMode,
+    presentationIndex,
+    setPresentationTotal
+  } = useEditorStore()
   const { vaultPath, fileTree } = useVaultStore()
 
   const [sections, setSections] = useState<MarkdownSection[]>([])
@@ -171,6 +177,24 @@ export const MarkdownView = React.memo(function MarkdownView() {
     [selectedFile, triggerReindex]
   )
 
+  // Group sections into slides: each heading + its trailing non-heading sections
+  const slides = useMemo(() => {
+    const result: MarkdownSection[][] = []
+    for (const section of sections) {
+      if (section.kind === 'heading') {
+        result.push([section])
+      } else if (result.length > 0) {
+        result[result.length - 1].push(section)
+      }
+      // skip preamble/mermaid before any heading
+    }
+    return result
+  }, [sections])
+
+  useEffect(() => {
+    setPresentationTotal(slides.length)
+  }, [slides.length, setPresentationTotal])
+
   const handleLinkClick = useCallback(
     (e: React.MouseEvent) => {
       const anchor = (e.target as HTMLElement).closest('a')
@@ -203,6 +227,38 @@ export const MarkdownView = React.memo(function MarkdownView() {
     },
     [selectedFile, vaultPath, selectFile]
   )
+
+  if (presentationMode && slides.length > 0) {
+    const ADJACENT_OPACITY = 0.12
+    const clampedIndex = Math.min(presentationIndex, slides.length - 1)
+    const currentSlide = slides[clampedIndex]
+    const prevSlide = clampedIndex > 0 ? slides[clampedIndex - 1] : null
+    const nextSlide = clampedIndex < slides.length - 1 ? slides[clampedIndex + 1] : null
+
+    return (
+      <div className="markdown-view presentation-mode" data-testid={TEST_IDS.MARKDOWN_VIEW}>
+        {prevSlide && (
+          <div className="presentation-adjacent presentation-adjacent--prev" style={{ opacity: ADJACENT_OPACITY }}>
+            {prevSlide.map((s) => (
+              <SectionBlock key={s.id} section={s} onSave={handleSave} onLinkClick={handleLinkClick} />
+            ))}
+          </div>
+        )}
+        <div className="presentation-current">
+          {currentSlide.map((s) => (
+            <SectionBlock key={s.id} section={s} onSave={handleSave} onLinkClick={handleLinkClick} />
+          ))}
+        </div>
+        {nextSlide && (
+          <div className="presentation-adjacent presentation-adjacent--next" style={{ opacity: ADJACENT_OPACITY }}>
+            {nextSlide.map((s) => (
+              <SectionBlock key={s.id} section={s} onSave={handleSave} onLinkClick={handleLinkClick} />
+            ))}
+          </div>
+        )}
+      </div>
+    )
+  }
 
   return (
     <div className="markdown-view" data-testid={TEST_IDS.MARKDOWN_VIEW}>

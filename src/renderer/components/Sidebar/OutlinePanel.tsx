@@ -50,9 +50,23 @@ function HeadingRow({
 }
 
 export function OutlinePanel() {
-  const { selectedFile, selectFile } = useEditorStore()
+  const {
+    selectedFile,
+    selectFile,
+    presentationMode,
+    presentationIndex,
+    setPresentationMode,
+    setPresentationIndex
+  } = useEditorStore()
   const [headings, setHeadings] = useState<HeadingEntry[]>([])
   const [activeSlug, setActiveSlug] = useState<string | null>(null)
+
+  // In presentation mode, derive active slug from presentationIndex
+  useEffect(() => {
+    if (!presentationMode || headings.length === 0) return
+    const idx = Math.min(presentationIndex, headings.length - 1)
+    setActiveSlug(headings[idx].slug)
+  }, [presentationMode, presentationIndex, headings])
 
   const filePath = selectedFile?.split('#')[0] ?? null
 
@@ -98,18 +112,28 @@ export function OutlinePanel() {
   }, [headings])
 
   const handleClick = useCallback(
-    (slug: string) => {
+    (slug: string, index: number) => {
       if (!selectedFile) return
+      if (presentationMode) {
+        setPresentationIndex(index)
+      }
       selectFile(`${selectedFile}#${slug}`)
       setActiveSlug(slug)
     },
-    [selectedFile, selectFile]
+    [selectedFile, selectFile, presentationMode, setPresentationIndex]
   )
 
   return (
     <div className="outline-panel" data-testid={TEST_IDS.OUTLINE_PANEL}>
       <div className="sidebar-header">
         <span>Outline</span>
+        <button
+          className={`toolbar-btn outline-presentation-btn${presentationMode ? ' active' : ''}`}
+          onClick={() => setPresentationMode(!presentationMode)}
+          title={presentationMode ? 'Exit presentation' : 'Presentation mode'}
+        >
+          {presentationMode ? 'Exit' : 'Present'}
+        </button>
       </div>
       <div className="outline-list">
         {!selectedFile ? (
@@ -122,7 +146,7 @@ export function OutlinePanel() {
               key={`${entry.slug}-${i}`}
               entry={entry}
               isActive={activeSlug === entry.slug}
-              onClick={() => handleClick(entry.slug)}
+              onClick={() => handleClick(entry.slug, i)}
             />
           ))
         )}

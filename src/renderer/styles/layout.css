@@ -2505,3 +2505,71 @@
   max-width: 100%;
 }
 
+/* ── Presentation Mode ── */
+
+.outline-presentation-btn {
+  font-size: 10px;
+  padding: 2px 8px;
+  text-transform: none;
+  letter-spacing: 0;
+  border-radius: 4px;
+  white-space: nowrap;
+}
+
+.presentation-mode {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 100%;
+}
+
+.presentation-mode .section-edit-btn {
+  display: none;
+}
+
+.presentation-mode .section-insert {
+  display: none;
+}
+
+.presentation-current {
+  width: 100%;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+
+.presentation-current .section-block {
+  font-size: 1.15em;
+}
+
+.presentation-adjacent {
+  width: 100%;
+  max-height: 80px;
+  overflow: hidden;
+  pointer-events: none;
+  user-select: none;
+}
+
+.presentation-adjacent--prev {
+  mask-image: linear-gradient(to top, transparent, rgba(0, 0, 0, 0.4));
+  -webkit-mask-image: linear-gradient(to top, transparent, rgba(0, 0, 0, 0.4));
+}
+
+.presentation-adjacent--next {
+  mask-image: linear-gradient(to bottom, transparent, rgba(0, 0, 0, 0.4));
+  -webkit-mask-image: linear-gradient(to bottom, transparent, rgba(0, 0, 0, 0.4));
+}
+
+.presentation-counter {
+  font-size: 12px;
+  color: var(--text-secondary);
+  min-width: 48px;
+  text-align: center;
+}
+
+.presentation-exit-btn {
+  margin-left: 24px;
+}
+

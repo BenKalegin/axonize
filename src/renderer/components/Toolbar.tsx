@@ -7,7 +7,16 @@ import { SettingsDialog } from './SettingsDialog'
 
 export function Toolbar() {
   const { vaultPath, vaultName, openVault, recentVaults, openRecentVault, loadRecentVaults, removeRecentVault, refreshVault } = useVaultStore()
-  const { viewMode, setViewMode } = useEditorStore()
+  const {
+    viewMode,
+    setViewMode,
+    presentationMode,
+    presentationIndex,
+    presentationTotal,
+    presentationNext,
+    presentationPrev,
+    setPresentationMode
+  } = useEditorStore()
   const { chunkCount } = useRagStore()
   const [dropdownOpen, setDropdownOpen] = useState(false)
   const [settingsOpen, setSettingsOpen] = useState(false)
@@ -138,20 +147,50 @@ export function Toolbar() {
         )}
       </div>
       <div className="toolbar-center">
-        <button
-          data-testid={TEST_IDS.VIEW_MARKDOWN_BTN}
-          className={`toolbar-btn ${viewMode === 'markdown' ? 'active' : ''}`}
-          onClick={() => setViewMode('markdown')}
-        >
-          Markdown
-        </button>
-        <button
-          data-testid={TEST_IDS.VIEW_GRAPH_BTN}
-          className={`toolbar-btn ${viewMode === 'graph' ? 'active' : ''}`}
-          onClick={() => setViewMode('graph')}
-        >
-          Graph
-        </button>
+        {presentationMode ? (
+          <>
+            <button
+              className="toolbar-btn"
+              disabled={presentationIndex <= 0}
+              onClick={presentationPrev}
+            >
+              Prev
+            </button>
+            <span className="presentation-counter">
+              {presentationTotal > 0 ? `${presentationIndex + 1} / ${presentationTotal}` : '—'}
+            </span>
+            <button
+              className="toolbar-btn"
+              disabled={presentationIndex >= presentationTotal - 1}
+              onClick={presentationNext}
+            >
+              Next
+            </button>
+            <button
+              className="toolbar-btn presentation-exit-btn"
+              onClick={() => setPresentationMode(false)}
+            >
+              Exit
+            </button>
+          </>
+        ) : (
+          <>
+            <button
+              data-testid={TEST_IDS.VIEW_MARKDOWN_BTN}
+              className={`toolbar-btn ${viewMode === 'markdown' ? 'active' : ''}`}
+              onClick={() => setViewMode('markdown')}
+            >
+              Markdown
+            </button>
+            <button
+              data-testid={TEST_IDS.VIEW_GRAPH_BTN}
+              className={`toolbar-btn ${viewMode === 'graph' ? 'active' : ''}`}
+              onClick={() => setViewMode('graph')}
+            >
+              Graph
+            </button>
+          </>
+        )}
       </div>
       <div className="toolbar-right">
         {vaultPath && (

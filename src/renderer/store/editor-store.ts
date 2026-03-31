@@ -25,11 +25,19 @@ interface EditorState {
   historyIndex: number
   canGoBack: boolean
   canGoForward: boolean
+  presentationMode: boolean
+  presentationIndex: number
+  presentationTotal: number
   setViewMode: (mode: ViewMode) => void
   selectFile: (location: string) => void
   clear: () => void
   goBack: () => void
   goForward: () => void
+  setPresentationMode: (on: boolean) => void
+  setPresentationIndex: (i: number) => void
+  setPresentationTotal: (n: number) => void
+  presentationNext: () => void
+  presentationPrev: () => void
 }
 
 export const useEditorStore = create<EditorState>((set, get) => ({
@@ -40,6 +48,9 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   historyIndex: -1,
   canGoBack: false,
   canGoForward: false,
+  presentationMode: false,
+  presentationIndex: 0,
+  presentationTotal: 0,
 
   setViewMode: (mode: ViewMode) => set({ viewMode: mode }),
 
@@ -82,7 +93,10 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     history: [],
     historyIndex: -1,
     canGoBack: false,
-    canGoForward: false
+    canGoForward: false,
+    presentationMode: false,
+    presentationIndex: 0,
+    presentationTotal: 0
   }),
 
   goBack: () => {
@@ -121,5 +135,28 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     })
 
     if (!fileChanged) scrollToHash(hash)
+  },
+
+  setPresentationMode: (on) =>
+    set({ presentationMode: on, presentationIndex: 0 }),
+
+  setPresentationIndex: (i) =>
+    set({ presentationIndex: i }),
+
+  setPresentationTotal: (n) =>
+    set({ presentationTotal: n }),
+
+  presentationNext: () => {
+    const { presentationIndex, presentationTotal } = get()
+    if (presentationIndex < presentationTotal - 1) {
+      set({ presentationIndex: presentationIndex + 1 })
+    }
+  },
+
+  presentationPrev: () => {
+    const { presentationIndex } = get()
+    if (presentationIndex > 0) {
+      set({ presentationIndex: presentationIndex - 1 })
+    }
   }
 }))

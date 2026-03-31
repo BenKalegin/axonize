@@ -16,7 +16,14 @@ import { ZoomControls } from './ZoomControls'
 const ZOOM_STEPS = [50, 67, 80, 90, 100, 110, 125, 150, 175, 200]
 
 export function ContentView() {
-  const { viewMode, selectedFile } = useEditorStore()
+  const {
+    viewMode,
+    selectedFile,
+    presentationMode,
+    presentationNext,
+    presentationPrev,
+    setPresentationMode
+  } = useEditorStore()
   const { vaultPath } = useVaultStore()
   const { lastResponse, isQuerying } = useRagStore()
   const { docs } = useGeneratedDocsStore()
@@ -64,6 +71,24 @@ export function ContentView() {
     el.addEventListener('wheel', handleWheel, { passive: false })
     return () => el.removeEventListener('wheel', handleWheel)
   }, [zoomIn, zoomOut])
+
+  useEffect(() => {
+    if (!presentationMode) return
+    const handleKey = (e: KeyboardEvent) => {
+      if (e.key === 'ArrowRight' || e.key === 'ArrowDown') {
+        e.preventDefault()
+        presentationNext()
+      } else if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') {
+        e.preventDefault()
+        presentationPrev()
+      } else if (e.key === 'Escape') {
+        e.preventDefault()
+        setPresentationMode(false)
+      }
+    }
+    window.addEventListener('keydown', handleKey)
+    return () => window.removeEventListener('keydown', handleKey)
+  }, [presentationMode, presentationNext, presentationPrev, setPresentationMode])
 
   const generatedDoc = useMemo(
     () => selectedFile ? docs.find((d) => d.filePath === selectedFile) ?? null : null,
