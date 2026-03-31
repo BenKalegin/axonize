@@ -1,10 +1,11 @@
-import { app, BrowserWindow, Menu, nativeImage, shell } from 'electron'
+import { app, BrowserWindow, ipcMain, Menu, nativeImage, shell } from 'electron'
 import { join } from 'path'
 import { registerIpcHandlers } from './ipc-handlers'
 import { loadWindowState, saveWindowState } from './window-state'
 import log from './logger'
 
-app.name = 'Axonize'
+const APP_NAME = 'Axonize'
+app.name = APP_NAME
 
 let saveTimeout: ReturnType<typeof setTimeout> | null = null
 
@@ -38,6 +39,9 @@ function createWindow(): BrowserWindow {
   })
 
   if (state.maximized) win.maximize()
+
+  // Prevent the HTML <title> from overriding our window title (fixes dev mode showing "Electron")
+  win.on('page-title-updated', (e) => e.preventDefault())
 
   win.on('resize', () => debouncedSave(win))
   win.on('move', () => debouncedSave(win))
@@ -135,6 +139,14 @@ app.whenReady().then(() => {
   if (process.platform === 'darwin') {
     app.dock.setIcon(nativeImage.createFromPath(iconPath))
   }
+
+  ipcMain.handle('window:setTitle', (_event, vaultName: string | null) => {
+    const win = BrowserWindow.getFocusedWindow()
+    if (!win) return
+    const title = vaultName ? `${vaultName} — ${APP_NAME}` : APP_NAME
+    win.setTitle(title)
+  })
+
   registerIpcHandlers()
   createWindow()
 

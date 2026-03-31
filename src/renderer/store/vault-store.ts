@@ -98,6 +98,7 @@ export const useVaultStore = create<VaultState>((set, get) => ({
       useEditorStore.getState().clear()
       const name = vaultNameFromPath(path)
       set({ vaultPath: path, vaultName: name })
+      window.axonize.window.setTitle(name).catch(() => {})
       const files = await window.axonize.vault.readFiles(path) as FileEntry[]
       set({ fileTree: files })
       await get().loadRecentVaults()
@@ -133,6 +134,7 @@ export const useVaultStore = create<VaultState>((set, get) => ({
     useEditorStore.getState().clear()
     const name = vaultNameFromPath(path)
     set({ vaultPath: path, vaultName: name })
+    window.axonize.window.setTitle(name).catch(() => {})
     const files = await window.axonize.vault.readFiles(path) as FileEntry[]
     set({ fileTree: files })
     await window.axonize.vault.addRecent(path, name)
