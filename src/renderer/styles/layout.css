@@ -2507,15 +2507,6 @@
 
 /* ── Presentation Mode ── */
 
-.outline-presentation-btn {
-  font-size: 10px;
-  padding: 2px 8px;
-  text-transform: none;
-  letter-spacing: 0;
-  border-radius: 4px;
-  white-space: nowrap;
-}
-
 .presentation-mode {
   display: flex;
   flex-direction: column;
@@ -2562,14 +2553,26 @@
   -webkit-mask-image: linear-gradient(to bottom, transparent, rgba(0, 0, 0, 0.4));
 }
 
+.presentation-bar {
+  position: absolute;
+  bottom: 12px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: var(--bg-primary);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 6px 16px;
+  z-index: 10;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+}
+
 .presentation-counter {
   font-size: 12px;
   color: var(--text-secondary);
   min-width: 48px;
   text-align: center;
-}
-
-.presentation-exit-btn {
-  margin-left: 24px;
 }
 

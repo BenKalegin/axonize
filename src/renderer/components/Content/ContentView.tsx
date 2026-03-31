@@ -20,6 +20,8 @@ export function ContentView() {
     viewMode,
     selectedFile,
     presentationMode,
+    presentationIndex,
+    presentationTotal,
     presentationNext,
     presentationPrev,
     setPresentationMode
@@ -60,6 +62,7 @@ export function ContentView() {
   }, [zoomPercent])
 
   useEffect(() => {
+    if (presentationMode) return
     const el = outerRef.current
     if (!el) return
     const handleWheel = (e: WheelEvent) => {
@@ -70,12 +73,12 @@ export function ContentView() {
     }
     el.addEventListener('wheel', handleWheel, { passive: false })
     return () => el.removeEventListener('wheel', handleWheel)
-  }, [zoomIn, zoomOut])
+  }, [zoomIn, zoomOut, presentationMode])
 
   useEffect(() => {
     if (!presentationMode) return
     const handleKey = (e: KeyboardEvent) => {
-      if (e.key === 'ArrowRight' || e.key === 'ArrowDown') {
+      if (e.key === 'ArrowRight' || e.key === 'ArrowDown' || e.key === ' ') {
         e.preventDefault()
         presentationNext()
       } else if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') {
@@ -89,6 +92,32 @@ export function ContentView() {
     window.addEventListener('keydown', handleKey)
     return () => window.removeEventListener('keydown', handleKey)
   }, [presentationMode, presentationNext, presentationPrev, setPresentationMode])
+
+  // Click-to-advance and scroll wheel navigation in presentation mode
+  useEffect(() => {
+    if (!presentationMode) return
+    const el = outerRef.current
+    if (!el) return
+
+    const handleClick = (e: MouseEvent) => {
+      const target = e.target as HTMLElement
+      if (target.closest('a, button, .presentation-bar')) return
+      presentationNext()
+    }
+
+    const handleWheel = (e: WheelEvent) => {
+      e.preventDefault()
+      if (e.deltaY > 0) presentationNext()
+      else if (e.deltaY < 0) presentationPrev()
+    }
+
+    el.addEventListener('click', handleClick)
+    el.addEventListener('wheel', handleWheel, { passive: false })
+    return () => {
+      el.removeEventListener('click', handleClick)
+      el.removeEventListener('wheel', handleWheel)
+    }
+  }, [presentationMode, presentationNext, presentationPrev])
 
   const generatedDoc = useMemo(
     () => selectedFile ? docs.find((d) => d.filePath === selectedFile) ?? null : null,
@@ -145,6 +174,27 @@ export function ContentView() {
       )}
       {permanentDoc && (
         <MakePermanentDialog doc={permanentDoc} onClose={() => setPermanentDoc(null)} />
+      )}
+      {presentationMode && presentationTotal > 0 && (
+        <div className="presentation-bar">
+          <button
+            className="toolbar-btn"
+            disabled={presentationIndex <= 0}
+            onClick={presentationPrev}
+          >
+            Prev
+          </button>
+          <span className="presentation-counter">
+            {presentationIndex + 1} / {presentationTotal}
+          </span>
+          <button
+            className="toolbar-btn"
+            disabled={presentationIndex >= presentationTotal - 1}
+            onClick={presentationNext}
+          >
+            Next
+          </button>
+        </div>
       )}
     </div>
   )

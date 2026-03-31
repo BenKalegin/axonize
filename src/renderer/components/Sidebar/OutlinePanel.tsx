@@ -55,7 +55,6 @@ export function OutlinePanel() {
     selectFile,
     presentationMode,
     presentationIndex,
-    setPresentationMode,
     setPresentationIndex
   } = useEditorStore()
   const [headings, setHeadings] = useState<HeadingEntry[]>([])
@@ -127,13 +126,6 @@ export function OutlinePanel() {
     <div className="outline-panel" data-testid={TEST_IDS.OUTLINE_PANEL}>
       <div className="sidebar-header">
         <span>Outline</span>
-        <button
-          className={`toolbar-btn outline-presentation-btn${presentationMode ? ' active' : ''}`}
-          onClick={() => setPresentationMode(!presentationMode)}
-          title={presentationMode ? 'Exit presentation' : 'Presentation mode'}
-        >
-          {presentationMode ? 'Exit' : 'Present'}
-        </button>
       </div>
       <div className="outline-list">
         {!selectedFile ? (
