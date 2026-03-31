@@ -457,12 +457,11 @@
 
 .mermaid-diagram {
   margin: 12px 0;
-  overflow: visible;
+  overflow-x: auto;
 }
 
 .mermaid-diagram svg {
-  height: auto !important;
-  max-width: none !important;
+  display: block;
 }
 
 /* Section Block Editor */

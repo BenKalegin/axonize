@@ -246,6 +246,24 @@ async function replaceMermaidBlocks(container: HTMLElement): Promise<void> {
       const wrapper = document.createElement('div')
       wrapper.className = 'mermaid-diagram'
       wrapper.innerHTML = svg
+
+      // Lock diagram to its intrinsic viewBox size so text matches the page font size.
+      // Mermaid sets width/height attributes that cause the SVG to scale with container.
+      const svgEl = wrapper.querySelector('svg')
+      if (svgEl) {
+        const vb = svgEl.getAttribute('viewBox')
+        if (vb) {
+          const parts = vb.split(' ')
+          const intrinsicWidth = parseFloat(parts[2])
+          const intrinsicHeight = parseFloat(parts[3])
+          svgEl.removeAttribute('width')
+          svgEl.removeAttribute('height')
+          svgEl.removeAttribute('style')
+          svgEl.setAttribute('width', String(intrinsicWidth))
+          svgEl.setAttribute('height', String(intrinsicHeight))
+        }
+      }
+
       pre.replaceWith(wrapper)
     } catch (err) {
       console.error('[mermaid] render failed:', err)
