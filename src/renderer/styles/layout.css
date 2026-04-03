@@ -475,6 +475,23 @@
   background: transparent;
 }
 
+.section-block--saving {
+  opacity: 0.6;
+  pointer-events: none;
+}
+
+.section-saving-bar {
+  height: 2px;
+  background: var(--accent);
+  border-radius: 1px;
+  animation: saving-pulse 1s ease-in-out infinite;
+}
+
+@keyframes saving-pulse {
+  0%, 100% { opacity: 0.4; }
+  50% { opacity: 1; }
+}
+
 .section-block--editing {
   background: rgba(255, 255, 255, 0.02);
   border: 1px solid var(--border);

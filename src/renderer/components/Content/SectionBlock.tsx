@@ -22,6 +22,8 @@ export const SectionBlock = React.memo(function SectionBlock({
   const [editing, setEditing] = useState(false)
   const [draft, setDraft] = useState('')
   const [html, setHtml] = useState('')
+  const [saving, setSaving] = useState(false)
+  const [renderKey, setRenderKey] = useState(0)
   const [llmOpen, setLlmOpen] = useState(false)
   const [llmInstruction, setLlmInstruction] = useState('')
   const [llmLoading, setLlmLoading] = useState(false)
@@ -32,7 +34,10 @@ export const SectionBlock = React.memo(function SectionBlock({
   useEffect(() => {
     let cancelled = false
     renderMarkdown(section.rawMarkdown).then((result) => {
-      if (!cancelled) setHtml(result)
+      if (!cancelled) {
+        setHtml(result)
+        setSaving(false)
+      }
     })
     return () => {
       cancelled = true
@@ -41,8 +46,12 @@ export const SectionBlock = React.memo(function SectionBlock({
 
   useEffect(() => {
     if (editing || !html || !viewRef.current) return
-    replaceMermaidBlocks(viewRef.current)
-  }, [html, editing])
+    // Schedule after React finishes flushing dangerouslySetInnerHTML into the DOM
+    const frame = requestAnimationFrame(() => {
+      if (viewRef.current) replaceMermaidBlocks(viewRef.current)
+    })
+    return () => cancelAnimationFrame(frame)
+  }, [html, editing, renderKey])
 
   const handleEdit = useCallback(() => {
     setDraft(section.rawMarkdown)
@@ -59,6 +68,8 @@ export const SectionBlock = React.memo(function SectionBlock({
   }, [])
 
   const handleSave = useCallback(() => {
+    setSaving(true)
+    setRenderKey((k) => k + 1)
     onSave(section.id, draft)
     setEditing(false)
     setLlmOpen(false)
@@ -174,9 +185,10 @@ export const SectionBlock = React.memo(function SectionBlock({
 
   return (
     <div
-      className="section-block"
+      className={`section-block${saving ? ' section-block--saving' : ''}`}
       data-testid={TEST_IDS.SECTION_BLOCK}
     >
+      {saving && <div className="section-saving-bar" />}
       <button
         className="section-edit-btn"
         data-testid={TEST_IDS.SECTION_EDIT_BTN}
@@ -240,15 +252,18 @@ async function replaceMermaidBlocks(container: HTMLElement): Promise<void> {
     if (!raw.trim()) continue
     const source = normalizeMermaidSource(raw)
 
+    const id = `mermaid-${Date.now()}-${++mermaidCounter}`
+
     try {
-      const id = `mermaid-${++mermaidCounter}`
+      // Remove any stale temp container mermaid may have left behind for this id
+      document.getElementById(`d${id}`)?.remove()
+
       const { svg } = await mermaid.render(id, source)
       const wrapper = document.createElement('div')
       wrapper.className = 'mermaid-diagram'
       wrapper.innerHTML = svg
 
       // Lock diagram to its intrinsic viewBox size so text matches the page font size.
-      // Mermaid sets width/height attributes that cause the SVG to scale with container.
       const svgEl = wrapper.querySelector('svg')
       if (svgEl) {
         const vb = svgEl.getAttribute('viewBox')
@@ -267,6 +282,8 @@ async function replaceMermaidBlocks(container: HTMLElement): Promise<void> {
       pre.replaceWith(wrapper)
     } catch (err) {
       console.error('[mermaid] render failed:', err)
+      // Clean up temp container on failure
+      document.getElementById(`d${id}`)?.remove()
     }
   }
 }
