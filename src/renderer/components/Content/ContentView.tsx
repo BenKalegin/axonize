@@ -66,14 +66,20 @@ export function ContentView() {
     const el = outerRef.current
     if (!el) return
     const handleWheel = (e: WheelEvent) => {
-      if (!(e.metaKey || e.ctrlKey)) return
+      // For graph view: Ctrl/Cmd+wheel is reserved for cognitive zoom (depth change)
+      // So only handle regular wheel (without modifiers) for optical zoom
+      if (viewMode === 'graph' && (e.metaKey || e.ctrlKey)) return
+
+      // For other views: require Ctrl/Cmd for optical zoom
+      if (viewMode !== 'graph' && !(e.metaKey || e.ctrlKey)) return
+
       e.preventDefault()
       if (e.deltaY < 0) zoomIn()
       else if (e.deltaY > 0) zoomOut()
     }
     el.addEventListener('wheel', handleWheel, { passive: false })
     return () => el.removeEventListener('wheel', handleWheel)
-  }, [zoomIn, zoomOut, presentationMode])
+  }, [zoomIn, zoomOut, presentationMode, viewMode])
 
   useEffect(() => {
     if (!presentationMode) return
