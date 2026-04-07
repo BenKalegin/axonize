@@ -3,7 +3,7 @@ import type { RelationType, Facet } from '@core/semantic/types'
 export const CARD_WIDTH = 240
 export const CARD_HEIGHT = 110
 export const HUB_RADIUS = 28
-export const CLUSTER_WIDTH = 300
+export const CLUSTER_WIDTH = 220
 export const CLUSTER_BASE_HEIGHT = 65
 export const CLUSTER_DOC_LINE_HEIGHT = 16
 

@@ -1,6 +1,7 @@
 import { useRef, useCallback, useMemo, useState, useEffect } from 'react'
 import ForceGraph2D from 'react-force-graph-2d'
 import { TEST_IDS } from '@/lib/testids'
+import { ZoomControls } from '../Content/ZoomControls'
 import { useGraphStore, visibleCards, visibleRelations } from '@/store/graph-store'
 import type { VisibleDepth } from '@/store/graph-store'
 import {
@@ -57,15 +58,22 @@ const COLLISION_ITERATIONS = 3
 const DEFAULT_COLLISION_RADIUS = 60
 
 // zoom-to-fit
-const FIT_EDGE_MARGIN = 40
+const FIT_EDGE_MARGIN = 20
+
+// optical zoom
+const ZOOM_BTN_FACTOR = 1.3
+const ZOOM_WHEEL_FACTOR = 1.1
+const MIN_ZOOM = 0.05
+const MAX_ZOOM = 10
 
 // center-on-click timing
 const CENTER_ANIMATION_MS = 400
 
 // simulation tuning
 const WARMUP_TICKS = 150
-const COOLDOWN_TICKS = 20
-const COOLDOWN_TIME_MS = 500
+const COOLDOWN_TICKS = 120
+const COOLDOWN_TIME_MS = 3000
+const LENS_CHANGE_TICKS = 200
 const DEPTH_CHANGE_TICKS = 30
 const ALPHA_DECAY = 0.06
 const VELOCITY_DECAY = 0.65
@@ -173,7 +181,8 @@ export function ForceGraph() {
       .iterations(COLLISION_ITERATIONS)
     fg.d3Force('collision', collision as never)
 
-    fg.d3Force('cluster', createLensForce(shown, shownRelations, activeLens, config.clusterStrength) as never)
+    // Pass ALL relations to lens force, not just visible ones, so hub-to-doc connections work
+    fg.d3Force('cluster', createLensForce(shown, relations, activeLens, config.clusterStrength) as never)
 
     const lensChanged = prevLensRef.current !== activeLens
     const depthChanged = prevDepthRef.current !== visibleDepth
@@ -185,9 +194,11 @@ export function ForceGraph() {
     // Skip full reheat when only cluster focus changed — just reposition
     if (clusterFocusChanged && !lensChanged && !depthChanged) return
 
-    setCooldownTicks(depthChanged && !lensChanged ? DEPTH_CHANGE_TICKS : COOLDOWN_TICKS)
+    if (depthChanged && !lensChanged) setCooldownTicks(DEPTH_CHANGE_TICKS)
+    else if (lensChanged) setCooldownTicks(LENS_CHANGE_TICKS)
+    else setCooldownTicks(COOLDOWN_TICKS)
     fg.d3ReheatSimulation()
-  }, [graphData, shown, shownRelations, activeLens, visibleDepth, clusterFocus])
+  }, [graphData, shown, relations, activeLens, visibleDepth, clusterFocus])
 
   const fitPadding = useMemo(() => {
     const maxCardHalf = shown.reduce((max, c) => {
@@ -200,6 +211,38 @@ export function ForceGraph() {
     return maxCardHalf + FIT_EDGE_MARGIN
   }, [shown])
 
+  const [zoomK, setZoomK] = useState(1)
+
+  const handleZoom = useCallback(({ k }: { k: number }) => setZoomK(k), [])
+
+  const zoomIn = useCallback(() => {
+    const k = fgRef.current?.zoom() ?? zoomK
+    fgRef.current?.zoom(Math.min(k * ZOOM_BTN_FACTOR, MAX_ZOOM), 150)
+  }, [zoomK])
+
+  const zoomOut = useCallback(() => {
+    const k = fgRef.current?.zoom() ?? zoomK
+    fgRef.current?.zoom(Math.max(k / ZOOM_BTN_FACTOR, MIN_ZOOM), 150)
+  }, [zoomK])
+
+  const zoomFit = useCallback(() => {
+    fgRef.current?.zoomToFit(300, fitPadding)
+  }, [fitPadding])
+
+  useEffect(() => {
+    const el = containerRef.current
+    if (!el) return
+    const handleWheel = (e: WheelEvent) => {
+      if (e.metaKey || e.ctrlKey) return
+      e.preventDefault()
+      const k = fgRef.current?.zoom() ?? 1
+      const factor = e.deltaY < 0 ? ZOOM_WHEEL_FACTOR : 1 / ZOOM_WHEEL_FACTOR
+      fgRef.current?.zoom(Math.min(Math.max(k * factor, MIN_ZOOM), MAX_ZOOM), 0)
+    }
+    el.addEventListener('wheel', handleWheel, { passive: false })
+    return () => el.removeEventListener('wheel', handleWheel)
+  }, [])
+
   const needsFitRef = useRef(false)
 
   // Mark that we need a fit whenever visible nodes change
@@ -210,8 +253,14 @@ export function ForceGraph() {
   const handleEngineStop = useCallback(() => {
     if (!needsFitRef.current) return
     needsFitRef.current = false
-    fgRef.current?.zoomToFit(0, fitPadding)
-  }, [fitPadding])
+    const nodes = graphData.nodes
+    if (nodes.length > 0) {
+      const cx = nodes.reduce((sum, n) => sum + (n.x ?? 0), 0) / nodes.length
+      const cy = nodes.reduce((sum, n) => sum + (n.y ?? 0), 0) / nodes.length
+      fgRef.current?.centerAt(cx, cy, 0)
+    }
+    fgRef.current?.zoom(1, 300)
+  }, [graphData.nodes])
 
   // Reset initialization flag when cards reload
   useEffect(() => {
@@ -352,13 +401,9 @@ export function ForceGraph() {
       const vaultPath = useVaultStore.getState().vaultPath
       const { level, kind } = node._card
 
-      // Cluster click: focus with semantic distances
+      // Cluster click: drill into docs
       if (kind === CardKind.Cluster) {
-        if (vaultPath) {
-          focusCluster(vaultPath, node.id)
-        } else {
-          setDepth(0)
-        }
+        setDepth(0)
         fgRef.current?.centerAt(node.x, node.y, CENTER_ANIMATION_MS)
         return
       }
@@ -412,6 +457,7 @@ export function ForceGraph() {
         onNodeDragEnd={handleNodeDragEnd}
         onBackgroundClick={handleBackgroundClick}
         onEngineStop={handleEngineStop}
+        onZoom={handleZoom}
         width={width}
         height={height}
         backgroundColor="#1e1e2e"
@@ -421,6 +467,14 @@ export function ForceGraph() {
         d3AlphaDecay={ALPHA_DECAY}
         d3VelocityDecay={VELOCITY_DECAY}
         enableNodeDrag={true}
+        enableZoomInteraction={false}
+        enablePanInteraction={true}
+      />
+      <ZoomControls
+        zoom={Math.round(zoomK * 100)}
+        onZoomIn={zoomIn}
+        onZoomOut={zoomOut}
+        onReset={zoomFit}
       />
     </div>
   )

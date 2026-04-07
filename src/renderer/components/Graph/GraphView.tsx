@@ -125,10 +125,13 @@ function LensSelector() {
     for (const dim of dimensions) {
       options.push({ key: dim.key, label: dim.label })
     }
+    console.log('[LensSelector] Available lenses:', options.length, options.map(o => o.key))
     return options
   }, [dimensions])
 
-  if (visibleDepth > 0 || lensOptions.length < 2) return null
+  // Only show at depth 0 (Docs view) where lenses actually reorganize visible nodes
+  // AND only if there are multiple lens options
+  if (visibleDepth !== 0 || lensOptions.length <= 1) return null
 
   return (
     <div className="graph-lens-selector">
@@ -213,35 +216,37 @@ export function GraphView() {
   const hasCards = cards.length > 0
 
   return (
-    <div ref={containerRef} className="graph-view" data-testid={TEST_IDS.GRAPH_VIEW}>
+    <div className="graph-view" data-testid={TEST_IDS.GRAPH_VIEW}>
       {hasCards && <DepthControls />}
       {hasCards && <LensSelector />}
-      {progress && (
-        <div className="graph-empty-state">
-          <p>Building semantic index...</p>
-          <ProgressBar progress={progress} />
-        </div>
-      )}
-      {!progress && !hasCards && !estimate && (
-        <div className="graph-empty-state graph-empty-state--interactive">
-          <p>No semantic cards yet.</p>
-          {vaultPath && (
-            <button className="graph-build-btn" onClick={handleEstimate} disabled={estimating}>
-              {estimating ? 'Estimating...' : 'Build Semantic Index'}
-            </button>
-          )}
-        </div>
-      )}
-      {!progress && estimate && (
-        <div className="graph-empty-state graph-empty-state--interactive">
-          <EstimateCard
-            estimate={estimate}
-            onConfirm={handleConfirmBuild}
-            onCancel={handleCancelBuild}
-          />
-        </div>
-      )}
-      {hasCards && <ForceGraph />}
+      <div ref={containerRef} className="graph-canvas-container">
+        {progress && (
+          <div className="graph-empty-state">
+            <p>Building semantic index...</p>
+            <ProgressBar progress={progress} />
+          </div>
+        )}
+        {!progress && !hasCards && !estimate && (
+          <div className="graph-empty-state graph-empty-state--interactive">
+            <p>No semantic cards yet.</p>
+            {vaultPath && (
+              <button className="graph-build-btn" onClick={handleEstimate} disabled={estimating}>
+                {estimating ? 'Estimating...' : 'Build Semantic Index'}
+              </button>
+            )}
+          </div>
+        )}
+        {!progress && estimate && (
+          <div className="graph-empty-state graph-empty-state--interactive">
+            <EstimateCard
+              estimate={estimate}
+              onConfirm={handleConfirmBuild}
+              onCancel={handleCancelBuild}
+            />
+          </div>
+        )}
+        {hasCards && <ForceGraph />}
+      </div>
     </div>
   )
 }

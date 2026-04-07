@@ -84,7 +84,7 @@ export function getForceConfig(nodeCount: number): ForceConfig {
     chargeStrength: -120 - nodeCount * 4,
     linkDistance: 80,
     collisionRadius: 60,
-    clusterStrength: 0.4
+    clusterStrength: 3.5
   }
 }
 

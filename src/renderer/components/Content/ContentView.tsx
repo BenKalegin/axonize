@@ -55,24 +55,27 @@ export function ContentView() {
   const resetZoom = useCallback(() => setZoomPercent(100), [])
 
   // Apply zoom via ref to avoid re-rendering children (preserves mermaid SVGs)
+  // Don't apply CSS zoom to graph view - it has its own zoom handling
   useEffect(() => {
     if (scrollRef.current) {
-      scrollRef.current.style.zoom = String(zoomPercent / 100)
+      if (viewMode === 'graph') {
+        // Reset zoom for graph view - canvas doesn't support CSS zoom
+        scrollRef.current.style.zoom = '1'
+      } else {
+        scrollRef.current.style.zoom = String(zoomPercent / 100)
+      }
     }
-  }, [zoomPercent])
+  }, [zoomPercent, viewMode])
 
   useEffect(() => {
     if (presentationMode) return
     const el = outerRef.current
     if (!el) return
     const handleWheel = (e: WheelEvent) => {
-      // For graph view: Ctrl/Cmd+wheel is reserved for cognitive zoom (depth change)
-      // So only handle regular wheel (without modifiers) for optical zoom
-      if (viewMode === 'graph' && (e.metaKey || e.ctrlKey)) return
+      // Graph view handles its own optical zoom (wheel) and cognitive zoom (ctrl+wheel)
+      if (viewMode === 'graph') return
 
-      // For other views: require Ctrl/Cmd for optical zoom
-      if (viewMode !== 'graph' && !(e.metaKey || e.ctrlKey)) return
-
+      if (!(e.metaKey || e.ctrlKey)) return
       e.preventDefault()
       if (e.deltaY < 0) zoomIn()
       else if (e.deltaY > 0) zoomOut()
@@ -130,10 +133,10 @@ export function ContentView() {
     [selectedFile, docs]
   )
 
-  const showZoom = vaultPath && (
+  // Don't show zoom controls for graph - CSS zoom doesn't work with canvas
+  const showZoom = vaultPath && viewMode !== 'graph' && (
     lastResponse ||
-    (viewMode === 'markdown' && selectedFile) ||
-    viewMode === 'graph'
+    (viewMode === 'markdown' && selectedFile)
   )
 
   const isGraph = vaultPath && viewMode === 'graph'
@@ -141,9 +144,7 @@ export function ContentView() {
   return (
     <div className="content-view" data-testid={TEST_IDS.CONTENT_VIEW} ref={outerRef}>
       {isGraph ? (
-        <div className="content-scroll" ref={scrollRef}>
-          <GraphView />
-        </div>
+        <GraphView />
       ) : (
         <div className="content-scroll" ref={scrollRef}>
           {!vaultPath ? (

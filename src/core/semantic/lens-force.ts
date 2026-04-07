@@ -16,7 +16,7 @@ type ForceFunction = {
 
 /**
  * Creates a d3-compatible force that attracts docs toward their target anchor.
- * - lens='by_topic': docs attract toward their cluster card centroid
+ * - lens='by_topic': docs attract toward their cluster card
  * - lens=<dimension key>: docs attract toward hub nodes of that dimension
  */
 export function createLensForce(
@@ -41,8 +41,6 @@ export function createLensForce(
   return force
 }
 
-type AttractionMap = Map<string, { x: number; y: number; count: number }>
-
 function buildAttractionTargets(
   cards: SemanticCard[],
   relations: CardRelation[],
@@ -52,7 +50,6 @@ function buildAttractionTargets(
   if (lens === 'by_topic') {
     return buildTopicAttractions(cards)
   }
-  // Any other lens value is treated as a dimension key
   return buildHubAttractions(relations, cardById, lens)
 }
 
@@ -94,7 +91,7 @@ function applyLensAttraction(
   alpha: number,
   strength: number
 ): void {
-  const centroids = computeTargetCentroids(nodes, docToTarget)
+  const targetPos = buildTargetPositions(nodes)
 
   for (const node of nodes) {
     const nodeId = node.id ?? ''
@@ -104,45 +101,22 @@ function applyLensAttraction(
     const targetId = docToTarget.get(nodeId)
     if (!targetId) continue
 
-    const centroid = centroids.get(targetId)
-    if (!centroid) continue
+    const pos = targetPos.get(targetId)
+    if (!pos) continue
 
-    const dx = centroid.x - (node.x ?? 0)
-    const dy = centroid.y - (node.y ?? 0)
-    node.vx = (node.vx ?? 0) + dx * alpha * strength
-    node.vy = (node.vy ?? 0) + dy * alpha * strength
+    const dx = pos.x - (node.x ?? 0)
+    const dy = pos.y - (node.y ?? 0)
+    if (Math.abs(dx) > 1 || Math.abs(dy) > 1) {
+      node.vx = (node.vx ?? 0) + dx * alpha * strength
+      node.vy = (node.vy ?? 0) + dy * alpha * strength
+    }
   }
 }
 
-function computeTargetCentroids(
-  nodes: SimNode[],
-  docToTarget: Map<string, string>
-): AttractionMap {
-  const centroids: AttractionMap = new Map()
-
+function buildTargetPositions(nodes: SimNode[]): Map<string, { x: number; y: number }> {
+  const pos = new Map<string, { x: number; y: number }>()
   for (const node of nodes) {
-    const nodeId = node.id ?? ''
-    if (!centroids.has(nodeId)) {
-      centroids.set(nodeId, { x: node.x ?? 0, y: node.y ?? 0, count: 1 })
-    }
+    pos.set(node.id ?? '', { x: node.x ?? 0, y: node.y ?? 0 })
   }
-
-  for (const node of nodes) {
-    const targetId = docToTarget.get(node.id ?? '')
-    if (!targetId) continue
-    const entry = centroids.get(targetId) ?? { x: 0, y: 0, count: 0 }
-    entry.x += node.x ?? 0
-    entry.y += node.y ?? 0
-    entry.count++
-    centroids.set(targetId, entry)
-  }
-
-  for (const entry of centroids.values()) {
-    if (entry.count > 0) {
-      entry.x /= entry.count
-      entry.y /= entry.count
-    }
-  }
-
-  return centroids
+  return pos
 }
