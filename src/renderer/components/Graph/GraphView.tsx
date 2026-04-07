@@ -167,6 +167,8 @@ export function GraphView() {
 
   const handleWheel = useCallback(
     (e: WheelEvent) => {
+      // Only handle Ctrl/Cmd+wheel for cognitive zoom (depth change)
+      // Regular wheel events will bubble up to ContentView for optical zoom
       if (!e.metaKey && !e.ctrlKey) return
       e.preventDefault()
       if (e.deltaY < 0) {

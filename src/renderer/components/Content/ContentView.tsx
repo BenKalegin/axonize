@@ -124,9 +124,10 @@ export function ContentView() {
     [selectedFile, docs]
   )
 
-  const showZoom = vaultPath && viewMode !== 'graph' && (
+  const showZoom = vaultPath && (
     lastResponse ||
-    (viewMode === 'markdown' && selectedFile)
+    (viewMode === 'markdown' && selectedFile) ||
+    viewMode === 'graph'
   )
 
   const isGraph = vaultPath && viewMode === 'graph'
@@ -134,7 +135,9 @@ export function ContentView() {
   return (
     <div className="content-view" data-testid={TEST_IDS.CONTENT_VIEW} ref={outerRef}>
       {isGraph ? (
-        <GraphView />
+        <div className="content-scroll" ref={scrollRef}>
+          <GraphView />
+        </div>
       ) : (
         <div className="content-scroll" ref={scrollRef}>
           {!vaultPath ? (

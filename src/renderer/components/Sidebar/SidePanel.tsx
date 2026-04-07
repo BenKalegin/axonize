@@ -6,6 +6,7 @@ import { GitPanel } from './GitPanel'
 import { LLMLogPanel } from './LLMLogPanel'
 import { OutlinePanel } from './OutlinePanel'
 import { SemanticErrorsPanel } from './SemanticErrorsPanel'
+import { AgentPanel } from './AgentPanel'
 
 export function SidePanel() {
   const { activePanelId, sidePanelWidth, setSidePanelWidth, persistToSettings } =
@@ -52,6 +53,7 @@ export function SidePanel() {
         {activePanelId === 'files' && <FileExplorer />}
         {activePanelId === 'git' && <GitPanel />}
         {activePanelId === 'outline' && <OutlinePanel />}
+        {activePanelId === 'agent' && <AgentPanel />}
         {activePanelId === 'llm-log' && <LLMLogPanel />}
         {activePanelId === 'errors' && <SemanticErrorsPanel />}
       </div>

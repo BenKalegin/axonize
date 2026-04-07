@@ -46,10 +46,21 @@ const OutlineIcon = () => (
   </svg>
 )
 
+const AgentIcon = () => (
+  <svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <rect x="4" y="5" width="12" height="10" rx="3" stroke="currentColor" strokeWidth="1.5" />
+    <circle cx="8" cy="10" r="1" fill="currentColor" />
+    <circle cx="12" cy="10" r="1" fill="currentColor" />
+    <path d="M7.5 13h5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+    <path d="M10 3v2" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+  </svg>
+)
+
 const ACTIVITY_ITEMS: ActivityItem[] = [
   { id: 'files', label: 'Explorer', icon: <FilesIcon /> },
   { id: 'git', label: 'Source Control', icon: <GitIcon /> },
   { id: 'outline', label: 'Outline', icon: <OutlineIcon /> },
+  { id: 'agent', label: 'Agent Sessions', icon: <AgentIcon /> },
   { id: 'llm-log', label: 'LLM Log', icon: <LLMLogIcon /> },
   { id: 'errors', label: 'Errors', icon: <ErrorsIcon /> }
 ]

@@ -119,6 +119,18 @@ export interface AxonizeAPI {
   llm: {
     rewriteSection: (section: string, instruction: string) => Promise<string>
   }
+  agent: {
+    chat: (payload: {
+      prompt: string
+      context?: string
+      history?: Array<{ role: 'user' | 'assistant'; content: string }>
+      vaultPath?: string
+    }) => Promise<{
+      answer: string
+      model: string
+      usage?: { inputTokens: number; outputTokens: number }
+    }>
+  }
   settings: {
     get: () => Promise<unknown>
     save: (settings: unknown) => Promise<{ ok: boolean }>
@@ -225,6 +237,14 @@ const api: AxonizeAPI = {
   llm: {
     rewriteSection: (section: string, instruction: string) =>
       ipcRenderer.invoke('llm:rewriteSection', { section, instruction })
+  },
+  agent: {
+    chat: (payload: {
+      prompt: string
+      context?: string
+      history?: Array<{ role: 'user' | 'assistant'; content: string }>
+      vaultPath?: string
+    }) => ipcRenderer.invoke('agent:chat', payload)
   },
   settings: {
     get: () => ipcRenderer.invoke('settings:get'),

@@ -6,6 +6,7 @@ import { useGraphStore } from './store/graph-store'
 import { useZoomStore } from './store/zoom-store'
 import { useRagStore } from './store/rag-store'
 import { useLLMLogStore } from './store/llm-log-store'
+import { useAgentStore } from './store/agent-store'
 import { useLayoutStore } from './store/layout-store'
 import { useSemanticErrorsStore } from './store/semantic-errors-store'
 import './styles/global.css'
@@ -22,6 +23,7 @@ declare global {
       zoom: typeof useZoomStore
       rag: typeof useRagStore
       llmLog: typeof useLLMLogStore
+      agent: typeof useAgentStore
       layout: typeof useLayoutStore
       semanticErrors: typeof useSemanticErrorsStore
     }
@@ -35,6 +37,7 @@ window.__stores = {
   zoom: useZoomStore,
   rag: useRagStore,
   llmLog: useLLMLogStore,
+  agent: useAgentStore,
   layout: useLayoutStore,
   semanticErrors: useSemanticErrorsStore
 }

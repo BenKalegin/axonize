@@ -77,6 +77,16 @@ export const TEST_IDS = {
   LLM_LOG_ENTRY: 'llm-log-entry',
   LLM_LOG_CLEAR_BTN: 'llm-log-clear-btn',
 
+  // Agent
+  AGENT_PANEL: 'agent-panel',
+  AGENT_NEW_SESSION_BTN: 'agent-new-session-btn',
+  AGENT_SESSION_ITEM: 'agent-session-item',
+  AGENT_DELETE_SESSION_BTN: 'agent-delete-session-btn',
+  AGENT_CONTEXT_INPUT: 'agent-context-input',
+  AGENT_PROMPT_INPUT: 'agent-prompt-input',
+  AGENT_SEND_PROMPT_BTN: 'agent-send-prompt-btn',
+  AGENT_MESSAGE: 'agent-message',
+
   // Zoom Controls
   ZOOM_CONTROLS: 'zoom-controls',
   ZOOM_IN_BTN: 'zoom-in-btn',
