@@ -4,7 +4,7 @@ export const CARD_WIDTH = 240
 export const CARD_HEIGHT = 110
 export const HUB_RADIUS = 28
 export const CLUSTER_WIDTH = 300
-export const CLUSTER_BASE_HEIGHT = 80
+export const CLUSTER_BASE_HEIGHT = 65
 export const CLUSTER_DOC_LINE_HEIGHT = 16
 
 const RELATION_COLORS: Record<string, string> = {
@@ -242,8 +242,8 @@ export function drawHubNode(
 // --- Cluster Card ---
 
 export function clusterCardHeight(docCount: number): number {
-  const docLines = Math.min(docCount, 5)
-  return CLUSTER_BASE_HEIGHT + docLines * CLUSTER_DOC_LINE_HEIGHT
+  // Fixed height since we no longer show document titles
+  return CLUSTER_BASE_HEIGHT
 }
 
 export function drawClusterCard(
@@ -302,24 +302,6 @@ export function drawClusterCard(
   ctx.fillStyle = '#6c7086'
   ctx.font = '11px sans-serif'
   wrapText(ctx, summary, x, topY + 36, w - 24, 13, 2)
-
-  // Doc titles as bullet list
-  if (docs.length > 0) {
-    ctx.textAlign = 'left'
-    ctx.fillStyle = '#a6adc8'
-    ctx.font = '10px sans-serif'
-    const listX = x - w / 2 + 20
-    let listY = topY + 58
-    const maxDocs = Math.min(docs.length, 5)
-    for (let i = 0; i < maxDocs; i++) {
-      ctx.fillText(`\u2022 ${truncate(docs[i], 45)}`, listX, listY)
-      listY += CLUSTER_DOC_LINE_HEIGHT
-    }
-    if (docs.length > 5) {
-      ctx.fillStyle = '#585b70'
-      ctx.fillText(`  +${docs.length - 5} more`, listX, listY)
-    }
-  }
 
   ctx.restore()
 }
