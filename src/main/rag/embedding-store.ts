@@ -1,4 +1,4 @@
-import { readFile, writeFile, mkdir, rename } from 'fs/promises'
+import { readFile, writeFile, mkdir, rename, unlink } from 'fs/promises'
 import { join } from 'path'
 import type { ChunkMeta, RagIndexState } from '../../core/rag/types'
 
@@ -25,8 +25,19 @@ export async function saveIndexState(vaultPath: string, state: RagIndexState): P
   const dir = await ensureRagDir(vaultPath)
   const filePath = join(dir, 'index-state.json')
   const tempPath = `${filePath}.tmp`
-  await writeFile(tempPath, JSON.stringify(state, null, 2) + '\n', 'utf-8')
-  await rename(tempPath, filePath)
+
+  try {
+    await writeFile(tempPath, JSON.stringify(state, null, 2) + '\n', 'utf-8')
+    await rename(tempPath, filePath)
+  } catch (error) {
+    // If rename fails, try to clean up temp file and retry with direct write
+    try {
+      await unlink(tempPath).catch(() => {})
+    } catch {}
+
+    // Fallback: direct write without atomic rename
+    await writeFile(filePath, JSON.stringify(state, null, 2) + '\n', 'utf-8')
+  }
 }
 
 export async function loadMetadata(vaultPath: string): Promise<ChunkMeta[]> {
@@ -42,8 +53,19 @@ export async function saveMetadata(vaultPath: string, metadata: ChunkMeta[]): Pr
   const dir = await ensureRagDir(vaultPath)
   const filePath = join(dir, 'metadata.json')
   const tempPath = `${filePath}.tmp`
-  await writeFile(tempPath, JSON.stringify(metadata, null, 2) + '\n', 'utf-8')
-  await rename(tempPath, filePath)
+
+  try {
+    await writeFile(tempPath, JSON.stringify(metadata, null, 2) + '\n', 'utf-8')
+    await rename(tempPath, filePath)
+  } catch (error) {
+    // If rename fails, try to clean up temp file and retry with direct write
+    try {
+      await unlink(tempPath).catch(() => {})
+    } catch {}
+
+    // Fallback: direct write without atomic rename
+    await writeFile(filePath, JSON.stringify(metadata, null, 2) + '\n', 'utf-8')
+  }
 }
 
 export async function loadVectors(vaultPath: string): Promise<Float32Array> {
@@ -59,6 +81,17 @@ export async function saveVectors(vaultPath: string, vectors: Float32Array): Pro
   const dir = await ensureRagDir(vaultPath)
   const filePath = join(dir, 'vectors.bin')
   const tempPath = `${filePath}.tmp`
-  await writeFile(tempPath, Buffer.from(vectors.buffer, vectors.byteOffset, vectors.byteLength))
-  await rename(tempPath, filePath)
+
+  try {
+    await writeFile(tempPath, Buffer.from(vectors.buffer, vectors.byteOffset, vectors.byteLength))
+    await rename(tempPath, filePath)
+  } catch (error) {
+    // If rename fails, try to clean up temp file and retry with direct write
+    try {
+      await unlink(tempPath).catch(() => {})
+    } catch {}
+
+    // Fallback: direct write without atomic rename
+    await writeFile(filePath, Buffer.from(vectors.buffer, vectors.byteOffset, vectors.byteLength))
+  }
 }

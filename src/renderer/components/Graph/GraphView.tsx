@@ -4,7 +4,7 @@ import { ForceGraph } from './ForceGraph'
 import { useGraphStore } from '@/store/graph-store'
 import type { VisibleDepth } from '@/store/graph-store'
 import { useVaultStore } from '@/store/vault-store'
-import type { SemanticProgress } from '@core/semantic/types'
+import type { SemanticProgress, StalenessInfo } from '@core/semantic/types'
 import type { SemanticEstimateResult } from '../../../preload'
 
 const PHASE_LABELS: Record<string, string> = {
@@ -99,6 +99,25 @@ function EstimateCard({ estimate, onConfirm, onCancel }: {
   )
 }
 
+function ProcessingIndicator({ progress }: { progress: SemanticProgress | null }) {
+  if (!progress || progress.phase === 'done') return null
+
+  const label = PHASE_LABELS[progress.phase] ?? progress.phase
+  const pct = progress.total > 0 ? Math.round((progress.current / progress.total) * 100) : 0
+  const detail = progress.file ? progress.file : ''
+  const remaining = progress.total - progress.current - progress.inProgress
+
+  const tooltipContent = `${label} (${pct}%)\n${progress.current} done${progress.inProgress > 0 ? ` · ${progress.inProgress} active · ${remaining} remaining` : ` / ${progress.total}`}${detail ? `\nCurrent: ${detail}` : ''}`
+
+  return (
+    <div className="processing-indicator" title={tooltipContent}>
+      <div className="processing-indicator-spinner" />
+      <span className="processing-indicator-text">{label}</span>
+      <span className="processing-indicator-pct">{pct}%</span>
+    </div>
+  )
+}
+
 function DepthControls() {
   const { visibleDepth, setDepth } = useGraphStore()
 
@@ -154,10 +173,13 @@ export function GraphView() {
   const { vaultPath } = useVaultStore()
   const [estimate, setEstimate] = useState<SemanticEstimateResult | null>(null)
   const [estimating, setEstimating] = useState(false)
+  const [staleness, setStaleness] = useState<StalenessInfo | null>(null)
 
   useEffect(() => {
     if (vaultPath) {
       ensureLoaded(vaultPath)
+      // Check staleness when vault is loaded
+      window.axonize.semantic.staleness(vaultPath).then(setStaleness).catch(() => {})
     }
   }, [vaultPath, ensureLoaded])
 
@@ -165,8 +187,12 @@ export function GraphView() {
     return window.axonize.semantic.onProgress((payload: unknown) => {
       const p = payload as SemanticProgress
       setProgress(p.phase === 'done' ? null : p)
+      // After build completes, refresh staleness
+      if (p.phase === 'done' && vaultPath) {
+        window.axonize.semantic.staleness(vaultPath).then(setStaleness).catch(() => {})
+      }
     })
-  }, [setProgress])
+  }, [setProgress, vaultPath])
 
   const handleWheel = useCallback(
     (e: WheelEvent) => {
@@ -215,10 +241,37 @@ export function GraphView() {
 
   const hasCards = cards.length > 0
 
+  // Show staleness banner when index exists but is stale
+  const showStalenessBanner = hasCards && staleness?.isStale && !progress
+
+  // Build message for empty state based on staleness
+  const getEmptyStateMessage = () => {
+    if (!staleness || !staleness.reason) return 'No semantic index. Click to build.'
+    if (staleness.reason === 'no-index') return 'No semantic index yet. Click to build.'
+    if (staleness.reason === 'version-mismatch') return 'Index version outdated. Rebuild required.'
+    if (staleness.isStale) {
+      const total = (staleness.changedFiles || 0) + (staleness.newFiles || 0) + (staleness.removedFiles || 0)
+      return `Index outdated (${total} file${total !== 1 ? 's' : ''} changed). Rebuild required.`
+    }
+    return 'No semantic index. Click to build.'
+  }
+
   return (
     <div className="graph-view" data-testid={TEST_IDS.GRAPH_VIEW}>
       {hasCards && <DepthControls />}
+      {hasCards && <ProcessingIndicator progress={progress} />}
       {hasCards && <LensSelector />}
+      {showStalenessBanner && (
+        <div className="staleness-banner">
+          <span className="staleness-icon">⚠️</span>
+          <span className="staleness-text">
+            Index outdated ({staleness.changedFiles + staleness.newFiles + staleness.removedFiles} file{staleness.changedFiles + staleness.newFiles + staleness.removedFiles !== 1 ? 's' : ''} changed)
+          </span>
+          <button className="staleness-update-btn" onClick={handleEstimate}>
+            Update Now
+          </button>
+        </div>
+      )}
       <div ref={containerRef} className="graph-canvas-container">
         {progress && (
           <div className="graph-empty-state">
@@ -228,7 +281,7 @@ export function GraphView() {
         )}
         {!progress && !hasCards && !estimate && (
           <div className="graph-empty-state graph-empty-state--interactive">
-            <p>No semantic cards yet.</p>
+            <p>{getEmptyStateMessage()}</p>
             {vaultPath && (
               <button className="graph-build-btn" onClick={handleEstimate} disabled={estimating}>
                 {estimating ? 'Estimating...' : 'Build Semantic Index'}

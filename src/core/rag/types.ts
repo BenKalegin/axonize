@@ -65,9 +65,42 @@ export interface AppSettings {
   appearance?: AppearanceConfig
 }
 
+export interface LLMTextBlock {
+  type: 'text'
+  text: string
+}
+
+export interface LLMToolUseBlock {
+  type: 'tool_use'
+  id: string
+  name: string
+  input: Record<string, unknown>
+}
+
+export interface LLMToolResultBlock {
+  type: 'tool_result'
+  tool_use_id: string
+  content: string
+  is_error?: boolean
+}
+
+export type LLMContentBlock = LLMTextBlock | LLMToolUseBlock | LLMToolResultBlock
+export type LLMContent = string | LLMContentBlock[]
+
+export function llmContentToString(content: LLMContent): string {
+  if (typeof content === 'string') {
+    return content
+  }
+
+  return content
+    .filter((block): block is LLMTextBlock => block.type === 'text')
+    .map((block) => block.text)
+    .join('\n')
+}
+
 export interface LLMMessage {
   role: 'system' | 'user' | 'assistant'
-  content: string
+  content: LLMContent
 }
 
 export interface LLMResponse {
@@ -132,7 +165,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
     activePanelId: 'files',
     sidePanelWidth: 220
   },
-  excludedFolders: [],
+  excludedFolders: ['node_modules', '.git', '.next', 'dist', 'build', 'out', '.cache'],
   generatedDocs: {
     retentionDays: 7
   },

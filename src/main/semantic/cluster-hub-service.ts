@@ -1,9 +1,10 @@
 import { randomUUID } from 'crypto'
 import type { SemanticCard, CardRelation, Facet, DimensionMeta } from '../../core/semantic/types'
 import { CardKind } from '../../core/semantic/types'
-import { llmCompleteWithRetry, sanitizeJSON, tryParseJSON } from './llm-helpers'
+import { llmCompleteWithRetry, llmCompleteWithRetryAndStats, sanitizeJSON, tryParseJSON } from './llm-helpers'
 import { loadSummaryVectors } from './summary-embeddings'
 import { kMeansClusters } from '../../core/rag/vector-math'
+import { logFileProcessing } from './token-usage-logger'
 import log from '../logger'
 
 // --- Clusters (LLM) ---
@@ -146,10 +147,21 @@ ${groupDescriptions}
 Output ONLY valid JSON (no markdown fences):
 [{"title": "...", "summary": "..."}]`
 
-  const responseContent = await llmCompleteWithRetry([
+  const startTime = Date.now()
+  const { content: responseContent, usage } = await llmCompleteWithRetryAndStats([
     { role: 'system', content: 'You are a precise document analyzer. Output only valid JSON.' },
     { role: 'user', content: namingPrompt }
   ])
+
+  await logFileProcessing({
+    file: '(vault-wide)',
+    phase: 'cluster',
+    inputTokens: usage.inputTokens,
+    outputTokens: usage.outputTokens,
+    totalTokens: usage.totalTokens,
+    model: usage.model,
+    duration: Date.now() - startTime
+  })
 
   const cleaned = sanitizeJSON(responseContent)
   const parsed = (tryParseJSON(cleaned) ?? tryParseJSON(cleaned + ']')) as Array<{ title?: string; summary?: string }> | null
@@ -177,11 +189,22 @@ async function generateClustersViaLLM(
   level0Cards: SemanticCard[],
   facetMap: Map<string, Facet>
 ): Promise<SemanticCard[]> {
+  const startTime = Date.now()
   const prompt = buildClusterPrompt(level0Cards, facetMap)
-  const responseContent = await llmCompleteWithRetry([
+  const { content: responseContent, usage } = await llmCompleteWithRetryAndStats([
     { role: 'system', content: 'You are a precise document analyzer. Output only valid JSON.' },
     { role: 'user', content: prompt }
   ])
+
+  await logFileProcessing({
+    file: '(vault-wide)',
+    phase: 'cluster',
+    inputTokens: usage.inputTokens,
+    outputTokens: usage.outputTokens,
+    totalTokens: usage.totalTokens,
+    model: usage.model,
+    duration: Date.now() - startTime
+  })
 
   const rawClusters = parseClusterResponse(responseContent)
   const validDocIds = new Set(level0Cards.map((c) => c.id))
@@ -337,11 +360,23 @@ export async function generateCuratedCrossDocRelations(
 ): Promise<CardRelation[]> {
   if (level0Cards.length < 2) return []
 
+  const startTime = Date.now()
   const prompt = buildCuratedCrossDocPrompt(level0Cards, facetMap, dimensions)
-  const responseContent = await llmCompleteWithRetry([
+  const { content: responseContent, usage } = await llmCompleteWithRetryAndStats([
     { role: 'system', content: 'You are a precise document analyzer. Output only valid JSON.' },
     { role: 'user', content: prompt }
   ])
+
+  await logFileProcessing({
+    file: '(vault-wide)',
+    phase: 'cross-doc',
+    inputTokens: usage.inputTokens,
+    outputTokens: usage.outputTokens,
+    totalTokens: usage.totalTokens,
+    model: usage.model,
+    duration: Date.now() - startTime
+  })
+
   return parseCuratedCrossDocResponse(responseContent)
 }
 

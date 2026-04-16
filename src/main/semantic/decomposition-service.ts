@@ -11,15 +11,17 @@ import type {
   CardRelation,
   SemanticIndexState,
   SemanticProgress,
-  SemanticEstimate
+  SemanticEstimate,
+  StalenessInfo
 } from '../../core/semantic/types'
 import { CardKind } from '../../core/semantic/types'
-import { llmCompleteWithRetry, sanitizeJSON, tryParseJSON } from './llm-helpers'
+import { llmCompleteWithRetry, llmCompleteWithRetryAndStats, sanitizeJSON, tryParseJSON } from './llm-helpers'
 import { poolMap } from './concurrency'
 import { discoverDimensions, extractFacets } from './facet-extraction-service'
 import { generateClusters, generateHubNodes, generateCuratedCrossDocRelations } from './cluster-hub-service'
 import { embedAndCacheSummaries } from './summary-embeddings'
 import type { DimensionMeta } from '../../core/semantic/types'
+import { logFileProcessing } from './token-usage-logger'
 import log from '../logger'
 
 export const SEMANTIC_VERSION = 4
@@ -206,11 +208,24 @@ function parseDecompositionJSON(raw: string, filePath: string): DecompositionRes
 // --- Document decomposition ---
 
 async function decomposeDocument(filePath: string, content: string): Promise<DecompositionResult> {
+  const startTime = Date.now()
   const prompt = buildDecomposePrompt(content, filePath)
-  const responseContent = await llmCompleteWithRetry([
+
+  const { content: responseContent, usage } = await llmCompleteWithRetryAndStats([
     { role: 'system', content: 'You are a precise document analyzer. Output only valid JSON.' },
     { role: 'user', content: prompt }
   ])
+
+  await logFileProcessing({
+    file: filePath,
+    phase: 'decomposition',
+    inputTokens: usage.inputTokens,
+    outputTokens: usage.outputTokens,
+    totalTokens: usage.totalTokens,
+    model: usage.model,
+    duration: Date.now() - startTime
+  })
+
   return parseDecompositionJSON(responseContent, filePath)
 }
 
@@ -224,7 +239,12 @@ async function saveSemanticCache(
   dimensions: DimensionMeta[]
 ): Promise<void> {
   const dir = await ensureSemanticDir(vaultPath)
-  const state: SemanticIndexState = { version: SEMANTIC_VERSION, fileHashes, dimensions }
+  const state: SemanticIndexState = {
+    version: SEMANTIC_VERSION,
+    fileHashes,
+    dimensions,
+    buildTimestamp: Date.now()
+  }
   await atomicWriteJSON(join(dir, 'index-state.json'), state)
   await atomicWriteJSON(join(dir, 'cards.json'), cards)
   await atomicWriteJSON(join(dir, 'relations.json'), relations)
@@ -530,6 +550,69 @@ export async function loadSemanticIndex(
   const state = await loadSemanticState(vaultPath)
   const dimensions = state?.dimensions ?? []
   return { cards, relations, dimensions }
+}
+
+export async function detectStaleness(vaultPath: string): Promise<StalenessInfo> {
+  const existingState = await loadSemanticState(vaultPath)
+  if (!existingState) {
+    return {
+      isStale: true,
+      reason: 'no-index',
+      changedFiles: 0,
+      newFiles: 0,
+      removedFiles: 0
+    }
+  }
+
+  if (existingState.version < SEMANTIC_VERSION) {
+    return {
+      isStale: true,
+      reason: 'version-mismatch',
+      changedFiles: 0,
+      newFiles: 0,
+      removedFiles: 0,
+      lastBuild: existingState.buildTimestamp
+    }
+  }
+
+  const settings = await getSettings()
+  const excluded = settings.excludedFolders ?? []
+  const fileTree = await readVaultFiles(vaultPath)
+  const mdFiles = getMarkdownFiles(fileTree).filter(
+    (f) => !isExcluded(f.relativePath, excluded)
+  )
+
+  const currentHashes: Record<string, string> = {}
+  const changed: string[] = []
+  const newFiles: string[] = []
+
+  for (const file of mdFiles) {
+    const content = await readFile(file.path, 'utf-8')
+    const hash = hashContent(content)
+    currentHashes[file.relativePath] = hash
+
+    const existingHash = existingState.fileHashes[file.relativePath]
+    if (!existingHash) {
+      newFiles.push(file.relativePath)
+    } else if (existingHash !== hash) {
+      changed.push(file.relativePath)
+    }
+  }
+
+  const removed = Object.keys(existingState.fileHashes).filter(
+    (p) => !currentHashes[p]
+  )
+
+  const totalChanges = changed.length + newFiles.length + removed.length
+
+  return {
+    isStale: totalChanges > 0,
+    reason: totalChanges > 0 ? 'files-changed' : undefined,
+    changedFiles: changed.length,
+    newFiles: newFiles.length,
+    removedFiles: removed.length,
+    lastBuild: existingState.buildTimestamp
+  }
 }
 
 export async function estimateSemanticBuild(vaultPath: string): Promise<SemanticEstimate> {

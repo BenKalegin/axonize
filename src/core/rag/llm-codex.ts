@@ -1,5 +1,5 @@
 import { LLMProvider } from './llm-provider'
-import type { LLMConfig, LLMMessage, LLMResponse } from './types'
+import { llmContentToString, type LLMConfig, type LLMMessage, type LLMResponse } from './types'
 
 const CODEX_PROMPT_GUARDRAILS = [
   'You are answering inside Axonize as a text-only assistant.',
@@ -17,7 +17,11 @@ export class CodexProvider extends LLMProvider {
     this.config = config
   }
 
-  async complete(messages: LLMMessage[]): Promise<LLMResponse> {
+  supportsTools(): boolean {
+    return false
+  }
+
+  async complete(messages: LLMMessage[], _tools?: any): Promise<LLMResponse> {
     const { Codex } = await import('@openai/codex-sdk')
 
     const codex = new Codex()
@@ -46,12 +50,12 @@ export class CodexProvider extends LLMProvider {
 function formatPrompt(messages: LLMMessage[]): string {
   const systemMessages = messages
     .filter((message) => message.role === 'system')
-    .map((message) => message.content.trim())
+    .map((message) => llmContentToString(message.content).trim())
     .filter(Boolean)
 
   const conversation = messages
     .filter((message) => message.role !== 'system')
-    .map((message) => `${roleLabel(message.role)}:\n${message.content}`)
+    .map((message) => `${roleLabel(message.role)}:\n${llmContentToString(message.content)}`)
     .join('\n\n')
 
   return [

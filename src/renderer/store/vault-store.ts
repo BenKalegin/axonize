@@ -12,24 +12,14 @@ async function loadSemanticCache(vaultPath: string): Promise<void> {
   }
 }
 
-async function runSemanticIndex(vaultPath: string): Promise<void> {
+async function loadSemanticCacheOnly(vaultPath: string): Promise<void> {
   useGraphStore.getState().clear()
 
-  // Load cached data first so graph is usable immediately
+  // Load cached data only (no auto-indexing)
   try {
     await loadSemanticCache(vaultPath)
   } catch {
     console.warn('[semantic] No cached semantic data yet')
-  }
-
-  // Then run incremental decomposition in background
-  try {
-    console.log('[semantic] Starting incremental decomposition for', vaultPath)
-    await window.axonize.semantic.incremental(vaultPath)
-    console.log('[semantic] Decomposition complete, loading results')
-    await loadSemanticCache(vaultPath)
-  } catch (err) {
-    console.error('[semantic] Decomposition failed:', err)
   }
 }
 
@@ -106,7 +96,7 @@ export const useVaultStore = create<VaultState>((set, get) => ({
       await get().loadExcludedFolders()
       restoreLastFile(path).catch(() => {})
       useGeneratedDocsStore.getState().runCleanup(path).catch(() => {})
-      runSemanticIndex(path).catch(() => {})
+      loadSemanticCacheOnly(path).catch(() => {})
       window.axonize.vault.startWatch(path).catch(() => {})
     }
   },
@@ -143,7 +133,7 @@ export const useVaultStore = create<VaultState>((set, get) => ({
     await get().loadExcludedFolders()
     restoreLastFile(path).catch(() => {})
     useGeneratedDocsStore.getState().runCleanup(path).catch(() => {})
-    runSemanticIndex(path).catch(() => {})
+    loadSemanticCacheOnly(path).catch(() => {})
     window.axonize.vault.startWatch(path).catch(() => {})
   },
 
@@ -181,7 +171,7 @@ export const useVaultStore = create<VaultState>((set, get) => ({
     const files = await window.axonize.vault.readFiles(vaultPath) as FileEntry[]
     set({ fileTree: files })
     await get().loadExcludedFolders()
-    runSemanticIndex(vaultPath).catch(() => {})
+    loadSemanticCacheOnly(vaultPath).catch(() => {})
   },
 
   openVaultInNewWindow: async (path: string) => {

@@ -1,5 +1,5 @@
 import { LLMProvider } from './llm-provider'
-import type { LLMConfig, LLMMessage, LLMResponse } from './types'
+import { llmContentToString, type LLMConfig, type LLMMessage, type LLMResponse } from './types'
 
 export class OllamaProvider extends LLMProvider {
   readonly providerId = 'ollama'
@@ -12,10 +12,14 @@ export class OllamaProvider extends LLMProvider {
     this.baseUrl = config.baseUrl ?? 'http://localhost:11434'
   }
 
-  async complete(messages: LLMMessage[]): Promise<LLMResponse> {
+  supportsTools(): boolean {
+    return false
+  }
+
+  async complete(messages: LLMMessage[], _tools?: any): Promise<LLMResponse> {
     const body = {
       model: this.config.model,
-      messages: messages.map((m) => ({ role: m.role, content: m.content })),
+      messages: messages.map((m) => ({ role: m.role, content: llmContentToString(m.content) })),
       stream: false,
       options: {
         temperature: this.config.temperature,

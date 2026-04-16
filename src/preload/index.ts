@@ -125,6 +125,7 @@ export interface AxonizeAPI {
       context?: string
       history?: Array<{ role: 'user' | 'assistant'; content: string }>
       vaultPath?: string
+      sessionId?: string
     }) => Promise<{
       answer: string
       model: string
@@ -208,6 +209,7 @@ const api: AxonizeAPI = {
     load: (vaultPath: string) => ipcRenderer.invoke('semantic:load', { vaultPath }),
     status: (vaultPath: string) => ipcRenderer.invoke('semantic:status', { vaultPath }),
     estimate: (vaultPath: string) => ipcRenderer.invoke('semantic:estimate', { vaultPath }),
+    staleness: (vaultPath: string) => ipcRenderer.invoke('semantic:staleness', { vaultPath }),
     distances: (vaultPath: string, anchorCardId: string, targetLevel?: number) =>
       ipcRenderer.invoke('semantic:distances', { vaultPath, anchorCardId, targetLevel }),
     relatedDocs: (vaultPath: string, filePath: string, k?: number) =>
@@ -244,6 +246,7 @@ const api: AxonizeAPI = {
       context?: string
       history?: Array<{ role: 'user' | 'assistant'; content: string }>
       vaultPath?: string
+      sessionId?: string
     }) => ipcRenderer.invoke('agent:chat', payload)
   },
   settings: {

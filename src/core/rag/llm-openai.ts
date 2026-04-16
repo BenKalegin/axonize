@@ -1,5 +1,5 @@
 import { LLMProvider } from './llm-provider'
-import type { LLMConfig, LLMMessage, LLMResponse } from './types'
+import { llmContentToString, type LLMConfig, type LLMMessage, type LLMResponse } from './types'
 
 export class OpenAIProvider extends LLMProvider {
   readonly providerId = 'openai'
@@ -10,7 +10,11 @@ export class OpenAIProvider extends LLMProvider {
     this.config = config
   }
 
-  async complete(messages: LLMMessage[]): Promise<LLMResponse> {
+  supportsTools(): boolean {
+    return false
+  }
+
+  async complete(messages: LLMMessage[], _tools?: any): Promise<LLMResponse> {
     if (!this.config.apiKey) {
       throw new Error('OpenAI API key is required. Set llm.apiKey in settings.json')
     }
@@ -19,7 +23,7 @@ export class OpenAIProvider extends LLMProvider {
       model: this.config.model,
       max_tokens: this.config.maxTokens,
       temperature: this.config.temperature,
-      messages: messages.map((m) => ({ role: m.role, content: m.content }))
+      messages: messages.map((m) => ({ role: m.role, content: llmContentToString(m.content) }))
     }
 
     const response = await fetch('https://api.openai.com/v1/chat/completions', {

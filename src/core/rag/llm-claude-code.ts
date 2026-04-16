@@ -1,5 +1,5 @@
 import { LLMProvider } from './llm-provider'
-import type { LLMConfig, LLMMessage, LLMResponse } from './types'
+import { llmContentToString, type LLMConfig, type LLMMessage, type LLMResponse } from './types'
 
 export class ClaudeCodeProvider extends LLMProvider {
   readonly providerId = 'claude-code'
@@ -10,12 +10,16 @@ export class ClaudeCodeProvider extends LLMProvider {
     this.config = config
   }
 
-  async complete(messages: LLMMessage[]): Promise<LLMResponse> {
+  supportsTools(): boolean {
+    return false
+  }
+
+  async complete(messages: LLMMessage[], _tools?: any): Promise<LLMResponse> {
     const { query } = await import('@anthropic-ai/claude-agent-sdk')
 
     const systemMessage = messages.find((m) => m.role === 'system')
     const userMessages = messages.filter((m) => m.role !== 'system')
-    const prompt = userMessages.map((m) => m.content).join('\n\n')
+    const prompt = userMessages.map((m) => llmContentToString(m.content)).join('\n\n')
 
     let resultText = ''
     let inputTokens = 0
@@ -26,7 +30,7 @@ export class ClaudeCodeProvider extends LLMProvider {
       options: {
         model: this.config.model,
         maxTurns: 1,
-        systemPrompt: systemMessage?.content ?? '',
+        systemPrompt: systemMessage ? llmContentToString(systemMessage.content) : '',
         allowedTools: [],
       },
     })) {

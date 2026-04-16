@@ -1,5 +1,6 @@
 import type { SemanticCard, Facet, DimensionMeta } from '../../core/semantic/types'
-import { llmCompleteWithRetry, sanitizeJSON, tryParseJSON } from './llm-helpers'
+import { llmCompleteWithRetry, llmCompleteWithRetryAndStats, sanitizeJSON, tryParseJSON } from './llm-helpers'
+import { logFileProcessing } from './token-usage-logger'
 import log from '../logger'
 
 // --- Dimension Discovery ---
@@ -45,11 +46,23 @@ function parseDiscoveryResponse(raw: string): DimensionMeta[] {
 export async function discoverDimensions(level0Cards: SemanticCard[]): Promise<DimensionMeta[]> {
   if (level0Cards.length < 2) return []
 
+  const startTime = Date.now()
   const prompt = buildDiscoveryPrompt(level0Cards)
-  const responseContent = await llmCompleteWithRetry([
+  const { content: responseContent, usage } = await llmCompleteWithRetryAndStats([
     { role: 'system', content: 'You are a precise document analyzer. Output only valid JSON.' },
     { role: 'user', content: prompt }
   ])
+
+  await logFileProcessing({
+    file: '(vault-wide)',
+    phase: 'facet',
+    inputTokens: usage.inputTokens,
+    outputTokens: usage.outputTokens,
+    totalTokens: usage.totalTokens,
+    model: usage.model,
+    duration: Date.now() - startTime
+  })
+
   return parseDiscoveryResponse(responseContent)
 }
 
@@ -132,10 +145,22 @@ export async function extractFacets(
 ): Promise<Map<string, Facet>> {
   if (level0Cards.length === 0 || dimensions.length === 0) return new Map()
 
+  const startTime = Date.now()
   const prompt = buildFacetPrompt(level0Cards, dimensions)
-  const responseContent = await llmCompleteWithRetry([
+  const { content: responseContent, usage } = await llmCompleteWithRetryAndStats([
     { role: 'system', content: 'You are a precise document analyzer. Output only valid JSON.' },
     { role: 'user', content: prompt }
   ])
+
+  await logFileProcessing({
+    file: '(vault-wide)',
+    phase: 'facet',
+    inputTokens: usage.inputTokens,
+    outputTokens: usage.outputTokens,
+    totalTokens: usage.totalTokens,
+    model: usage.model,
+    duration: Date.now() - startTime
+  })
+
   return parseFacetResponse(responseContent, level0Cards, dimensions)
 }

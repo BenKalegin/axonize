@@ -64,6 +64,7 @@ export interface SemanticIndexState {
   version: number
   fileHashes: Record<string, string>
   dimensions?: DimensionMeta[]
+  buildTimestamp?: number
 }
 
 export interface SemanticProgress {
@@ -82,4 +83,13 @@ export interface SemanticEstimate {
   estimatedCostUsd: number
   cachedFiles: number
   filesToProcess: number
+}
+
+export interface StalenessInfo {
+  isStale: boolean
+  reason?: 'no-index' | 'files-changed' | 'version-mismatch'
+  changedFiles: number
+  newFiles: number
+  removedFiles: number
+  lastBuild?: number
 }

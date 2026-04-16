@@ -5,6 +5,7 @@ import {
   loadSemanticIndex,
   loadSemanticState,
   estimateSemanticBuild,
+  detectStaleness,
   loadCards,
   SEMANTIC_VERSION
 } from './semantic/decomposition-service'
@@ -97,6 +98,10 @@ export function registerSemanticIpcHandlers(): void {
 
   ipcMain.handle('semantic:estimate', async (_event, payload: { vaultPath: string }) => {
     return estimateSemanticBuild(payload.vaultPath)
+  })
+
+  ipcMain.handle('semantic:staleness', async (_event, payload: { vaultPath: string }) => {
+    return detectStaleness(payload.vaultPath)
   })
 
   ipcMain.handle('semantic:distances', async (_event, payload: {

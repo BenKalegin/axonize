@@ -1,5 +1,5 @@
-import { LLMProvider } from './llm-provider'
-import type { LLMConfig, LLMMessage, LLMResponse } from './types'
+import { LLMProvider, type ToolDefinition } from './llm-provider'
+import { llmContentToString, type LLMConfig, type LLMMessage, type LLMResponse } from './types'
 
 export class AnthropicProvider extends LLMProvider {
   readonly providerId = 'anthropic'
@@ -10,7 +10,11 @@ export class AnthropicProvider extends LLMProvider {
     this.config = config
   }
 
-  async complete(messages: LLMMessage[]): Promise<LLMResponse> {
+  supportsTools(): boolean {
+    return true
+  }
+
+  async complete(messages: LLMMessage[], tools?: ToolDefinition[]): Promise<LLMResponse> {
     if (!this.config.apiKey) {
       throw new Error('Anthropic API key is required. Set llm.apiKey in settings.json')
     }
@@ -26,7 +30,12 @@ export class AnthropicProvider extends LLMProvider {
     }
 
     if (systemMessage) {
-      body.system = systemMessage.content
+      body.system = llmContentToString(systemMessage.content)
+    }
+
+    // Add tools if provided
+    if (tools && tools.length > 0) {
+      body.tools = tools
     }
 
     const response = await fetch('https://api.anthropic.com/v1/messages', {
@@ -45,13 +54,30 @@ export class AnthropicProvider extends LLMProvider {
     }
 
     const data = (await response.json()) as {
-      content: Array<{ type: string; text: string }>
+      content: Array<
+        | { type: 'text'; text: string }
+        | { type: 'tool_use'; id: string; name: string; input: Record<string, unknown> }
+      >
       model: string
+      stop_reason?: 'end_turn' | 'tool_use' | 'max_tokens'
       usage: { input_tokens: number; output_tokens: number }
     }
 
+    // If response contains tool uses, return structured content
+    if (data.stop_reason === 'tool_use') {
+      return {
+        content: data.content as any, // Return full content blocks
+        model: data.model,
+        usage: {
+          inputTokens: data.usage.input_tokens,
+          outputTokens: data.usage.output_tokens
+        }
+      }
+    }
+
+    // Otherwise, extract text content (backward compatible)
     const content = data.content
-      .filter((block) => block.type === 'text')
+      .filter((block): block is { type: 'text'; text: string } => block.type === 'text')
       .map((block) => block.text)
       .join('')
 
