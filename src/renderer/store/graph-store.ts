@@ -47,7 +47,8 @@ export function visibleCards(
   cards: SemanticCard[],
   depth: VisibleDepth,
   focusedDocId: string | null,
-  clusterFocus: ClusterFocus | null
+  clusterFocus: ClusterFocus | null,
+  activeLens = 'by_topic'
 ): SemanticCard[] {
   const focusedSubtree = focusedDocId ? collectSubtreeIds(cards, focusedDocId) : null
 
@@ -59,7 +60,12 @@ export function visibleCards(
       return depth === -1
     }
 
-    if (kind === CardKind.Hub) return depth <= 0 && !focusedSubtree && !clusterFocus
+    if (kind === CardKind.Hub) {
+      if (depth > 0 || focusedSubtree || clusterFocus) return false
+      // Only show hubs that belong to the active dimension lens
+      if (activeLens === 'by_topic') return false
+      return c.hubCategory === activeLens
+    }
 
     if (focusedSubtree && c.level > 0) return focusedSubtree.has(c.id)
 

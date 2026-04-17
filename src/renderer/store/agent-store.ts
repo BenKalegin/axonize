@@ -264,13 +264,16 @@ export const useAgentStore = create<AgentStore>((set, get) => ({
         vaultPath: vaultPath ?? undefined,
         prompt,
         context: session.context,
-        history
+        history,
+        sessionId: sessionId
       })
 
       const assistantMessage: AgentMessage = {
         id: newId('agent-message'),
         role: 'assistant',
-        content: result.answer.trim() || '(empty response)',
+        content:
+          result.answer.trim() ||
+          'The agent returned an empty response. Check your LLM settings and try again.',
         createdAt: Date.now()
       }
 

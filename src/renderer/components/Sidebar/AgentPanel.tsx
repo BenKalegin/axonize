@@ -1,4 +1,4 @@
-import { useEffect, useMemo } from 'react'
+import { useEffect, useMemo, useRef } from 'react'
 import { TEST_IDS } from '@/lib/testids'
 import { useAgentStore } from '@/store/agent-store'
 import { useVaultStore } from '@/store/vault-store'
@@ -31,8 +31,15 @@ export function AgentPanel() {
     () => sessions.find((session) => session.id === selectedSessionId) ?? null,
     [sessions, selectedSessionId]
   )
+  const threadRef = useRef<HTMLDivElement>(null)
 
   const isRunning = selectedSession ? runningSessionId === selectedSession.id : false
+
+  useEffect(() => {
+    const node = threadRef.current
+    if (!node) return
+    node.scrollTop = node.scrollHeight
+  }, [selectedSession?.id, selectedSession?.messages.length, isRunning])
 
   return (
     <div className="agent-panel" data-testid={TEST_IDS.AGENT_PANEL}>
@@ -98,7 +105,10 @@ export function AgentPanel() {
                 />
               </label>
 
-              <div className="agent-thread">
+              <div
+                ref={threadRef}
+                className="agent-thread"
+              >
                 {selectedSession.messages.length === 0 ? (
                   <div className="agent-thread-empty">
                     Start by entering a prompt below. This is separate from RAG query mode.
@@ -116,6 +126,12 @@ export function AgentPanel() {
                       <div className="agent-message-content">{message.content}</div>
                     </div>
                   ))
+                )}
+                {isRunning && (
+                  <div className="agent-message agent-message--assistant agent-message--pending">
+                    <div className="agent-message-role">Agent</div>
+                    <div className="agent-message-content">Thinking…</div>
+                  </div>
                 )}
               </div>
 

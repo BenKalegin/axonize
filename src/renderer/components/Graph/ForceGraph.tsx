@@ -104,7 +104,7 @@ export function ForceGraph() {
   const { cards, relations, dimensions, visibleDepth, activeLens, hoveredNodeId, focusedDocId, clusterFocus, setHoveredNode } = useGraphStore()
   const { width, height } = useContainerSize(containerRef)
 
-  const shown = useMemo(() => visibleCards(cards, visibleDepth, focusedDocId, clusterFocus), [cards, visibleDepth, focusedDocId, clusterFocus])
+  const shown = useMemo(() => visibleCards(cards, visibleDepth, focusedDocId, clusterFocus, activeLens), [cards, visibleDepth, focusedDocId, clusterFocus, activeLens])
   const shownIds = useMemo(() => new Set(shown.map((c) => c.id)), [shown])
   const shownRelations = useMemo(() => visibleRelations(relations, shownIds), [relations, shownIds])
 
