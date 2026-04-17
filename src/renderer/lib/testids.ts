@@ -103,6 +103,7 @@ export const TEST_IDS = {
   FILE_ACTIONS_MENU: 'file-actions-menu',
   RENAME_FILE_BTN: 'rename-file-btn',
   RENAME_FILE_INPUT: 'rename-file-input',
+  COPY_PATH_BTN: 'copy-path-btn',
   DELETE_FILE_BTN: 'delete-file-btn',
   EXCLUDE_FOLDER_BTN: 'exclude-folder-btn',
   INCLUDE_FOLDER_BTN: 'include-folder-btn',

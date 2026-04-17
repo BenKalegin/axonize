@@ -67,6 +67,15 @@ function DeleteIcon() {
   )
 }
 
+function CopyIcon() {
+  return (
+    <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+      <path d="M4 4V2.5A1.5 1.5 0 015.5 1h4A1.5 1.5 0 0111 2.5v4A1.5 1.5 0 019.5 8H8" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
+      <rect x="1" y="4" width="6" height="7" rx="1.5" stroke="currentColor" strokeWidth="1.2" strokeLinejoin="round" />
+    </svg>
+  )
+}
+
 function DotsIcon() {
   return (
     <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor">
@@ -209,6 +218,15 @@ export function FileTreeNode({ entry, depth, excluded, isExpanded, onToggle, foc
     setEditMode({ kind: 'rename' })
   }
 
+  const handleCopyPath = async () => {
+    closeMenu()
+    try {
+      await navigator.clipboard.writeText(entry.path)
+    } catch (e) {
+      console.error('Copy path failed:', e)
+    }
+  }
+
   const handleDelete = async () => {
     closeMenu()
     try {
@@ -315,6 +333,7 @@ export function FileTreeNode({ entry, depth, excluded, isExpanded, onToggle, foc
                 ) : (
                   <FileMenu
                     onRename={handleRename}
+                    onCopyPath={handleCopyPath}
                     onDelete={handleDelete}
                   />
                 )}
@@ -385,11 +404,14 @@ function FolderMenu({ isExcluded, onNewDoc, onExclude, onInclude }: {
   )
 }
 
-function FileMenu({ onRename, onDelete }: { onRename: () => void; onDelete: () => void }) {
+function FileMenu({ onRename, onCopyPath, onDelete }: { onRename: () => void; onCopyPath: () => void; onDelete: () => void }) {
   return (
     <>
       <button className="context-menu-item" data-testid={TEST_IDS.RENAME_FILE_BTN} onClick={stopAndCall(onRename)}>
         <RenameIcon /> Rename
+      </button>
+      <button className="context-menu-item" data-testid={TEST_IDS.COPY_PATH_BTN} onClick={stopAndCall(onCopyPath)}>
+        <CopyIcon /> Copy Path
       </button>
       <button className="context-menu-item context-menu-item--danger" data-testid={TEST_IDS.DELETE_FILE_BTN} onClick={stopAndCall(onDelete)}>
         <DeleteIcon /> Delete
