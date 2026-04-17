@@ -145,7 +145,7 @@ app.whenReady().then(() => {
   log.info('Axonize starting...')
   buildAppMenu()
   const iconPath = join(__dirname, '../../resources/icon.png')
-  if (process.platform === 'darwin') {
+  if (process.platform === 'darwin' && app.dock) {
     app.dock.setIcon(nativeImage.createFromPath(iconPath))
   }
 

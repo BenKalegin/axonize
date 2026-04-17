@@ -1,4 +1,5 @@
 import { contextBridge, ipcRenderer } from 'electron'
+import type { CardKind, StalenessInfo } from '../core/semantic/types'
 
 export interface RecentVault {
   path: string
@@ -34,7 +35,7 @@ export interface SemanticLoadResult {
     childIds: string[]
     startLine: number
     endLine: number
-    kind?: string
+    kind?: CardKind
     facets?: Record<string, string[]>
     hubCategory?: string
     clusterDocIds?: string[]
@@ -70,7 +71,8 @@ export interface RelatedDoc {
   score: number
 }
 
-export type { GitStatus, GitFileStatus } from '../core/git/types'
+import type { GitStatus, GitFileStatus } from '../core/git/types'
+export type { GitStatus, GitFileStatus }
 
 export interface AxonizeAPI {
   window: {
@@ -110,6 +112,7 @@ export interface AxonizeAPI {
     load: (vaultPath: string) => Promise<SemanticLoadResult>
     status: (vaultPath: string) => Promise<{ appVersion: number; vaultVersion: number; needsReindex: boolean; fileHashes: Record<string, string> }>
     estimate: (vaultPath: string) => Promise<SemanticEstimateResult>
+    staleness: (vaultPath: string) => Promise<StalenessInfo>
     distances: (vaultPath: string, anchorCardId: string, targetLevel?: number) => Promise<Record<string, number>>
     relatedDocs: (vaultPath: string, filePath: string, k?: number) => Promise<RelatedDoc[]>
     onProgress: (callback: (payload: unknown) => void) => () => void
