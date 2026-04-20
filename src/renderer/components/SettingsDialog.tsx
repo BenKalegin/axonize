@@ -90,6 +90,10 @@ export function SettingsDialog({ onClose }: SettingsDialogProps) {
     setSettings(prev => ({ ...prev, rag: { ...prev.rag, [key]: value } }))
   }
 
+  const updateAgent = <K extends keyof AppSettings['agent']>(key: K, value: AppSettings['agent'][K]) => {
+    setSettings(prev => ({ ...prev, agent: { ...prev.agent, [key]: value } }))
+  }
+
   const handleThemeSelect = (themeId: ThemeId) => {
     applyTheme(themeId)
     setSettings(prev => ({
@@ -136,6 +140,7 @@ export function SettingsDialog({ onClose }: SettingsDialogProps) {
               setSettings={setSettings}
               updateLLM={updateLLM}
               updateRag={updateRag}
+              updateAgent={updateAgent}
               handleReindex={handleReindex}
               handleReindexFile={handleReindexFile}
               isIndexing={isIndexing}
@@ -182,6 +187,7 @@ interface GeneralTabProps {
   setSettings: React.Dispatch<React.SetStateAction<AppSettings>>
   updateLLM: <K extends keyof AppSettings['llm']>(key: K, value: AppSettings['llm'][K]) => void
   updateRag: <K extends keyof AppSettings['rag']>(key: K, value: AppSettings['rag'][K]) => void
+  updateAgent: <K extends keyof AppSettings['agent']>(key: K, value: AppSettings['agent'][K]) => void
   handleReindex: () => void
   handleReindexFile: () => void
   isIndexing: boolean
@@ -191,7 +197,7 @@ interface GeneralTabProps {
 }
 
 function GeneralTab({
-  settings, setSettings, updateLLM, updateRag,
+  settings, setSettings, updateLLM, updateRag, updateAgent,
   handleReindex, handleReindexFile, isIndexing,
   selectedFile, vaultPath, statusText,
 }: GeneralTabProps) {
@@ -247,6 +253,26 @@ function GeneralTab({
               value={settings.llm.baseUrl ?? ''}
               onChange={e => updateLLM('baseUrl', e.target.value)}
               placeholder="http://localhost:11434"
+            />
+          </div>
+        )}
+      </div>
+
+      {/* Agent */}
+      <div className="settings-section">
+        <div className="settings-section-title">Agent</div>
+        <AgentProviderField settings={settings} updateAgent={updateAgent} />
+        <AgentTransportField settings={settings} updateAgent={updateAgent} />
+        <AgentModelField settings={settings} updateAgent={updateAgent} />
+        {settings.agent.transport === 'tty' && (
+          <div className="settings-field">
+            <label>Claude CLI Path</label>
+            <input
+              className="settings-input"
+              type="text"
+              value={settings.agent.claudeCliPath ?? ''}
+              onChange={e => updateAgent('claudeCliPath', e.target.value)}
+              placeholder="claude (or absolute path)"
             />
           </div>
         )}
@@ -424,6 +450,61 @@ function LLMModelField({ settings, updateLLM }: LLMFieldProps) {
           placeholder="Enter custom model name"
         />
       )}
+    </div>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// Agent sub-fields
+// ---------------------------------------------------------------------------
+
+interface AgentFieldProps {
+  settings: AppSettings
+  updateAgent: <K extends keyof AppSettings['agent']>(key: K, value: AppSettings['agent'][K]) => void
+}
+
+function AgentProviderField({ settings, updateAgent }: AgentFieldProps) {
+  return (
+    <div className="settings-field">
+      <label>Provider</label>
+      <select
+        className="settings-select"
+        value={settings.agent.provider}
+        onChange={e => updateAgent('provider', e.target.value as AppSettings['agent']['provider'])}
+      >
+        <option value="claude-code">Claude Code</option>
+      </select>
+    </div>
+  )
+}
+
+function AgentTransportField({ settings, updateAgent }: AgentFieldProps) {
+  return (
+    <div className="settings-field">
+      <label>Transport</label>
+      <select
+        className="settings-select"
+        value={settings.agent.transport}
+        onChange={e => updateAgent('transport', e.target.value as AppSettings['agent']['transport'])}
+      >
+        <option value="npm">NPM SDK (in-process)</option>
+        <option value="tty">Claude CLI (subprocess)</option>
+      </select>
+    </div>
+  )
+}
+
+function AgentModelField({ settings, updateAgent }: AgentFieldProps) {
+  return (
+    <div className="settings-field">
+      <label>Model</label>
+      <input
+        className="settings-input"
+        type="text"
+        value={settings.agent.model}
+        onChange={e => updateAgent('model', e.target.value)}
+        placeholder="claude-sonnet-4-6"
+      />
     </div>
   )
 }

@@ -74,6 +74,29 @@ export interface RelatedDoc {
 import type { GitStatus, GitFileStatus } from '../core/git/types'
 export type { GitStatus, GitFileStatus }
 
+export interface AgentStartPayload {
+  sessionId: string
+  prompt: string
+  vaultPath: string
+  allowEdits: boolean
+  claudeSessionId?: string
+  systemPrompt?: string
+}
+
+export type AgentEventBody =
+  | { type: 'session'; claudeSessionId: string }
+  | { type: 'text_delta'; text: string }
+  | { type: 'tool_use'; toolName: string; input: unknown }
+  | { type: 'tool_result'; toolName: string; result: string; isError?: boolean }
+  | { type: 'done'; totalCostUsd?: number; inputTokens?: number; outputTokens?: number }
+  | { type: 'error'; error: string }
+  | { type: 'closed' }
+
+export interface AgentEventPayload {
+  sessionId: string
+  event: AgentEventBody
+}
+
 export interface AxonizeAPI {
   window: {
     setTitle: (vaultName: string | null) => Promise<void>
@@ -123,17 +146,9 @@ export interface AxonizeAPI {
     rewriteSection: (section: string, instruction: string) => Promise<string>
   }
   agent: {
-    chat: (payload: {
-      prompt: string
-      context?: string
-      history?: Array<{ role: 'user' | 'assistant'; content: string }>
-      vaultPath?: string
-      sessionId?: string
-    }) => Promise<{
-      answer: string
-      model: string
-      usage?: { inputTokens: number; outputTokens: number }
-    }>
+    start: (payload: AgentStartPayload) => void
+    cancel: (sessionId: string) => void
+    onEvent: (callback: (payload: AgentEventPayload) => void) => () => void
   }
   settings: {
     get: () => Promise<unknown>
@@ -244,13 +259,15 @@ const api: AxonizeAPI = {
       ipcRenderer.invoke('llm:rewriteSection', { section, instruction })
   },
   agent: {
-    chat: (payload: {
-      prompt: string
-      context?: string
-      history?: Array<{ role: 'user' | 'assistant'; content: string }>
-      vaultPath?: string
-      sessionId?: string
-    }) => ipcRenderer.invoke('agent:chat', payload)
+    start: (payload: AgentStartPayload) => ipcRenderer.send('agent:start', payload),
+    cancel: (sessionId: string) => ipcRenderer.send('agent:cancel', { sessionId }),
+    onEvent: (callback: (payload: AgentEventPayload) => void) => {
+      const listener = (_event: unknown, payload: AgentEventPayload) => callback(payload)
+      ipcRenderer.on('agent:event', listener)
+      return () => {
+        ipcRenderer.removeListener('agent:event', listener)
+      }
+    }
   },
   settings: {
     get: () => ipcRenderer.invoke('settings:get'),

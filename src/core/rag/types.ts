@@ -56,9 +56,28 @@ export interface AppearanceConfig {
   themeId: string
 }
 
+export const AgentProvider = {
+  ClaudeCode: 'claude-code'
+} as const
+export type AgentProvider = (typeof AgentProvider)[keyof typeof AgentProvider]
+
+export const AgentTransport = {
+  Npm: 'npm',
+  Tty: 'tty'
+} as const
+export type AgentTransport = (typeof AgentTransport)[keyof typeof AgentTransport]
+
+export interface AgentConfig {
+  provider: AgentProvider
+  transport: AgentTransport
+  model: string
+  claudeCliPath?: string
+}
+
 export interface AppSettings {
   llm: LLMConfig
   rag: RagConfig
+  agent: AgentConfig
   ui?: UILayoutConfig
   excludedFolders: string[]
   generatedDocs: GeneratedDocsConfig
@@ -160,6 +179,11 @@ export const DEFAULT_SETTINGS: AppSettings = {
     embeddingProvider: 'local-minilm',
     topK: 5,
     minScore: 0.3
+  },
+  agent: {
+    provider: AgentProvider.ClaudeCode,
+    transport: AgentTransport.Npm,
+    model: 'claude-sonnet-4-6'
   },
   ui: {
     activePanelId: 'files',

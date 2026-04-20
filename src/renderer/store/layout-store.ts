@@ -6,9 +6,15 @@ export type RightPanelId = 'properties' | 'related'
 
 export const ACTIVITY_BAR_WIDTH = 48
 const MIN_PANEL_WIDTH = 160
-const MAX_PANEL_WIDTH = 600
+const MAX_PANEL_WIDTH_FALLBACK = 1400
+const MAX_PANEL_WIDTH_VIEWPORT_RATIO = 0.75
 const DEFAULT_PANEL_WIDTH = 220
 const DEFAULT_RIGHT_PANEL_WIDTH = 260
+
+function maxPanelWidth(): number {
+  if (typeof window === 'undefined') return MAX_PANEL_WIDTH_FALLBACK
+  return Math.max(MIN_PANEL_WIDTH, Math.floor(window.innerWidth * MAX_PANEL_WIDTH_VIEWPORT_RATIO))
+}
 
 interface LayoutState {
   activePanelId: SidePanelId | null
@@ -43,10 +49,10 @@ export const useLayoutStore = create<LayoutState>((set, get) => ({
     })),
 
   setSidePanelWidth: (w) =>
-    set({ sidePanelWidth: Math.min(MAX_PANEL_WIDTH, Math.max(MIN_PANEL_WIDTH, w)) }),
+    set({ sidePanelWidth: Math.min(maxPanelWidth(), Math.max(MIN_PANEL_WIDTH, w)) }),
 
   setRightPanelWidth: (w) =>
-    set({ rightPanelWidth: Math.min(MAX_PANEL_WIDTH, Math.max(MIN_PANEL_WIDTH, w)) }),
+    set({ rightPanelWidth: Math.min(maxPanelWidth(), Math.max(MIN_PANEL_WIDTH, w)) }),
 
   toggleRightDrawer: () =>
     set((s) => ({ rightDrawerOpen: !s.rightDrawerOpen })),
@@ -61,7 +67,7 @@ export const useLayoutStore = create<LayoutState>((set, get) => ({
           activePanelId: (settings.ui.activePanelId as SidePanelId | null) ?? 'files',
           activeRightPanelId: (settings.ui.activeRightPanelId as RightPanelId | null) ?? 'properties',
           sidePanelWidth: Math.min(
-            MAX_PANEL_WIDTH,
+            maxPanelWidth(),
             Math.max(MIN_PANEL_WIDTH, settings.ui.sidePanelWidth ?? DEFAULT_PANEL_WIDTH)
           ),
           rightDrawerOpen: (settings.ui as unknown as Record<string, unknown>).rightDrawerOpen !== false
