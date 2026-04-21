@@ -1,7 +1,7 @@
 import { useState, useMemo, useCallback, useRef, useEffect } from 'react'
 import { TEST_IDS } from '@/lib/testids'
 import { useVaultStore } from '@/store/vault-store'
-import { useEditorStore } from '@/store/editor-store'
+import { useEditorStore, selectedFilePath } from '@/store/editor-store'
 import { useGeneratedDocsStore } from '@/store/generated-docs-store'
 import { FileTreeNode } from './FileTreeNode'
 import { GeneratedDocNode } from './GeneratedDocNode'
@@ -137,7 +137,8 @@ const NAVIGATION_KEYS = new Set(['ArrowDown', 'ArrowUp', 'ArrowLeft', 'ArrowRigh
 
 export function FileExplorer() {
   const { fileTree, vaultPath, excludedFolders } = useVaultStore()
-  const { selectedFile, selectFile, canGoBack, canGoForward, goBack, goForward } = useEditorStore()
+  const { selection, selectFile, canGoBack, canGoForward, goBack, goForward } = useEditorStore()
+  const selectedFile = selectedFilePath(selection)
   const { docs } = useGeneratedDocsStore()
   const [hiddenExpanded, setHiddenExpanded] = useState(false)
   const [generatedExpanded, setGeneratedExpanded] = useState(true)

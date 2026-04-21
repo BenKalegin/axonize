@@ -2,6 +2,7 @@ import { ipcMain, type WebContents } from 'electron'
 import { getSettings } from './settings-service'
 import { createAgent } from './agent/agent-factory'
 import type { AgentEvent } from './agent/agent'
+import { AgentEventKind } from '../core/agent/event-kinds'
 import log from './logger'
 
 interface AgentStartPayload {
@@ -60,16 +61,16 @@ async function startAgent(webContents: WebContents, payload: AgentStartPayload):
   } catch (error) {
     log.error('agent:start failed:', error)
     sendEvent(webContents, sessionId, {
-      type: 'error',
+      type: AgentEventKind.Error,
       error: error instanceof Error ? error.message : String(error)
     })
   } finally {
     runningAgents.delete(sessionId)
-    sendEvent(webContents, sessionId, { type: 'closed' })
+    sendEvent(webContents, sessionId, { type: AgentEventKind.Closed })
   }
 }
 
-type OutboundEvent = AgentEvent | { type: 'closed' }
+type OutboundEvent = AgentEvent | { type: typeof AgentEventKind.Closed }
 
 function sendEvent(webContents: WebContents, sessionId: string, event: OutboundEvent): void {
   if (webContents.isDestroyed()) {

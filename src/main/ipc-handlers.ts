@@ -8,6 +8,7 @@ import {registerGeneratedDocsIpcHandlers} from './generated-docs-ipc-handlers'
 import {registerSemanticIpcHandlers} from './semantic-ipc-handlers'
 import {registerLLMIpcHandlers} from './llm-ipc-handlers'
 import {registerAgentIpcHandlers} from './agent-ipc-handlers'
+import {registerAgentHistoryIpcHandlers} from './agent-history-ipc-handlers'
 import {registerGitIpcHandlers} from './git-ipc-handlers'
 import {startWatching, stopWatching} from './file-watcher'
 import log from './logger'
@@ -147,5 +148,6 @@ export function registerIpcHandlers(): void {
   registerSemanticIpcHandlers()
   registerLLMIpcHandlers()
   registerAgentIpcHandlers()
+  registerAgentHistoryIpcHandlers()
   registerGitIpcHandlers()
 }

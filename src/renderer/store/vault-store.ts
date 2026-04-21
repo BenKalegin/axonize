@@ -96,6 +96,7 @@ export const useVaultStore = create<VaultState>((set, get) => ({
       await get().loadExcludedFolders()
       restoreLastFile(path).catch(() => {})
       useGeneratedDocsStore.getState().runCleanup(path).catch(() => {})
+      window.axonize.agentHistory.cleanup(path).catch(() => {})
       loadSemanticCacheOnly(path).catch(() => {})
       window.axonize.vault.startWatch(path).catch(() => {})
     }
@@ -133,6 +134,7 @@ export const useVaultStore = create<VaultState>((set, get) => ({
     await get().loadExcludedFolders()
     restoreLastFile(path).catch(() => {})
     useGeneratedDocsStore.getState().runCleanup(path).catch(() => {})
+    window.axonize.agentHistory.cleanup(path).catch(() => {})
     loadSemanticCacheOnly(path).catch(() => {})
     window.axonize.vault.startWatch(path).catch(() => {})
   },

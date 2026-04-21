@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react'
 import { TEST_IDS } from '@/lib/testids'
 import { useRagStore } from '@/store/rag-store'
 import { useVaultStore } from '@/store/vault-store'
-import { useEditorStore } from '@/store/editor-store'
+import { useEditorStore, selectedFilePath } from '@/store/editor-store'
 import type { AppSettings } from '@core/rag/types'
 import { DEFAULT_SETTINGS } from '@core/rag/types'
 import { PROVIDER_MODELS, DEFAULT_MODELS } from '@/lib/llm-models'
@@ -29,7 +29,7 @@ export function SettingsDialog({ onClose }: SettingsDialogProps) {
 
   const { isIndexing, indexProgress, fullReindex, reindexFile, chunkCount } = useRagStore()
   const { vaultPath } = useVaultStore()
-  const { selectedFile } = useEditorStore()
+  const selectedFile = useEditorStore((s) => selectedFilePath(s.selection))
 
   useEffect(() => {
     window.axonize.settings.get().then((s) => {

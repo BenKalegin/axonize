@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { TEST_IDS } from '@/lib/testids'
-import { useEditorStore } from '@/store/editor-store'
+import { useEditorStore, selectedFilePath } from '@/store/editor-store'
 import { useVaultStore } from '@/store/vault-store'
 import { useLayoutStore } from '@/store/layout-store'
 import type { RelatedDoc } from '../../../preload'
@@ -108,7 +108,7 @@ function useResizeHandle() {
 }
 
 export function RelatedDocsPanel() {
-  const selectedFile = useEditorStore((s) => s.selectedFile)
+  const selectedFile = useEditorStore((s) => selectedFilePath(s.selection))
   const selectFile = useEditorStore((s) => s.selectFile)
   const vaultPath = useVaultStore((s) => s.vaultPath)
   const toggleRightPanel = useLayoutStore((s) => s.toggleRightPanel)

@@ -1,7 +1,7 @@
 import { useState, useCallback, useEffect, useRef } from 'react'
-import { TEST_IDS } from '../../lib/testids'
-import { useEditorStore } from '../../store/editor-store'
-import { useVaultStore } from '../../store/vault-store'
+import { TEST_IDS } from '@/lib/testids'
+import { useEditorStore, selectedFilePath } from '@/store/editor-store'
+import { useVaultStore } from '@/store/vault-store'
 
 interface FileEntry {
   name: string
@@ -163,7 +163,8 @@ export function FileTreeNode({ entry, depth, excluded, isExpanded, onToggle, foc
   const [editMode, setEditMode] = useState<EditMode>(null)
   const actionsRef = useRef<HTMLDivElement>(null)
   const nodeRef = useRef<HTMLDivElement>(null)
-  const { selectedFile, selectFile } = useEditorStore()
+  const { selection, selectFile } = useEditorStore()
+  const selectedFile = selectedFilePath(selection)
   const { excludeFolder, includeFolder, excludedFolders } = useVaultStore()
   const isSelected = selectedFile === entry.path
   const isExcluded = excluded || excludedFolders.includes(entry.relativePath)

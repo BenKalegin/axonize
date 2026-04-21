@@ -1,5 +1,10 @@
 import { contextBridge, ipcRenderer } from 'electron'
 import type { CardKind, StalenessInfo } from '../core/semantic/types'
+import type {
+  AgentTurnMeta,
+  SaveAgentTurnPayload
+} from '../core/agent/history-types'
+import { AgentEventKind } from '../core/agent/event-kinds'
 
 export interface RecentVault {
   path: string
@@ -84,13 +89,13 @@ export interface AgentStartPayload {
 }
 
 export type AgentEventBody =
-  | { type: 'session'; claudeSessionId: string }
-  | { type: 'text_delta'; text: string }
-  | { type: 'tool_use'; toolName: string; input: unknown }
-  | { type: 'tool_result'; toolName: string; result: string; isError?: boolean }
-  | { type: 'done'; totalCostUsd?: number; inputTokens?: number; outputTokens?: number }
-  | { type: 'error'; error: string }
-  | { type: 'closed' }
+  | { type: typeof AgentEventKind.Session; claudeSessionId: string }
+  | { type: typeof AgentEventKind.TextDelta; text: string }
+  | { type: typeof AgentEventKind.ToolUse; toolName: string; input: unknown }
+  | { type: typeof AgentEventKind.ToolResult; toolName: string; result: string; isError?: boolean }
+  | { type: typeof AgentEventKind.Done; totalCostUsd?: number; inputTokens?: number; outputTokens?: number }
+  | { type: typeof AgentEventKind.Error; error: string }
+  | { type: typeof AgentEventKind.Closed }
 
 export interface AgentEventPayload {
   sessionId: string
@@ -174,6 +179,12 @@ export interface AxonizeAPI {
     delete: (filePath: string) => Promise<void>
     cleanup: (vaultPath: string) => Promise<number>
     listFolders: (vaultPath: string) => Promise<string[]>
+  }
+  agentHistory: {
+    save: (vaultPath: string, payload: SaveAgentTurnPayload) => Promise<AgentTurnMeta>
+    deleteSession: (vaultPath: string, sessionId: string) => Promise<void>
+    promote: (filePath: string, targetPath: string) => Promise<void>
+    cleanup: (vaultPath: string) => Promise<number>
   }
 }
 
@@ -300,6 +311,16 @@ const api: AxonizeAPI = {
       ipcRenderer.invoke('generated-docs:cleanup', { vaultPath }),
     listFolders: (vaultPath: string) =>
       ipcRenderer.invoke('generated-docs:listFolders', { vaultPath })
+  },
+  agentHistory: {
+    save: (vaultPath: string, payload: SaveAgentTurnPayload) =>
+      ipcRenderer.invoke('agent-history:save', { vaultPath, payload }),
+    deleteSession: (vaultPath: string, sessionId: string) =>
+      ipcRenderer.invoke('agent-history:deleteSession', { vaultPath, sessionId }),
+    promote: (filePath: string, targetPath: string) =>
+      ipcRenderer.invoke('agent-history:promote', { filePath, targetPath }),
+    cleanup: (vaultPath: string) =>
+      ipcRenderer.invoke('agent-history:cleanup', { vaultPath })
   }
 }
 

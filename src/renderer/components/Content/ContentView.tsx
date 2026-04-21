@@ -1,6 +1,11 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import { TEST_IDS } from '@/lib/testids'
-import { useEditorStore, ViewMode } from '@/store/editor-store'
+import {
+  useEditorStore,
+  ViewMode,
+  selectedFilePath,
+  isAgentTurnSelection
+} from '@/store/editor-store'
 import { useVaultStore } from '@/store/vault-store'
 import { useRagStore } from '@/store/rag-store'
 import { useGeneratedDocsStore } from '@/store/generated-docs-store'
@@ -12,23 +17,22 @@ import { MakePermanentDialog } from '../Sidebar/MakePermanentDialog'
 import { GraphView } from '../Graph/GraphView'
 import { WelcomeScreen } from './WelcomeScreen'
 import { ZoomControls } from './ZoomControls'
-import { AgentView } from './AgentView'
+import { AgentTurnHeader } from './AgentTurnHeader'
 
 const ZOOM_STEPS = [50, 67, 80, 90, 100, 110, 125, 150, 175, 200]
 
 export function ContentView() {
-  const {
-    viewMode,
-    selectedFile,
-    presentationIndex,
-    presentationTotal,
-    presentationNext,
-    presentationPrev,
-    setViewMode
-  } = useEditorStore()
+  const viewMode = useEditorStore((s) => s.viewMode)
+  const selection = useEditorStore((s) => s.selection)
+  const presentationIndex = useEditorStore((s) => s.presentationIndex)
+  const presentationTotal = useEditorStore((s) => s.presentationTotal)
+  const presentationNext = useEditorStore((s) => s.presentationNext)
+  const presentationPrev = useEditorStore((s) => s.presentationPrev)
+  const setViewMode = useEditorStore((s) => s.setViewMode)
+  const selectedFile = selectedFilePath(selection)
   const presentationMode = viewMode === ViewMode.Presentation
   const isGraph = viewMode === ViewMode.Graph
-  const isAgent = viewMode === ViewMode.Agent
+  const isAgentTurn = isAgentTurnSelection(selection)
   const { vaultPath } = useVaultStore()
   const { lastResponse, isQuerying } = useRagStore()
   const { docs } = useGeneratedDocsStore()
@@ -60,20 +64,20 @@ export function ContentView() {
   // Apply zoom via ref so mermaid SVGs don't re-render on every zoom step.
   useEffect(() => {
     if (scrollRef.current) {
-      if (isGraph || isAgent) {
+      if (isGraph) {
         scrollRef.current.style.zoom = '1'
       } else {
         scrollRef.current.style.zoom = String(zoomPercent / 100)
       }
     }
-  }, [zoomPercent, isGraph, isAgent])
+  }, [zoomPercent, isGraph])
 
   useEffect(() => {
     if (presentationMode) return
     const el = outerRef.current
     if (!el) return
     const handleWheel = (e: WheelEvent) => {
-      if (isGraph || isAgent) return
+      if (isGraph) return
 
       if (!(e.metaKey || e.ctrlKey)) return
       e.preventDefault()
@@ -82,7 +86,7 @@ export function ContentView() {
     }
     el.addEventListener('wheel', handleWheel, { passive: false })
     return () => el.removeEventListener('wheel', handleWheel)
-  }, [zoomIn, zoomOut, presentationMode, isGraph, isAgent])
+  }, [zoomIn, zoomOut, presentationMode, isGraph])
 
   useEffect(() => {
     if (!presentationMode) return
@@ -128,17 +132,16 @@ export function ContentView() {
   }, [presentationMode, presentationNext, presentationPrev])
 
   const generatedDoc = useMemo(
-    () => selectedFile ? docs.find((d) => d.filePath === selectedFile) ?? null : null,
-    [selectedFile, docs]
+    () => (selectedFile && !isAgentTurn) ? docs.find((d) => d.filePath === selectedFile) ?? null : null,
+    [selectedFile, docs, isAgentTurn]
   )
 
-  const showZoom = vaultPath && !isGraph && !isAgent && (
+  const showZoom = vaultPath && !isGraph && (
     lastResponse ||
     (viewMode === ViewMode.Markdown && selectedFile)
   )
 
   const renderBody = () => {
-    if (isAgent) return <AgentView />
     if (vaultPath && isGraph) return <GraphView />
     return (
       <div className="content-scroll" ref={scrollRef}>
@@ -152,6 +155,11 @@ export function ContentView() {
           ) : (
             <RAGAnswerView />
           )
+        ) : isAgentTurn ? (
+          <>
+            <AgentTurnHeader />
+            <MarkdownView />
+          </>
         ) : selectedFile ? (
           <>
             {generatedDoc && (

@@ -16,7 +16,7 @@ function AssistantTurnBody({ turn, selected, onShowDetails }: AgentTurnItemProps
   if (turn.kind === AgentTurnKind.Analytical) {
     return (
       <div className="agent-turn-analytical">
-        <MarkdownContent markdown={turn.preview ?? turn.content} className="agent-turn-preview" />
+        <MarkdownContent markdown={turn.preview ?? ''} className="agent-turn-preview" />
         <button
           data-testid={TEST_IDS.AGENT_SHOW_DETAILS_BTN}
           className={`agent-show-details-btn${selected ? ' selected' : ''}`}
@@ -27,7 +27,7 @@ function AssistantTurnBody({ turn, selected, onShowDetails }: AgentTurnItemProps
       </div>
     )
   }
-  return <MarkdownContent markdown={turn.content} className="agent-turn-content" />
+  return <MarkdownContent markdown={turn.content ?? turn.preview ?? ''} className="agent-turn-content" />
 }
 
 export function AgentTurnItem(props: AgentTurnItemProps) {
@@ -43,7 +43,7 @@ export function AgentTurnItem(props: AgentTurnItemProps) {
       <div className="agent-turn-role">{isUser ? 'You' : 'Agent'}</div>
       {!isUser && turn.toolTrace && <CollapsibleTrace lines={turn.toolTrace} />}
       {isUser
-        ? <div className="agent-turn-content">{turn.content}</div>
+        ? <div className="agent-turn-content">{turn.content ?? ''}</div>
         : <AssistantTurnBody {...props} />}
     </div>
   )

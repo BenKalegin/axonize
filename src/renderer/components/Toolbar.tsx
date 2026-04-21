@@ -12,8 +12,7 @@ interface TopTab {
 const TOP_TABS: TopTab[] = [
   { id: ViewMode.Markdown, label: 'Markdown', testId: TEST_IDS.VIEW_MARKDOWN_BTN },
   { id: ViewMode.Presentation, label: 'Presentation', testId: TEST_IDS.VIEW_PRESENTATION_BTN },
-  { id: ViewMode.Graph, label: 'Graph', testId: TEST_IDS.VIEW_GRAPH_BTN },
-  { id: ViewMode.Agent, label: 'Agent', testId: TEST_IDS.VIEW_AGENT_BTN }
+  { id: ViewMode.Graph, label: 'Graph', testId: TEST_IDS.VIEW_GRAPH_BTN }
 ]
 import { useRagStore } from '@/store/rag-store'
 import { SettingsDialog } from './SettingsDialog'

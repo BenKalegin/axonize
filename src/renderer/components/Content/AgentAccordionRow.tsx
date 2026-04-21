@@ -1,6 +1,7 @@
 import { useCallback } from 'react'
 import { TEST_IDS } from '@/lib/testids'
-import { useAgentStore, type AgentSession } from '@/store/agent-store'
+import { useAgentStore, type AgentSession, type AgentTurn } from '@/store/agent-store'
+import { useEditorStore, isAgentTurnSelection } from '@/store/editor-store'
 import { AgentTurnItem } from './AgentTurnItem'
 import { CollapsibleTrace } from './CollapsibleTrace'
 
@@ -87,9 +88,9 @@ function StreamingTurn({ sessionId }: { sessionId: string }) {
 }
 
 export function AgentAccordionRow({ session, active, vaultPath, onRequestEnableEdits }: AgentAccordionRowProps) {
-  const selectedTurn = useAgentStore((s) => s.selectedTurn)
+  const selection = useEditorStore((s) => s.selection)
+  const selectAgentTurn = useEditorStore((s) => s.selectAgentTurn)
   const selectSession = useAgentStore((s) => s.selectSession)
-  const selectTurn = useAgentStore((s) => s.selectTurn)
   const deleteSession = useAgentStore((s) => s.deleteSession)
   const toggleSessionCollapsed = useAgentStore((s) => s.toggleSessionCollapsed)
   const setAllowEdits = useAgentStore((s) => s.setAllowEdits)
@@ -111,7 +112,14 @@ export function AgentAccordionRow({ session, active, vaultPath, onRequestEnableE
     }
   }, [session.allowEdits, session.id, setAllowEdits, vaultPath, onRequestEnableEdits])
 
-  const selectedTurnId = selectedTurn?.sessionId === session.id ? selectedTurn.turnId : null
+  const selectedTurnId = isAgentTurnSelection(selection) && selection.sessionId === session.id
+    ? selection.turnId
+    : null
+
+  const showTurn = (turn: AgentTurn): void => {
+    if (!turn.filePath) return
+    selectAgentTurn({ sessionId: session.id, turnId: turn.id, filePath: turn.filePath })
+  }
 
   return (
     <div className={`agent-accordion-row${active ? ' active' : ''}`}>
@@ -141,7 +149,7 @@ export function AgentAccordionRow({ session, active, vaultPath, onRequestEnableE
                 key={turn.id}
                 turn={turn}
                 selected={selectedTurnId === turn.id}
-                onShowDetails={() => selectTurn({ sessionId: session.id, turnId: turn.id })}
+                onShowDetails={() => showTurn(turn)}
               />
             ))
           )}

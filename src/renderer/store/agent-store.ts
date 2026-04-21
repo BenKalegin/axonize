@@ -2,12 +2,15 @@ import { useEffect } from 'react'
 import { create } from 'zustand'
 import type { AgentEventBody, AgentEventPayload } from '../../preload'
 import { AgentTurnKind, AgentTurnRole } from '@core/agent/turn-kinds'
+import { AgentEventKind } from '@core/agent/event-kinds'
+import type { AgentTurnMeta } from '@core/agent/history-types'
 import { classifyTurn, makePreview } from '@/lib/agent-turn-classifier'
 
 export interface AgentTurn {
   id: string
   role: AgentTurnRole
-  content: string
+  content?: string
+  filePath?: string
   kind?: AgentTurnKind
   preview?: string
   parentTurnId?: string | null
@@ -26,11 +29,6 @@ export interface AgentSession {
   collapsed: boolean
 }
 
-export interface SelectedTurnRef {
-  sessionId: string
-  turnId: string
-}
-
 interface PersistedAgentState {
   sessions: AgentSession[]
   selectedSessionId: string | null
@@ -40,32 +38,36 @@ interface AgentStore {
   sessions: AgentSession[]
   promptDrafts: Record<string, string>
   selectedSessionId: string | null
-  selectedTurn: SelectedTurnRef | null
   runningSessionId: string | null
   streamingText: string
   toolTrace: string[]
   error: string | null
   loadedVaultKey: string | null
-  hydrate: (vaultPath: string | null) => void
+  hydrate: (vaultPath: string | null) => Promise<void>
   createSession: (vaultPath: string | null) => void
-  deleteSession: (vaultPath: string | null, sessionId: string) => void
+  deleteSession: (vaultPath: string | null, sessionId: string) => Promise<void>
   selectSession: (sessionId: string) => void
-  selectTurn: (ref: SelectedTurnRef | null) => void
   toggleSessionCollapsed: (vaultPath: string | null, sessionId: string) => void
   setAllowEdits: (vaultPath: string | null, sessionId: string, allowEdits: boolean) => void
   updatePromptDraft: (sessionId: string, promptDraft: string) => void
   sendPrompt: (vaultPath: string | null, sessionId: string) => void
   cancelPrompt: (sessionId: string) => void
-  handleEvent: (vaultPath: string | null, payload: AgentEventPayload) => void
+  handleEvent: (vaultPath: string | null, payload: AgentEventPayload) => Promise<void>
 }
 
+const STORAGE_PREFIX_V4 = 'axonize.agent.sessions.v4'
 const STORAGE_PREFIX_V3 = 'axonize.agent.sessions.v3'
 const STORAGE_PREFIX_V2 = 'axonize.agent.sessions.v2'
 const SESSION_NAME_MAX_CHARS = 52
+const PROMPT_SNIPPET_MAX_CHARS = 240
 const TOOL_TRACE_MAX = 20
 const TOOL_ERROR_PREVIEW_MAX_CHARS = 120
 const TOOL_INPUT_VALUE_MAX_CHARS = 80
 const EMPTY_ASSISTANT_RESPONSE = '(empty response)'
+
+function storageKeyV4(vaultPath: string | null): string {
+  return `${STORAGE_PREFIX_V4}:${vaultPath ?? '__global__'}`
+}
 
 function storageKeyV3(vaultPath: string | null): string {
   return `${STORAGE_PREFIX_V3}:${vaultPath ?? '__global__'}`
@@ -96,9 +98,9 @@ function clip(text: string, max = SESSION_NAME_MAX_CHARS): string {
 
 function deriveNameFromSession(session: AgentSession, fallbackIndex: number): string {
   const firstUserTurn = session.turns.find(
-    (turn) => turn.role === AgentTurnRole.User && turn.content.trim().length > 0
+    (turn) => turn.role === AgentTurnRole.User && (turn.content ?? '').trim().length > 0
   )
-  if (firstUserTurn) {
+  if (firstUserTurn?.content) {
     return clip(firstUserTurn.content)
   }
   return `Session ${fallbackIndex}`
@@ -115,17 +117,12 @@ function normalizeSessions(sessions: AgentSession[]): AgentSession[] {
     .sort((a, b) => b.updatedAt - a.updatedAt)
 }
 
-function buildAssistantTurn(content: string, toolTrace: string[] | undefined, id: string, createdAt: number): AgentTurn {
-  return {
-    id,
-    role: AgentTurnRole.Assistant,
-    content,
-    kind: classifyTurn(content),
-    preview: makePreview(content),
-    parentTurnId: null,
-    toolTrace: toolTrace && toolTrace.length > 0 ? [...toolTrace] : undefined,
-    createdAt
+function lastUserPromptOf(session: AgentSession): string {
+  for (let i = session.turns.length - 1; i >= 0; i--) {
+    const turn = session.turns[i]
+    if (turn.role === AgentTurnRole.User && turn.content) return turn.content
   }
+  return ''
 }
 
 interface LegacyAgentMessage {
@@ -140,14 +137,15 @@ interface LegacyAgentSession {
   id: string
   name: string
   promptDraft?: string
-  messages: LegacyAgentMessage[]
+  messages?: LegacyAgentMessage[]
+  turns?: AgentTurn[]
   createdAt: number
   updatedAt: number
   claudeSessionId?: string
   allowEdits?: boolean
 }
 
-function migrateLegacyTurn(message: LegacyAgentMessage): AgentTurn {
+function migrateLegacyMessage(message: LegacyAgentMessage): AgentTurn {
   if (message.role === AgentTurnRole.User) {
     return {
       id: message.id,
@@ -158,14 +156,28 @@ function migrateLegacyTurn(message: LegacyAgentMessage): AgentTurn {
       createdAt: message.createdAt
     }
   }
-  return buildAssistantTurn(message.content, message.toolTrace, message.id, message.createdAt)
+  return {
+    id: message.id,
+    role: AgentTurnRole.Assistant,
+    content: message.content,
+    kind: classifyTurn(message.content),
+    preview: makePreview(message.content),
+    parentTurnId: null,
+    toolTrace: message.toolTrace,
+    createdAt: message.createdAt
+  }
 }
 
 function migrateLegacySession(session: LegacyAgentSession): AgentSession {
+  const legacyMessages = session.messages ?? []
+  const legacyTurns = session.turns ?? []
+  const turns: AgentTurn[] = legacyMessages.length > 0
+    ? legacyMessages.map(migrateLegacyMessage)
+    : legacyTurns
   return {
     id: session.id,
     name: session.name,
-    turns: (session.messages ?? []).map(migrateLegacyTurn),
+    turns,
     createdAt: session.createdAt,
     updatedAt: session.updatedAt,
     claudeSessionId: session.claudeSessionId,
@@ -174,49 +186,96 @@ function migrateLegacySession(session: LegacyAgentSession): AgentSession {
   }
 }
 
-function readV3(vaultPath: string | null): PersistedAgentState | null {
+async function migrateTurn(vaultPath: string, session: AgentSession, turn: AgentTurn): Promise<AgentTurn> {
+  if (turn.role !== AgentTurnRole.Assistant || !turn.content || turn.filePath) return turn
+  const meta = await window.axonize.agentHistory.save(vaultPath, {
+    sessionId: session.id,
+    turnId: turn.id,
+    role: AgentTurnRole.Assistant,
+    prompt: clip(lastUserPromptUpTo(session, turn), PROMPT_SNIPPET_MAX_CHARS),
+    answer: turn.content,
+    toolTrace: turn.toolTrace
+  })
+  return { ...turn, content: undefined, filePath: meta.filePath }
+}
+
+async function backfillAssistantFiles(vaultPath: string | null, sessions: AgentSession[]): Promise<AgentSession[]> {
+  if (!vaultPath) return sessions
+  return Promise.all(sessions.map(async (session) => {
+    const turns = await Promise.all(session.turns.map((turn) => migrateTurn(vaultPath, session, turn)))
+    return { ...session, turns }
+  }))
+}
+
+function lastUserPromptUpTo(session: AgentSession, target: AgentTurn): string {
+  const idx = session.turns.findIndex((t) => t.id === target.id)
+  for (let i = idx - 1; i >= 0; i--) {
+    const turn = session.turns[i]
+    if (turn.role === AgentTurnRole.User && turn.content) return turn.content
+  }
+  return ''
+}
+
+function readPersistedRaw<T>(key: string): T | null {
   if (typeof window === 'undefined' || !window.localStorage) return null
   try {
-    const raw = window.localStorage.getItem(storageKeyV3(vaultPath))
-    if (!raw) return null
-    const parsed = JSON.parse(raw) as PersistedAgentState
-    if (!Array.isArray(parsed.sessions)) return null
-    return {
-      sessions: normalizeSessions(parsed.sessions),
-      selectedSessionId: parsed.selectedSessionId ?? null
-    }
+    const raw = window.localStorage.getItem(key)
+    return raw ? (JSON.parse(raw) as T) : null
   } catch {
     return null
   }
 }
 
-function readLegacyV2AndMigrate(vaultPath: string | null): PersistedAgentState | null {
-  if (typeof window === 'undefined' || !window.localStorage) return null
-  try {
-    const raw = window.localStorage.getItem(storageKeyV2(vaultPath))
-    if (!raw) return null
-    const parsed = JSON.parse(raw) as { sessions?: LegacyAgentSession[]; selectedSessionId?: string | null }
-    if (!Array.isArray(parsed.sessions)) return null
-    const migrated: PersistedAgentState = {
-      sessions: normalizeSessions(parsed.sessions.map(migrateLegacySession)),
-      selectedSessionId: parsed.selectedSessionId ?? null
-    }
-    window.localStorage.setItem(storageKeyV3(vaultPath), JSON.stringify(migrated))
+function readV4(vaultPath: string | null): PersistedAgentState | null {
+  const parsed = readPersistedRaw<PersistedAgentState>(storageKeyV4(vaultPath))
+  if (!parsed || !Array.isArray(parsed.sessions)) return null
+  return {
+    sessions: normalizeSessions(parsed.sessions),
+    selectedSessionId: parsed.selectedSessionId ?? null
+  }
+}
+
+function readV3Raw(vaultPath: string | null): PersistedAgentState | null {
+  const parsed = readPersistedRaw<PersistedAgentState>(storageKeyV3(vaultPath))
+  if (!parsed || !Array.isArray(parsed.sessions)) return null
+  return {
+    sessions: normalizeSessions(parsed.sessions),
+    selectedSessionId: parsed.selectedSessionId ?? null
+  }
+}
+
+function readV2Raw(vaultPath: string | null): PersistedAgentState | null {
+  const parsed = readPersistedRaw<{ sessions?: LegacyAgentSession[]; selectedSessionId?: string | null }>(
+    storageKeyV2(vaultPath)
+  )
+  if (!parsed || !Array.isArray(parsed.sessions)) return null
+  return {
+    sessions: normalizeSessions(parsed.sessions.map(migrateLegacySession)),
+    selectedSessionId: parsed.selectedSessionId ?? null
+  }
+}
+
+async function loadAndMigrate(vaultPath: string | null): Promise<PersistedAgentState | null> {
+  const v4 = readV4(vaultPath)
+  if (v4) return v4
+
+  const legacy = readV3Raw(vaultPath) ?? readV2Raw(vaultPath)
+  if (!legacy) return null
+
+  const sessions = await backfillAssistantFiles(vaultPath, legacy.sessions)
+  const migrated: PersistedAgentState = { sessions, selectedSessionId: legacy.selectedSessionId }
+  persist(vaultPath, migrated)
+  if (typeof window !== 'undefined' && window.localStorage) {
+    window.localStorage.removeItem(storageKeyV3(vaultPath))
     window.localStorage.removeItem(storageKeyV2(vaultPath))
-    return migrated
-  } catch {
-    return null
   }
-}
-
-function readPersisted(vaultPath: string | null): PersistedAgentState | null {
-  return readV3(vaultPath) ?? readLegacyV2AndMigrate(vaultPath)
+  return migrated
 }
 
 function persist(vaultPath: string | null, state: PersistedAgentState): void {
   if (typeof window === 'undefined' || !window.localStorage) return
   try {
-    window.localStorage.setItem(storageKeyV3(vaultPath), JSON.stringify(state))
+    window.localStorage.setItem(storageKeyV4(vaultPath), JSON.stringify(state))
   } catch {
     // localStorage can throw on quota exceeded; dropping the write is preferable to crashing the UI.
   }
@@ -240,75 +299,155 @@ function updateSession(
 }
 
 function formatToolTrace(event: AgentEventBody): string | null {
-  if (event.type === 'tool_use') {
+  if (event.type === AgentEventKind.ToolUse) {
     const input = event.input && typeof event.input === 'object' ? summarizeInput(event.input as Record<string, unknown>) : ''
     return `▸ ${event.toolName}${input ? ` ${input}` : ''}`
   }
-  if (event.type === 'tool_result' && event.isError) {
+  if (event.type === AgentEventKind.ToolResult && event.isError) {
     const preview = event.result.slice(0, TOOL_ERROR_PREVIEW_MAX_CHARS).replace(/\s+/g, ' ')
     return `✗ ${preview}`
   }
   return null
 }
 
+const TOOL_INPUT_SUMMARY_KEYS = ['path', 'file_path', 'pattern', 'question', 'command'] as const
+
 function summarizeInput(input: Record<string, unknown>): string {
-  const keys = ['path', 'file_path', 'pattern', 'question', 'command']
-  for (const key of keys) {
-    if (typeof input[key] === 'string' && (input[key] as string).length > 0) {
-      return `${key}=${(input[key] as string).slice(0, TOOL_INPUT_VALUE_MAX_CHARS)}`
+  for (const key of TOOL_INPUT_SUMMARY_KEYS) {
+    const value = input[key]
+    if (typeof value === 'string' && value.length > 0) {
+      return `${key}=${value.slice(0, TOOL_INPUT_VALUE_MAX_CHARS)}`
     }
   }
   return ''
 }
 
+function buildInMemoryErrorTurn(content: string, toolTrace: string[]): AgentTurn {
+  return {
+    id: crypto.randomUUID(),
+    role: AgentTurnRole.Assistant,
+    content,
+    kind: classifyTurn(content),
+    preview: makePreview(content),
+    parentTurnId: null,
+    toolTrace: toolTrace.length > 0 ? [...toolTrace] : undefined,
+    createdAt: Date.now()
+  }
+}
+
 export const useAgentStore = create<AgentStore>((set, get) => {
-  const appendAssistantTurn = (vaultPath: string | null, sessionId: string, content: string): AgentSession[] => {
-    const turn = buildAssistantTurn(content, get().toolTrace, crypto.randomUUID(), Date.now())
-    const sessions = updateSession(get().sessions, sessionId, (item) => ({
+  const appendTurn = (sessionId: string, turn: AgentTurn): AgentSession[] => {
+    return updateSession(get().sessions, sessionId, (item) => ({
       ...item,
       turns: [...item.turns, turn],
       updatedAt: Date.now()
     }))
+  }
+
+  const handleSessionEvent = (vaultPath: string | null, sessionId: string, claudeSessionId: string): void => {
+    const sessions = updateSession(get().sessions, sessionId, (item) => ({
+      ...item,
+      claudeSessionId,
+      updatedAt: Date.now()
+    }))
+    set({ sessions })
     persist(vaultPath, { sessions, selectedSessionId: get().selectedSessionId })
-    return sessions
+  }
+
+  const handleTextDelta = (text: string): void => {
+    set({ streamingText: get().streamingText + text })
+  }
+
+  const handleToolEvent = (event: AgentEventBody): void => {
+    const trace = formatToolTrace(event)
+    if (trace) {
+      set({ toolTrace: [...get().toolTrace, trace].slice(-TOOL_TRACE_MAX) })
+    }
+  }
+
+  const handleErrorEvent = (vaultPath: string | null, sessionId: string, message: string): void => {
+    const turn = buildInMemoryErrorTurn(`Agent error: ${message}`, get().toolTrace)
+    const sessions = appendTurn(sessionId, turn)
+    set({ sessions, error: message, streamingText: '', toolTrace: [] })
+    persist(vaultPath, { sessions, selectedSessionId: get().selectedSessionId })
+  }
+
+  const buildSavedTurn = (meta: AgentTurnMeta, finalText: string, toolTrace: string[] | undefined): AgentTurn => ({
+    id: meta.turnId,
+    role: AgentTurnRole.Assistant,
+    kind: classifyTurn(finalText),
+    preview: makePreview(finalText),
+    parentTurnId: null,
+    toolTrace,
+    createdAt: new Date(meta.createdAt).getTime(),
+    filePath: meta.filePath
+  })
+
+  const handleDoneEvent = async (vaultPath: string | null, sessionId: string): Promise<void> => {
+    const finalText = get().streamingText.trim() || EMPTY_ASSISTANT_RESPONSE
+    const session = get().sessions.find((s) => s.id === sessionId)
+    if (!session) return
+
+    const toolTrace = get().toolTrace.length > 0 ? [...get().toolTrace] : undefined
+
+    if (!vaultPath) {
+      set({ error: 'Cannot save agent response: no vault open.', streamingText: '', toolTrace: [] })
+      return
+    }
+
+    try {
+      const meta = await window.axonize.agentHistory.save(vaultPath, {
+        sessionId,
+        turnId: crypto.randomUUID(),
+        role: AgentTurnRole.Assistant,
+        prompt: clip(lastUserPromptOf(session), PROMPT_SNIPPET_MAX_CHARS),
+        answer: finalText,
+        toolTrace
+      })
+      const sessions = appendTurn(sessionId, buildSavedTurn(meta, finalText, toolTrace))
+      set({ sessions, streamingText: '', toolTrace: [] })
+      persist(vaultPath, { sessions, selectedSessionId: get().selectedSessionId })
+    } catch (e) {
+      const message = e instanceof Error ? e.message : String(e)
+      set({ error: `Failed to save agent response: ${message}`, streamingText: '', toolTrace: [] })
+    }
   }
 
   return {
     sessions: [],
     promptDrafts: {},
     selectedSessionId: null,
-    selectedTurn: null,
     runningSessionId: null,
     streamingText: '',
     toolTrace: [],
     error: null,
     loadedVaultKey: null,
 
-    hydrate: (vaultPath) => {
-      const key = storageKeyV3(vaultPath)
-      if (get().loadedVaultKey === key) {
-        return
+    hydrate: async (vaultPath) => {
+      const key = storageKeyV4(vaultPath)
+      if (get().loadedVaultKey === key) return
+
+      try {
+        const persisted = await loadAndMigrate(vaultPath)
+        const sessions = persisted?.sessions?.length
+          ? persisted.sessions
+          : [emptySession(1)]
+        const selectedSessionId = ensureSelection(sessions, persisted?.selectedSessionId ?? null)
+        set({
+          sessions,
+          promptDrafts: {},
+          selectedSessionId,
+          runningSessionId: null,
+          streamingText: '',
+          toolTrace: [],
+          error: null,
+          loadedVaultKey: key
+        })
+        persist(vaultPath, { sessions, selectedSessionId })
+      } catch (e) {
+        const message = e instanceof Error ? e.message : String(e)
+        set({ error: `Failed to migrate agent sessions: ${message}` })
       }
-
-      const persisted = readPersisted(vaultPath)
-      const sessions = persisted?.sessions?.length
-        ? persisted.sessions
-        : [emptySession(1)]
-      const selectedSessionId = ensureSelection(sessions, persisted?.selectedSessionId ?? null)
-
-      set({
-        sessions,
-        promptDrafts: {},
-        selectedSessionId,
-        selectedTurn: null,
-        runningSessionId: null,
-        streamingText: '',
-        toolTrace: [],
-        error: null,
-        loadedVaultKey: key
-      })
-
-      persist(vaultPath, { sessions, selectedSessionId })
     },
 
     createSession: (vaultPath) => {
@@ -316,25 +455,27 @@ export const useAgentStore = create<AgentStore>((set, get) => {
       const nextSession = emptySession(current.length + 1)
       const sessions = normalizeSessions([nextSession, ...current])
       const selectedSessionId = nextSession.id
-      set({ sessions, selectedSessionId, selectedTurn: null, error: null })
+      set({ sessions, selectedSessionId, error: null })
       persist(vaultPath, { sessions, selectedSessionId })
     },
 
-    deleteSession: (vaultPath, sessionId) => {
-      const sessions = normalizeSessions(get().sessions.filter((session) => session.id !== sessionId))
+    deleteSession: async (vaultPath, sessionId) => {
+      const sessions = normalizeSessions(get().sessions.filter((s) => s.id !== sessionId))
       const currentSelected = get().selectedSessionId
       const selectedSessionId = ensureSelection(sessions, currentSelected === sessionId ? null : currentSelected)
-      const selectedTurn = get().selectedTurn?.sessionId === sessionId ? null : get().selectedTurn
-      set({ sessions, selectedSessionId, selectedTurn, error: null })
+      set({ sessions, selectedSessionId, error: null })
       persist(vaultPath, { sessions, selectedSessionId })
+      if (vaultPath) {
+        try {
+          await window.axonize.agentHistory.deleteSession(vaultPath, sessionId)
+        } catch {
+          // file may not exist yet for sessions with no assistant turns
+        }
+      }
     },
 
     selectSession: (sessionId) => {
-      set({ selectedSessionId: sessionId, selectedTurn: null, error: null })
-    },
-
-    selectTurn: (ref) => {
-      set({ selectedTurn: ref })
+      set({ selectedSessionId: sessionId, error: null })
     },
 
     toggleSessionCollapsed: (vaultPath, sessionId) => {
@@ -357,7 +498,9 @@ export const useAgentStore = create<AgentStore>((set, get) => {
     },
 
     updatePromptDraft: (sessionId, promptDraft) => {
-      set({ promptDrafts: { ...get().promptDrafts, [sessionId]: promptDraft }, error: null })
+      const state = get()
+      if (state.promptDrafts[sessionId] === promptDraft && state.error === null) return
+      set({ promptDrafts: { ...state.promptDrafts, [sessionId]: promptDraft }, error: null })
     },
 
     sendPrompt: (vaultPath, sessionId) => {
@@ -405,50 +548,17 @@ export const useAgentStore = create<AgentStore>((set, get) => {
       window.axonize.agent.cancel(sessionId)
     },
 
-    handleEvent: (vaultPath, payload) => {
+    handleEvent: async (vaultPath, payload) => {
       const { sessionId, event } = payload
       if (get().runningSessionId !== sessionId) return
 
-      if (event.type === 'session') {
-        const sessions = updateSession(get().sessions, sessionId, (item) => ({
-          ...item,
-          claudeSessionId: event.claudeSessionId,
-          updatedAt: Date.now()
-        }))
-        set({ sessions })
-        persist(vaultPath, { sessions, selectedSessionId: get().selectedSessionId })
-        return
-      }
-
-      if (event.type === 'text_delta') {
-        set({ streamingText: get().streamingText + event.text })
-        return
-      }
-
-      if (event.type === 'tool_use' || event.type === 'tool_result') {
-        const trace = formatToolTrace(event)
-        if (trace) {
-          set({ toolTrace: [...get().toolTrace, trace].slice(-TOOL_TRACE_MAX) })
-        }
-        return
-      }
-
-      if (event.type === 'error') {
-        const sessions = appendAssistantTurn(vaultPath, sessionId, `Agent error: ${event.error}`)
-        set({ sessions, error: event.error, streamingText: '', toolTrace: [] })
-        return
-      }
-
-      if (event.type === 'done') {
-        const finalText = get().streamingText.trim() || EMPTY_ASSISTANT_RESPONSE
-        const sessions = appendAssistantTurn(vaultPath, sessionId, finalText)
-        set({ sessions, streamingText: '', toolTrace: [] })
-        return
-      }
-
-      if (event.type === 'closed') {
+      if (event.type === AgentEventKind.Session) return handleSessionEvent(vaultPath, sessionId, event.claudeSessionId)
+      if (event.type === AgentEventKind.TextDelta) return handleTextDelta(event.text)
+      if (event.type === AgentEventKind.ToolUse || event.type === AgentEventKind.ToolResult) return handleToolEvent(event)
+      if (event.type === AgentEventKind.Error) return handleErrorEvent(vaultPath, sessionId, event.error)
+      if (event.type === AgentEventKind.Done) return handleDoneEvent(vaultPath, sessionId)
+      if (event.type === AgentEventKind.Closed) {
         set({ runningSessionId: null })
-        return
       }
     }
   }

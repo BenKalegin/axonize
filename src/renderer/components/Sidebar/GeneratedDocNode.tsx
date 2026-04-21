@@ -1,6 +1,6 @@
 import { useState, useCallback, useEffect, useRef } from 'react'
 import { TEST_IDS } from '@/lib/testids'
-import { useEditorStore } from '@/store/editor-store'
+import { useEditorStore, selectedFilePath } from '@/store/editor-store'
 import { useGeneratedDocsStore } from '@/store/generated-docs-store'
 import type { GeneratedDocMeta } from '@core/rag/types'
 
@@ -10,7 +10,8 @@ interface GeneratedDocNodeProps {
 }
 
 export function GeneratedDocNode({ doc, onMakePermanent }: GeneratedDocNodeProps) {
-  const { selectedFile, selectFile } = useEditorStore()
+  const { selection, selectFile } = useEditorStore()
+  const selectedFile = selectedFilePath(selection)
   const { renameDoc, deleteDoc } = useGeneratedDocsStore()
   const [ctxMenu, setCtxMenu] = useState<{ x: number; y: number } | null>(null)
   const [renaming, setRenaming] = useState(false)

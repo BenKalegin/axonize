@@ -30,10 +30,4 @@ test.describe('Agent sidebar panel', () => {
       .click()
     await expect(sessions).toHaveCount(initialCount)
   })
-
-  test('top-level Agent tab shows the detail pane', async ({ page }) => {
-    await page.getByTestId(TEST_IDS.VIEW_AGENT_BTN).click()
-    await expect(page.getByTestId(TEST_IDS.AGENT_VIEW)).toBeVisible()
-    await expect(page.getByTestId(TEST_IDS.AGENT_DETAIL_PANE)).toBeVisible()
-  })
 })

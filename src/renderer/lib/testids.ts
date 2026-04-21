@@ -11,7 +11,6 @@ export const TEST_IDS = {
   VIEW_MARKDOWN_BTN: 'view-markdown-btn',
   VIEW_PRESENTATION_BTN: 'view-presentation-btn',
   VIEW_GRAPH_BTN: 'view-graph-btn',
-  VIEW_AGENT_BTN: 'view-agent-btn',
   OPEN_VAULT_BTN: 'open-vault-btn',
   VAULT_NAME: 'vault-name',
 
@@ -81,7 +80,6 @@ export const TEST_IDS = {
 
   // Agent
   AGENT_PANEL: 'agent-panel',
-  AGENT_VIEW: 'agent-view',
   AGENT_ACCORDION: 'agent-accordion',
   AGENT_NEW_SESSION_BTN: 'agent-new-session-btn',
   AGENT_SESSION_ITEM: 'agent-session-item',
@@ -91,7 +89,8 @@ export const TEST_IDS = {
   AGENT_SEND_PROMPT_BTN: 'agent-send-prompt-btn',
   AGENT_TURN: 'agent-turn',
   AGENT_SHOW_DETAILS_BTN: 'agent-show-details-btn',
-  AGENT_DETAIL_PANE: 'agent-detail-pane',
+  AGENT_TURN_HEADER: 'agent-turn-header',
+  AGENT_TURN_PROMOTE_BTN: 'agent-turn-promote-btn',
 
   // Zoom Controls
   ZOOM_CONTROLS: 'zoom-controls',
@@ -124,6 +123,7 @@ export const TEST_IDS = {
   GENERATED_DOC_PERMANENT_BTN: 'generated-doc-permanent-btn',
   GENERATED_DOC_DELETE_BTN: 'generated-doc-delete-btn',
   MAKE_PERMANENT_DIALOG: 'make-permanent-dialog',
+  PROMOTE_FILE_DIALOG: 'promote-file-dialog',
   GENERATED_DOCS_RETENTION_INPUT: 'generated-docs-retention-input',
 
   // File Search
