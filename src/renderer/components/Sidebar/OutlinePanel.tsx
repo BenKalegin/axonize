@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import GithubSlugger from 'github-slugger'
 import { TEST_IDS } from '@/lib/testids'
-import { useEditorStore } from '@/store/editor-store'
+import { useEditorStore, ViewMode } from '@/store/editor-store'
 import { splitSections, type MarkdownSection } from '@/lib/section-splitter'
 
 const FRONTMATTER_RE = /^---\n[\s\S]*?\n---\n/
@@ -53,10 +53,11 @@ export function OutlinePanel() {
   const {
     selectedFile,
     selectFile,
-    presentationMode,
+    viewMode,
     presentationIndex,
     setPresentationIndex
   } = useEditorStore()
+  const presentationMode = viewMode === ViewMode.Presentation
   const [headings, setHeadings] = useState<HeadingEntry[]>([])
   const [activeSlug, setActiveSlug] = useState<string | null>(null)
 

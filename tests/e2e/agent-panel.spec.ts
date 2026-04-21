@@ -1,8 +1,8 @@
 import { test, expect } from './fixtures/electron-app'
 import { TEST_IDS } from '../../src/renderer/lib/testids'
 
-test.describe('Agent Panel', () => {
-  test('should open agent panel and manage sessions', async ({ page }) => {
+test.describe('Agent sidebar panel', () => {
+  test('opens from activity bar and exposes accordion + composer', async ({ page }) => {
     const agentButton = page.locator('.activity-bar .activity-bar-btn[title="Agent Sessions"]')
     await expect(agentButton).toBeVisible()
     await agentButton.click()
@@ -10,21 +10,30 @@ test.describe('Agent Panel', () => {
     const panel = page.getByTestId(TEST_IDS.AGENT_PANEL)
     await expect(panel).toBeVisible()
 
+    await expect(page.getByTestId(TEST_IDS.AGENT_ACCORDION)).toBeVisible()
+    await expect(page.getByTestId(TEST_IDS.AGENT_PROMPT_INPUT)).toBeVisible()
+  })
+
+  test('creating and deleting sessions updates accordion', async ({ page }) => {
+    await page.locator('.activity-bar .activity-bar-btn[title="Agent Sessions"]').click()
+
     const sessions = page.getByTestId(TEST_IDS.AGENT_SESSION_ITEM)
     const initialCount = await sessions.count()
-    await expect(initialCount).toBeGreaterThan(0)
+    expect(initialCount).toBeGreaterThan(0)
 
-    const newSessionBtn = page.getByTestId(TEST_IDS.AGENT_NEW_SESSION_BTN)
-    await newSessionBtn.click()
+    await page.getByTestId(TEST_IDS.AGENT_NEW_SESSION_BTN).click()
     await expect(sessions).toHaveCount(initialCount + 1)
 
-    const contextInput = page.getByTestId(TEST_IDS.AGENT_CONTEXT_INPUT)
-    await expect(contextInput).toBeVisible()
-    await contextInput.fill('# Billing Agent Session\nPlan migration tasks')
-
-    await expect(sessions.first().locator('.agent-session-name')).toHaveText(/Billing Agent Session/)
-
-    await sessions.first().locator(`[data-testid="${TEST_IDS.AGENT_DELETE_SESSION_BTN}"]`).click()
+    await sessions
+      .first()
+      .getByTestId(TEST_IDS.AGENT_DELETE_SESSION_BTN)
+      .click()
     await expect(sessions).toHaveCount(initialCount)
+  })
+
+  test('top-level Agent tab shows the detail pane', async ({ page }) => {
+    await page.getByTestId(TEST_IDS.VIEW_AGENT_BTN).click()
+    await expect(page.getByTestId(TEST_IDS.AGENT_VIEW)).toBeVisible()
+    await expect(page.getByTestId(TEST_IDS.AGENT_DETAIL_PANE)).toBeVisible()
   })
 })

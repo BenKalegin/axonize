@@ -8,9 +8,13 @@ import { RelatedDocsPanel } from './Sidebar/RelatedDocsPanel'
 import { ContentView } from './Content/ContentView'
 import { CommandPalette } from './Command/CommandPalette'
 import { useLayoutStore, ACTIVITY_BAR_WIDTH } from '@/store/layout-store'
+import { useVaultStore } from '@/store/vault-store'
+import { useAgentBootstrap } from '@/store/agent-store'
 
 export function Shell() {
   const { activePanelId, activeRightPanelId, sidePanelWidth, rightPanelWidth } = useLayoutStore()
+  const vaultPath = useVaultStore((s) => s.vaultPath)
+  useAgentBootstrap(vaultPath)
 
   const rightPanelW = activeRightPanelId ? `${rightPanelWidth}px` : '0px'
 

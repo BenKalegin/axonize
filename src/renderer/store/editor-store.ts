@@ -1,7 +1,14 @@
 import { create } from 'zustand'
 import { useVaultStore } from './vault-store'
 
-type ViewMode = 'markdown' | 'graph'
+export const ViewMode = {
+  Markdown: 'markdown',
+  Presentation: 'presentation',
+  Graph: 'graph',
+  Agent: 'agent'
+} as const
+
+export type ViewMode = (typeof ViewMode)[keyof typeof ViewMode]
 
 function splitLocation(loc: string): [string, string | null] {
   const idx = loc.indexOf('#')
@@ -17,6 +24,31 @@ function scrollToHash(hash: string | null): void {
   })
 }
 
+function preserveIfPresentation(current: ViewMode): ViewMode {
+  return current === ViewMode.Presentation ? ViewMode.Presentation : ViewMode.Markdown
+}
+
+function applyHistoryStep(
+  get: () => EditorState,
+  set: (partial: Partial<EditorState>) => void,
+  newIndex: number
+): void {
+  const { history, selectedFile, viewMode } = get()
+  const [path, hash] = splitLocation(history[newIndex])
+  const fileChanged = path !== selectedFile
+
+  set({
+    selectedFile: path,
+    scrollHash: hash,
+    viewMode: preserveIfPresentation(viewMode),
+    historyIndex: newIndex,
+    canGoBack: newIndex > 0,
+    canGoForward: newIndex < history.length - 1
+  })
+
+  if (!fileChanged) scrollToHash(hash)
+}
+
 interface EditorState {
   viewMode: ViewMode
   selectedFile: string | null
@@ -25,7 +57,6 @@ interface EditorState {
   historyIndex: number
   canGoBack: boolean
   canGoForward: boolean
-  presentationMode: boolean
   presentationIndex: number
   presentationTotal: number
   setViewMode: (mode: ViewMode) => void
@@ -33,7 +64,6 @@ interface EditorState {
   clear: () => void
   goBack: () => void
   goForward: () => void
-  setPresentationMode: (on: boolean) => void
   setPresentationIndex: (i: number) => void
   setPresentationTotal: (n: number) => void
   presentationNext: () => void
@@ -41,21 +71,27 @@ interface EditorState {
 }
 
 export const useEditorStore = create<EditorState>((set, get) => ({
-  viewMode: 'markdown',
+  viewMode: ViewMode.Markdown,
   selectedFile: null,
   scrollHash: null,
   history: [],
   historyIndex: -1,
   canGoBack: false,
   canGoForward: false,
-  presentationMode: false,
   presentationIndex: 0,
   presentationTotal: 0,
 
-  setViewMode: (mode: ViewMode) => set({ viewMode: mode }),
+  setViewMode: (mode: ViewMode) => {
+    const prev = get().viewMode
+    if (mode === ViewMode.Presentation && prev !== ViewMode.Presentation) {
+      set({ viewMode: mode, presentationIndex: 0 })
+    } else {
+      set({ viewMode: mode })
+    }
+  },
 
   selectFile: (location: string) => {
-    const { history, historyIndex } = get()
+    const { history, historyIndex, viewMode } = get()
     const [path, hash] = splitLocation(location)
     const currentEntry = historyIndex >= 0 ? history[historyIndex] : null
 
@@ -71,11 +107,11 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     set({
       selectedFile: path,
       scrollHash: hash,
-      viewMode: 'markdown',
+      viewMode: preserveIfPresentation(viewMode),
       history: trimmed,
       historyIndex: newIndex,
       canGoBack: newIndex > 0,
-      canGoForward: false
+      canGoForward: newIndex < trimmed.length - 1
     })
 
     scrollToHash(hash)
@@ -89,56 +125,26 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   clear: () => set({
     selectedFile: null,
     scrollHash: null,
-    viewMode: 'markdown',
+    viewMode: ViewMode.Markdown,
     history: [],
     historyIndex: -1,
     canGoBack: false,
     canGoForward: false,
-    presentationMode: false,
     presentationIndex: 0,
     presentationTotal: 0
   }),
 
   goBack: () => {
-    const { history, historyIndex, selectedFile } = get()
+    const { historyIndex } = get()
     if (historyIndex <= 0) return
-    const newIndex = historyIndex - 1
-    const [path, hash] = splitLocation(history[newIndex])
-    const fileChanged = path !== selectedFile
-
-    set({
-      selectedFile: path,
-      scrollHash: hash,
-      viewMode: 'markdown',
-      historyIndex: newIndex,
-      canGoBack: newIndex > 0,
-      canGoForward: true
-    })
-
-    if (!fileChanged) scrollToHash(hash)
+    applyHistoryStep(get, set, historyIndex - 1)
   },
 
   goForward: () => {
-    const { history, historyIndex, selectedFile } = get()
+    const { history, historyIndex } = get()
     if (historyIndex >= history.length - 1) return
-    const newIndex = historyIndex + 1
-    const [path, hash] = splitLocation(history[newIndex])
-    const fileChanged = path !== selectedFile
-
-    set({
-      selectedFile: path,
-      scrollHash: hash,
-      viewMode: 'markdown',
-      historyIndex: newIndex,
-      canGoBack: true,
-      canGoForward: newIndex < history.length - 1
-    })
-
-    if (!fileChanged) scrollToHash(hash)
+    applyHistoryStep(get, set, historyIndex + 1)
   },
-
-  setPresentationMode: (on) =>
-    set({ presentationMode: on, presentationIndex: 0 }),
 
   setPresentationIndex: (i) =>
     set({ presentationIndex: i }),

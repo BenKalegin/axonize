@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import mermaid from 'mermaid'
 import elkLayouts from '@mermaid-js/layout-elk'
 import { TEST_IDS } from '@/lib/testids'
-import { useEditorStore } from '@/store/editor-store'
+import { useEditorStore, ViewMode } from '@/store/editor-store'
 import { useVaultStore } from '@/store/vault-store'
 import { splitSections, type MarkdownSection } from '@/lib/section-splitter'
 import { SectionBlock } from './SectionBlock'
@@ -45,10 +45,11 @@ export const MarkdownView = React.memo(function MarkdownView() {
   const {
     selectedFile,
     selectFile,
-    presentationMode,
+    viewMode,
     presentationIndex,
     setPresentationTotal
   } = useEditorStore()
+  const presentationMode = viewMode === ViewMode.Presentation
   const { vaultPath, fileTree } = useVaultStore()
 
   const [sections, setSections] = useState<MarkdownSection[]>([])

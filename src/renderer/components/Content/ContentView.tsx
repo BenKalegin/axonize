@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import { TEST_IDS } from '@/lib/testids'
-import { useEditorStore } from '@/store/editor-store'
+import { useEditorStore, ViewMode } from '@/store/editor-store'
 import { useVaultStore } from '@/store/vault-store'
 import { useRagStore } from '@/store/rag-store'
 import { useGeneratedDocsStore } from '@/store/generated-docs-store'
@@ -12,6 +12,7 @@ import { MakePermanentDialog } from '../Sidebar/MakePermanentDialog'
 import { GraphView } from '../Graph/GraphView'
 import { WelcomeScreen } from './WelcomeScreen'
 import { ZoomControls } from './ZoomControls'
+import { AgentView } from './AgentView'
 
 const ZOOM_STEPS = [50, 67, 80, 90, 100, 110, 125, 150, 175, 200]
 
@@ -19,13 +20,15 @@ export function ContentView() {
   const {
     viewMode,
     selectedFile,
-    presentationMode,
     presentationIndex,
     presentationTotal,
     presentationNext,
     presentationPrev,
-    setPresentationMode
+    setViewMode
   } = useEditorStore()
+  const presentationMode = viewMode === ViewMode.Presentation
+  const isGraph = viewMode === ViewMode.Graph
+  const isAgent = viewMode === ViewMode.Agent
   const { vaultPath } = useVaultStore()
   const { lastResponse, isQuerying } = useRagStore()
   const { docs } = useGeneratedDocsStore()
@@ -54,26 +57,23 @@ export function ContentView() {
 
   const resetZoom = useCallback(() => setZoomPercent(100), [])
 
-  // Apply zoom via ref to avoid re-rendering children (preserves mermaid SVGs)
-  // Don't apply CSS zoom to graph view - it has its own zoom handling
+  // Apply zoom via ref so mermaid SVGs don't re-render on every zoom step.
   useEffect(() => {
     if (scrollRef.current) {
-      if (viewMode === 'graph') {
-        // Reset zoom for graph view - canvas doesn't support CSS zoom
+      if (isGraph || isAgent) {
         scrollRef.current.style.zoom = '1'
       } else {
         scrollRef.current.style.zoom = String(zoomPercent / 100)
       }
     }
-  }, [zoomPercent, viewMode])
+  }, [zoomPercent, isGraph, isAgent])
 
   useEffect(() => {
     if (presentationMode) return
     const el = outerRef.current
     if (!el) return
     const handleWheel = (e: WheelEvent) => {
-      // Graph view handles its own optical zoom (wheel) and cognitive zoom (ctrl+wheel)
-      if (viewMode === 'graph') return
+      if (isGraph || isAgent) return
 
       if (!(e.metaKey || e.ctrlKey)) return
       e.preventDefault()
@@ -82,7 +82,7 @@ export function ContentView() {
     }
     el.addEventListener('wheel', handleWheel, { passive: false })
     return () => el.removeEventListener('wheel', handleWheel)
-  }, [zoomIn, zoomOut, presentationMode, viewMode])
+  }, [zoomIn, zoomOut, presentationMode, isGraph, isAgent])
 
   useEffect(() => {
     if (!presentationMode) return
@@ -95,14 +95,13 @@ export function ContentView() {
         presentationPrev()
       } else if (e.key === 'Escape') {
         e.preventDefault()
-        setPresentationMode(false)
+        setViewMode(ViewMode.Markdown)
       }
     }
     window.addEventListener('keydown', handleKey)
     return () => window.removeEventListener('keydown', handleKey)
-  }, [presentationMode, presentationNext, presentationPrev, setPresentationMode])
+  }, [presentationMode, presentationNext, presentationPrev, setViewMode])
 
-  // Click-to-advance and scroll wheel navigation in presentation mode
   useEffect(() => {
     if (!presentationMode) return
     const el = outerRef.current
@@ -133,47 +132,48 @@ export function ContentView() {
     [selectedFile, docs]
   )
 
-  // Don't show zoom controls for graph - CSS zoom doesn't work with canvas
-  const showZoom = vaultPath && viewMode !== 'graph' && (
+  const showZoom = vaultPath && !isGraph && !isAgent && (
     lastResponse ||
-    (viewMode === 'markdown' && selectedFile)
+    (viewMode === ViewMode.Markdown && selectedFile)
   )
 
-  const isGraph = vaultPath && viewMode === 'graph'
+  const renderBody = () => {
+    if (isAgent) return <AgentView />
+    if (vaultPath && isGraph) return <GraphView />
+    return (
+      <div className="content-scroll" ref={scrollRef}>
+        {!vaultPath ? (
+          <WelcomeScreen />
+        ) : lastResponse || isQuerying ? (
+          isQuerying ? (
+            <div className="empty-state" data-testid={TEST_IDS.EMPTY_STATE}>
+              <p>Querying...</p>
+            </div>
+          ) : (
+            <RAGAnswerView />
+          )
+        ) : selectedFile ? (
+          <>
+            {generatedDoc && (
+              <GeneratedDocHeader doc={generatedDoc} onMakePermanent={() => setPermanentDoc(generatedDoc)} />
+            )}
+            <MarkdownView />
+            {generatedDoc && generatedDoc.sources.length > 0 && (
+              <SourcesList sources={generatedDoc.sources} />
+            )}
+          </>
+        ) : (
+          <div className="empty-state" data-testid={TEST_IDS.EMPTY_STATE}>
+            <p>Select a file to view</p>
+          </div>
+        )}
+      </div>
+    )
+  }
 
   return (
     <div className="content-view" data-testid={TEST_IDS.CONTENT_VIEW} ref={outerRef}>
-      {isGraph ? (
-        <GraphView />
-      ) : (
-        <div className="content-scroll" ref={scrollRef}>
-          {!vaultPath ? (
-            <WelcomeScreen />
-          ) : lastResponse || isQuerying ? (
-            isQuerying ? (
-              <div className="empty-state" data-testid={TEST_IDS.EMPTY_STATE}>
-                <p>Querying...</p>
-              </div>
-            ) : (
-              <RAGAnswerView />
-            )
-          ) : selectedFile ? (
-            <>
-              {generatedDoc && (
-                <GeneratedDocHeader doc={generatedDoc} onMakePermanent={() => setPermanentDoc(generatedDoc)} />
-              )}
-              <MarkdownView />
-              {generatedDoc && generatedDoc.sources.length > 0 && (
-                <SourcesList sources={generatedDoc.sources} />
-              )}
-            </>
-          ) : (
-            <div className="empty-state" data-testid={TEST_IDS.EMPTY_STATE}>
-              <p>Select a file to view</p>
-            </div>
-          )}
-        </div>
-      )}
+      {renderBody()}
       {showZoom && (
         <ZoomControls
           zoom={zoomPercent}

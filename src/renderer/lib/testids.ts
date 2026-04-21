@@ -9,7 +9,9 @@ export const TEST_IDS = {
 
   // Toolbar
   VIEW_MARKDOWN_BTN: 'view-markdown-btn',
+  VIEW_PRESENTATION_BTN: 'view-presentation-btn',
   VIEW_GRAPH_BTN: 'view-graph-btn',
+  VIEW_AGENT_BTN: 'view-agent-btn',
   OPEN_VAULT_BTN: 'open-vault-btn',
   VAULT_NAME: 'vault-name',
 
@@ -79,13 +81,17 @@ export const TEST_IDS = {
 
   // Agent
   AGENT_PANEL: 'agent-panel',
+  AGENT_VIEW: 'agent-view',
+  AGENT_ACCORDION: 'agent-accordion',
   AGENT_NEW_SESSION_BTN: 'agent-new-session-btn',
   AGENT_SESSION_ITEM: 'agent-session-item',
+  AGENT_SESSION_TOGGLE: 'agent-session-toggle',
   AGENT_DELETE_SESSION_BTN: 'agent-delete-session-btn',
-  AGENT_CONTEXT_INPUT: 'agent-context-input',
   AGENT_PROMPT_INPUT: 'agent-prompt-input',
   AGENT_SEND_PROMPT_BTN: 'agent-send-prompt-btn',
-  AGENT_MESSAGE: 'agent-message',
+  AGENT_TURN: 'agent-turn',
+  AGENT_SHOW_DETAILS_BTN: 'agent-show-details-btn',
+  AGENT_DETAIL_PANE: 'agent-detail-pane',
 
   // Zoom Controls
   ZOOM_CONTROLS: 'zoom-controls',

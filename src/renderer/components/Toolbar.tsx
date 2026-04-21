@@ -1,13 +1,26 @@
 import { useState, useEffect, useRef } from 'react'
 import { TEST_IDS } from '@/lib/testids'
 import { useVaultStore } from '@/store/vault-store'
-import { useEditorStore } from '@/store/editor-store'
+import { useEditorStore, ViewMode } from '@/store/editor-store'
+
+interface TopTab {
+  id: ViewMode
+  label: string
+  testId: string
+}
+
+const TOP_TABS: TopTab[] = [
+  { id: ViewMode.Markdown, label: 'Markdown', testId: TEST_IDS.VIEW_MARKDOWN_BTN },
+  { id: ViewMode.Presentation, label: 'Presentation', testId: TEST_IDS.VIEW_PRESENTATION_BTN },
+  { id: ViewMode.Graph, label: 'Graph', testId: TEST_IDS.VIEW_GRAPH_BTN },
+  { id: ViewMode.Agent, label: 'Agent', testId: TEST_IDS.VIEW_AGENT_BTN }
+]
 import { useRagStore } from '@/store/rag-store'
 import { SettingsDialog } from './SettingsDialog'
 
 export function Toolbar() {
   const { vaultPath, vaultName, openVault, recentVaults, openRecentVault, openVaultInNewWindow, loadRecentVaults, removeRecentVault, refreshVault } = useVaultStore()
-  const { viewMode, setViewMode, presentationMode, setPresentationMode } = useEditorStore()
+  const { viewMode, setViewMode } = useEditorStore()
   const { chunkCount } = useRagStore()
   const [dropdownOpen, setDropdownOpen] = useState(false)
   const [settingsOpen, setSettingsOpen] = useState(false)
@@ -152,26 +165,16 @@ export function Toolbar() {
         )}
       </div>
       <div className="toolbar-center">
-        <button
-          data-testid={TEST_IDS.VIEW_MARKDOWN_BTN}
-          className={`toolbar-btn ${!presentationMode && viewMode === 'markdown' ? 'active' : ''}`}
-          onClick={() => { setPresentationMode(false); setViewMode('markdown') }}
-        >
-          Markdown
-        </button>
-        <button
-          className={`toolbar-btn ${presentationMode ? 'active' : ''}`}
-          onClick={() => setPresentationMode(!presentationMode)}
-        >
-          Presentation
-        </button>
-        <button
-          data-testid={TEST_IDS.VIEW_GRAPH_BTN}
-          className={`toolbar-btn ${!presentationMode && viewMode === 'graph' ? 'active' : ''}`}
-          onClick={() => { setPresentationMode(false); setViewMode('graph') }}
-        >
-          Graph
-        </button>
+        {TOP_TABS.map((tab) => (
+          <button
+            key={tab.id}
+            data-testid={tab.testId}
+            className={`toolbar-btn ${viewMode === tab.id ? 'active' : ''}`}
+            onClick={() => setViewMode(tab.id)}
+          >
+            {tab.label}
+          </button>
+        ))}
       </div>
       <div className="toolbar-right">
         {vaultPath && (

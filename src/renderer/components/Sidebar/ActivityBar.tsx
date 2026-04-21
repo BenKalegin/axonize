@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react'
 import { TEST_IDS } from '@/lib/testids'
 import { useLayoutStore, type SidePanelId } from '@/store/layout-store'
+import { useEditorStore, ViewMode } from '@/store/editor-store'
 
 interface ActivityItem {
   id: SidePanelId
@@ -67,6 +68,15 @@ const ACTIVITY_ITEMS: ActivityItem[] = [
 
 export function ActivityBar() {
   const { activePanelId, togglePanel } = useLayoutStore()
+  const setViewMode = useEditorStore((s) => s.setViewMode)
+
+  const handleClick = (id: SidePanelId) => {
+    const opening = activePanelId !== id
+    togglePanel(id)
+    if (id === 'agent' && opening) {
+      setViewMode(ViewMode.Agent)
+    }
+  }
 
   return (
     <div className="activity-bar" data-testid={TEST_IDS.ACTIVITY_BAR}>
@@ -75,7 +85,7 @@ export function ActivityBar() {
           key={item.id}
           className={`activity-bar-btn${activePanelId === item.id ? ' active' : ''}`}
           title={item.label}
-          onClick={() => togglePanel(item.id)}
+          onClick={() => handleClick(item.id)}
         >
           {item.icon}
         </button>
