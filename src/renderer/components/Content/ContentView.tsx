@@ -114,6 +114,8 @@ export function ContentView() {
     const handleClick = (e: MouseEvent) => {
       const target = e.target as HTMLElement
       if (target.closest('a, button, .presentation-bar')) return
+      const selection = window.getSelection()
+      if (selection && !selection.isCollapsed && selection.toString().length > 0) return
       presentationNext()
     }
 

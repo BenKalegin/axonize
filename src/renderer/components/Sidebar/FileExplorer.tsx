@@ -169,6 +169,24 @@ export function FileExplorer() {
     setCollapsedPaths(collapsed)
   }, [fileTree, selectedFile])
 
+  // When the selected file changes (e.g. via hlink navigation), expand its
+  // ancestor folders and focus the node so it scrolls into view.
+  useEffect(() => {
+    if (!selectedFile || fileTree.length === 0) return
+    const ancestors = ancestorDirPaths(selectedFile, fileTree as FileEntry[])
+    if (ancestors.size > 0) {
+      setCollapsedPaths(prev => {
+        let changed = false
+        const next = new Set(prev)
+        for (const dir of ancestors) {
+          if (next.delete(dir)) changed = true
+        }
+        return changed ? next : prev
+      })
+    }
+    setFocusedPath(selectedFile)
+  }, [selectedFile, fileTree])
+
   const handleRecentToggle = useCallback(async () => {
     if (recentOpen) {
       setRecentOpen(false)

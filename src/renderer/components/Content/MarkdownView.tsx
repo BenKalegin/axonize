@@ -41,6 +41,17 @@ function hashSimple(str: string): string {
   return h.toString(36)
 }
 
+function normalizePath(path: string): string {
+  const isAbsolute = path.startsWith('/')
+  const parts = path.split('/').filter((p) => p && p !== '.')
+  const stack: string[] = []
+  for (const part of parts) {
+    if (part === '..') stack.pop()
+    else stack.push(part)
+  }
+  return (isAbsolute ? '/' : '') + stack.join('/')
+}
+
 export const MarkdownView = React.memo(function MarkdownView() {
   const {
     selection,
@@ -225,7 +236,7 @@ export const MarkdownView = React.memo(function MarkdownView() {
       const target = cleanHref.endsWith('.md') ? cleanHref : `${cleanHref}.md`
       const fullPath = target.startsWith('/') ? target : `${currentDir}/${target}`
 
-      selectFile(`${fullPath}${hash}`)
+      selectFile(`${normalizePath(fullPath)}${hash}`)
     },
     [selectedFile, vaultPath, selectFile]
   )
