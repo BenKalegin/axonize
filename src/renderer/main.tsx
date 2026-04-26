@@ -42,8 +42,11 @@ window.__stores = {
   semanticErrors: useSemanticErrorsStore
 }
 
+const axonizeApi = window.axonize
+
+if (axonizeApi) {
 // Register index progress listener
-window.axonize.rag.onIndexProgress((payload: unknown) => {
+axonizeApi.rag.onIndexProgress((payload: unknown) => {
   useRagStore.getState().updateProgress(payload as {
     phase: 'scanning' | 'extracting' | 'embedding' | 'saving' | 'done'
     current: number
@@ -53,23 +56,24 @@ window.axonize.rag.onIndexProgress((payload: unknown) => {
 })
 
 // Register semantic error listeners
-window.axonize.semantic.onError((payload) => {
+axonizeApi.semantic.onError((payload) => {
   const err = payload as { file: string; phase: string; message: string; timestamp: number }
   useSemanticErrorsStore.getState().addError(err)
 })
 
-window.axonize.semantic.onErrorsClear(() => {
+axonizeApi.semantic.onErrorsClear(() => {
   useSemanticErrorsStore.getState().clearErrors()
 })
 
 // Register file change listener — refresh tree only (no auto-reindex)
-window.axonize.vault.onFilesChanged(() => {
+axonizeApi.vault.onFilesChanged(() => {
   const { vaultPath, loadFileTree } = useVaultStore.getState()
   if (!vaultPath) return
   loadFileTree(vaultPath).catch(() => {})
   useRagStore.getState().indexVault(vaultPath)
   // Semantic index is NOT auto-updated to prevent silent token usage
 })
+}
 
 // Hydrate layout settings on startup
 useLayoutStore.getState().hydrateFromSettings()
@@ -83,14 +87,14 @@ function getVaultFromHash(): string | null {
 
 const requestedVault = getVaultFromHash()
 
-if (requestedVault) {
+if (axonizeApi && requestedVault) {
   // Opened via "open in new window" — open the specified vault directly
   useVaultStore.getState().loadRecentVaults().then(() => {
     useVaultStore.getState().openRecentVault(requestedVault).then(() => {
       useRagStore.getState().indexVault(requestedVault)
     })
   })
-} else {
+} else if (axonizeApi) {
   // Normal startup — auto-open the most recent vault
   useVaultStore.getState().loadRecentVaults().then(() => {
     const { recentVaults, openRecentVault } = useVaultStore.getState()

@@ -2,9 +2,17 @@ import React, { useCallback, useEffect, useRef, useState } from 'react'
 import mermaid from 'mermaid'
 import { TEST_IDS } from '@/lib/testids'
 import { renderMarkdown } from '@/lib/markdown-renderer'
+import {
+  extractMermaidCodeFence,
+  isMermaidRenderSource,
+  prepareMermaidSourceForRender,
+  stripMermaidFrontmatter
+} from '@/lib/mermaid-render-source'
 import type { MarkdownSection } from '@/lib/section-splitter'
+import { VisualMermaidEditorModal } from './VisualMermaidEditorModal'
 
 let mermaidCounter = 0
+let mermaidRenderQueue: Promise<unknown> = Promise.resolve()
 
 const TEXTAREA_MIN_HEIGHT = 120
 
@@ -28,10 +36,19 @@ export const SectionBlock = React.memo(function SectionBlock({
   const [llmInstruction, setLlmInstruction] = useState('')
   const [llmLoading, setLlmLoading] = useState(false)
   const [llmError, setLlmError] = useState('')
+  const [visualOpen, setVisualOpen] = useState(false)
+  const [mermaidSvg, setMermaidSvg] = useState('')
+  const [mermaidError, setMermaidError] = useState('')
   const viewRef = useRef<HTMLDivElement>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
+  const isMermaidSection = section.kind === 'mermaid'
 
   useEffect(() => {
+    if (isMermaidSection) {
+      setHtml('')
+      return
+    }
+
     let cancelled = false
     renderMarkdown(section.rawMarkdown).then((result) => {
       if (!cancelled) {
@@ -42,7 +59,32 @@ export const SectionBlock = React.memo(function SectionBlock({
     return () => {
       cancelled = true
     }
-  }, [section.rawMarkdown])
+  }, [isMermaidSection, section.rawMarkdown])
+
+  useEffect(() => {
+    if (!isMermaidSection || editing) return
+
+    let cancelled = false
+    const rawSource = extractMermaidCodeFence(section.rawMarkdown) ?? section.rawMarkdown
+    renderMermaidSource(rawSource)
+      .then((svg) => {
+        if (cancelled) return
+        setMermaidSvg(svg)
+        setMermaidError('')
+        setSaving(false)
+      })
+      .catch((err) => {
+        if (cancelled) return
+        console.error('[mermaid] render failed:', err)
+        setMermaidSvg('')
+        setMermaidError(err instanceof Error ? err.message : 'Mermaid render failed')
+        setSaving(false)
+      })
+
+    return () => {
+      cancelled = true
+    }
+  }, [editing, isMermaidSection, renderKey, section.rawMarkdown])
 
   useEffect(() => {
     if (editing || !html || !viewRef.current) return
@@ -59,12 +101,14 @@ export const SectionBlock = React.memo(function SectionBlock({
     setLlmOpen(false)
     setLlmError('')
     setLlmInstruction('')
+    setVisualOpen(false)
   }, [section.rawMarkdown])
 
   const handleCancel = useCallback(() => {
     setEditing(false)
     setLlmOpen(false)
     setLlmError('')
+    setVisualOpen(false)
   }, [])
 
   const handleSave = useCallback(() => {
@@ -73,6 +117,7 @@ export const SectionBlock = React.memo(function SectionBlock({
     onSave(section.id, draft)
     setEditing(false)
     setLlmOpen(false)
+    setVisualOpen(false)
   }, [onSave, section.id, draft])
 
   const handleKeyDown = useCallback(
@@ -154,6 +199,15 @@ export const SectionBlock = React.memo(function SectionBlock({
             >
               AI Rewrite
             </button>
+            {isMermaidSection && (
+              <button
+                className="toolbar-btn"
+                data-testid={TEST_IDS.SECTION_VISUAL_EDIT_BTN}
+                onClick={() => setVisualOpen(true)}
+              >
+                Visual edit
+              </button>
+            )}
           </div>
           <textarea
             ref={textareaRef}
@@ -178,6 +232,16 @@ export const SectionBlock = React.memo(function SectionBlock({
             </div>
           )}
           {llmError && <div className="section-llm-error">{llmError}</div>}
+          {visualOpen && (
+            <VisualMermaidEditorModal
+              markdown={draft}
+              onApply={(nextMarkdown) => {
+                setDraft(nextMarkdown)
+                setVisualOpen(false)
+              }}
+              onClose={() => setVisualOpen(false)}
+            />
+          )}
         </div>
       </div>
     )
@@ -196,12 +260,26 @@ export const SectionBlock = React.memo(function SectionBlock({
       >
         edit
       </button>
-      <div
-        ref={viewRef}
-        className="section-view"
-        dangerouslySetInnerHTML={{ __html: html }}
-        onClick={onLinkClick}
-      />
+      {isMermaidSection ? (
+        <div className="section-view" onClick={onLinkClick}>
+          {mermaidSvg && (
+            <div
+              className="mermaid-diagram"
+              dangerouslySetInnerHTML={{ __html: mermaidSvg }}
+            />
+          )}
+          {mermaidError && (
+            <pre className="mermaid-render-error"><code>{section.rawMarkdown}</code></pre>
+          )}
+        </div>
+      ) : (
+        <div
+          ref={viewRef}
+          className="section-view"
+          dangerouslySetInnerHTML={{ __html: html }}
+          onClick={onLinkClick}
+        />
+      )}
     </div>
   )
 })
@@ -243,47 +321,81 @@ function normalizeMermaidSource(src: string): string {
 }
 
 async function replaceMermaidBlocks(container: HTMLElement): Promise<void> {
-  const codeBlocks = container.querySelectorAll('pre code.language-mermaid')
+  const codeBlocks = Array.from(container.querySelectorAll('pre code'))
   for (const codeEl of codeBlocks) {
     const pre = codeEl.parentElement
     if (!pre) continue
 
     const raw = codeEl.textContent ?? ''
     if (!raw.trim()) continue
-    const source = normalizeMermaidSource(raw)
+    if (!isMermaidRenderSource(raw, codeEl.getAttribute('class') ?? '')) continue
 
-    const id = `mermaid-${Date.now()}-${++mermaidCounter}`
+    const prepared = prepareMermaidSourceForRender(raw)
+    const source = normalizeMermaidSource(prepared)
+    const fallbackSource = normalizeMermaidSource(stripMermaidFrontmatter(prepared))
 
     try {
-      // Remove any stale temp container mermaid may have left behind for this id
-      document.getElementById(`d${id}`)?.remove()
-
-      const { svg } = await mermaid.render(id, source)
+      const svg = await renderMermaidPreparedSource(source, fallbackSource)
       const wrapper = document.createElement('div')
       wrapper.className = 'mermaid-diagram'
       wrapper.innerHTML = svg
-
-      // Lock diagram to its intrinsic viewBox size so text matches the page font size.
-      const svgEl = wrapper.querySelector('svg')
-      if (svgEl) {
-        const vb = svgEl.getAttribute('viewBox')
-        if (vb) {
-          const parts = vb.split(' ')
-          const intrinsicWidth = parseFloat(parts[2])
-          const intrinsicHeight = parseFloat(parts[3])
-          svgEl.removeAttribute('width')
-          svgEl.removeAttribute('height')
-          svgEl.removeAttribute('style')
-          svgEl.setAttribute('width', String(intrinsicWidth))
-          svgEl.setAttribute('height', String(intrinsicHeight))
-        }
-      }
+      lockSvgToIntrinsicSize(wrapper)
 
       pre.replaceWith(wrapper)
     } catch (err) {
       console.error('[mermaid] render failed:', err)
-      // Clean up temp container on failure
-      document.getElementById(`d${id}`)?.remove()
     }
   }
+}
+
+async function renderMermaidSource(rawSource: string): Promise<string> {
+  const prepared = prepareMermaidSourceForRender(rawSource)
+  const source = normalizeMermaidSource(prepared)
+  const fallbackSource = normalizeMermaidSource(stripMermaidFrontmatter(prepared))
+  const svg = await renderMermaidPreparedSource(source, fallbackSource)
+  const wrapper = document.createElement('div')
+  wrapper.innerHTML = svg
+  lockSvgToIntrinsicSize(wrapper)
+  return wrapper.innerHTML
+}
+
+function renderMermaidPreparedSource(source: string, fallbackSource: string): Promise<string> {
+  const id = `mermaid-${Date.now()}-${++mermaidCounter}`
+  const render = async () => {
+    document.getElementById(`d${id}`)?.remove()
+    document.getElementById(`d${id}-fallback`)?.remove()
+
+    try {
+      return (await mermaid.render(id, source)).svg
+    } catch (err) {
+      document.getElementById(`d${id}`)?.remove()
+      return (await mermaid.render(`${id}-fallback`, fallbackSource)).svg
+    } finally {
+      document.getElementById(`d${id}`)?.remove()
+      document.getElementById(`d${id}-fallback`)?.remove()
+    }
+  }
+
+  const queued = mermaidRenderQueue.then(render, render)
+  mermaidRenderQueue = queued.catch(() => {})
+  return queued
+}
+
+function lockSvgToIntrinsicSize(wrapper: HTMLElement): void {
+  const svgEl = wrapper.querySelector('svg')
+  if (!svgEl) return
+
+  const vb = svgEl.getAttribute('viewBox')
+  if (!vb) return
+
+  const parts = vb.split(' ')
+  const intrinsicWidth = parseFloat(parts[2])
+  const intrinsicHeight = parseFloat(parts[3])
+  if (!Number.isFinite(intrinsicWidth) || !Number.isFinite(intrinsicHeight)) return
+
+  svgEl.removeAttribute('width')
+  svgEl.removeAttribute('height')
+  svgEl.removeAttribute('style')
+  svgEl.setAttribute('width', String(intrinsicWidth))
+  svgEl.setAttribute('height', String(intrinsicHeight))
 }

@@ -148,6 +148,8 @@ export const TEST_IDS = {
   SECTION_SAVE_BTN: 'section-save-btn',
   SECTION_CANCEL_BTN: 'section-cancel-btn',
   SECTION_AI_BTN: 'section-ai-btn',
+  SECTION_VISUAL_EDIT_BTN: 'section-visual-edit-btn',
+  MERMAID_VISUAL_EDITOR: 'mermaid-visual-editor',
   SECTION_LLM_INPUT: 'section-llm-input',
   CONFLICT_DIALOG: 'conflict-dialog',
   CONFLICT_OVERRIDE_BTN: 'conflict-override-btn',
