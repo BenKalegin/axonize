@@ -16,6 +16,7 @@ const TOP_TABS: TopTab[] = [
 ]
 import { useRagStore } from '@/store/rag-store'
 import { SettingsDialog } from './SettingsDialog'
+import { JobStatusIndicator } from './JobStatusIndicator'
 
 export function Toolbar() {
   const { vaultPath, vaultName, openVault, recentVaults, openRecentVault, openVaultInNewWindow, loadRecentVaults, removeRecentVault, refreshVault } = useVaultStore()
@@ -176,6 +177,7 @@ export function Toolbar() {
         ))}
       </div>
       <div className="toolbar-right">
+        <JobStatusIndicator />
         {vaultPath && (
           <span className="index-status">{chunkCount} chunks</span>
         )}

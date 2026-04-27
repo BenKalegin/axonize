@@ -1274,6 +1274,48 @@
   white-space: nowrap;
 }
 
+/* Job Status Indicator */
+.job-status-indicator {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.job-status-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  color: var(--text-muted);
+  padding: 2px 8px;
+  border-radius: 4px;
+  background: var(--bg-overlay);
+  white-space: nowrap;
+}
+
+.job-status-spinner {
+  width: 10px;
+  height: 10px;
+  border: 1.5px solid var(--accent, var(--text-muted));
+  border-top-color: transparent;
+  border-radius: 50%;
+  animation: job-status-spin 0.9s linear infinite;
+  flex-shrink: 0;
+}
+
+.job-status-label {
+  color: var(--text);
+  font-weight: 500;
+}
+
+.job-status-detail {
+  color: var(--text-muted);
+}
+
+@keyframes job-status-spin {
+  to { transform: rotate(360deg); }
+}
+
 /* RAG Answer View */
 .rag-answer-view {
   flex: 1;

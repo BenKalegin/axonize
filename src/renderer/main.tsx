@@ -12,6 +12,7 @@ import { useSemanticErrorsStore } from './store/semantic-errors-store'
 import './styles/global.css'
 import './styles/layout.css'
 import 'highlight.js/styles/github-dark.min.css'
+import 'katex/dist/katex.min.css'
 
 // Expose stores on window for E2E testing
 declare global {
