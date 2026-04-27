@@ -14,7 +14,7 @@ interface WatcherEntry {
 const watchers = new Map<number, WatcherEntry>()
 
 function isIgnored(filename: string): boolean {
-  const parts = filename.split('/')
+  const parts = filename.split(/[\\/]/)
   return parts.some((part) => IGNORED_DIRS.has(part))
 }
 

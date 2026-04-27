@@ -1,6 +1,18 @@
 import { readdir } from 'fs/promises'
 import { join, relative } from 'path'
 
+const IGNORED_DIRS = new Set([
+  '.axonize',
+  '.cache',
+  '.git',
+  '.next',
+  'build',
+  'coverage',
+  'dist',
+  'node_modules',
+  'out'
+])
+
 export interface FileEntry {
   name: string
   path: string
@@ -26,6 +38,10 @@ async function scanDirectory(dirPath: string, rootPath: string): Promise<FileEnt
     })
 
   for (const entry of sorted) {
+    if (entry.isDirectory() && IGNORED_DIRS.has(entry.name)) {
+      continue
+    }
+
     const fullPath = join(dirPath, entry.name)
     const relPath = relative(rootPath, fullPath)
 

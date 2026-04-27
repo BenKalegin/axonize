@@ -462,6 +462,45 @@
 
 .mermaid-diagram svg {
   display: block;
+  color: var(--text-primary);
+}
+
+.mermaid-diagram svg text,
+.mermaid-diagram svg .nodeLabel,
+.mermaid-diagram svg .classTitle,
+.mermaid-diagram svg .classText {
+  fill: var(--text-primary) !important;
+  color: var(--text-primary) !important;
+}
+
+.mermaid-diagram svg .classGroup rect,
+.mermaid-diagram svg .node rect,
+.mermaid-diagram svg .node polygon,
+.mermaid-diagram svg .node circle,
+.mermaid-diagram svg .node ellipse {
+  fill: var(--bg-overlay) !important;
+  stroke: var(--accent) !important;
+}
+
+.mermaid-diagram svg .relation,
+.mermaid-diagram svg .edgePath path,
+.mermaid-diagram svg path.path,
+.mermaid-diagram svg line {
+  stroke: var(--text-secondary) !important;
+}
+
+.mermaid-diagram svg .edgeLabel,
+.mermaid-diagram svg .label {
+  color: var(--text-primary) !important;
+}
+
+.mermaid-diagram svg .edgeLabel rect,
+.mermaid-diagram svg .labelBkg {
+  fill: var(--bg-base) !important;
+}
+
+.mermaid-render-error {
+  border-color: var(--red) !important;
 }
 
 /* Section Block Editor */
@@ -688,6 +727,167 @@
   font-size: 12px;
   color: var(--red);
   padding: 4px 0;
+}
+
+.visual-editor-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  display: flex;
+  align-items: stretch;
+  justify-content: center;
+  padding: 28px;
+  background: rgba(0, 0, 0, 0.62);
+}
+
+.visual-editor-modal {
+  width: min(1480px, 100%);
+  height: 100%;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg-base);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  box-shadow: 0 20px 80px rgba(0, 0, 0, 0.55);
+  overflow: hidden;
+}
+
+.visual-editor-header {
+  flex-shrink: 0;
+  height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 0 12px 0 16px;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg-surface);
+}
+
+.visual-editor-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.visual-editor-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.visual-editor-canvas {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  background:
+    linear-gradient(var(--border) 1px, transparent 1px),
+    linear-gradient(90deg, var(--border) 1px, transparent 1px),
+    var(--bg-base);
+  background-size: 32px 32px;
+  background-position: -1px -1px;
+}
+
+.visual-editor-links {
+  position: absolute;
+  inset: 0;
+  width: 1800px;
+  height: 1200px;
+  pointer-events: none;
+  overflow: visible;
+}
+
+.visual-editor-link {
+  fill: none;
+  stroke: var(--text-muted);
+  stroke-width: 2;
+}
+
+.visual-editor-link-label {
+  fill: var(--text-secondary);
+  font-size: 12px;
+  paint-order: stroke;
+  stroke: var(--bg-base);
+  stroke-width: 4px;
+}
+
+.visual-editor-node {
+  position: absolute;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 12px 28px 12px 16px;
+  color: var(--text-primary);
+  background: var(--bg-surface);
+  border: 1px solid var(--accent);
+  border-radius: 6px;
+  cursor: grab;
+  user-select: none;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.28);
+}
+
+.visual-editor-node:active {
+  cursor: grabbing;
+}
+
+.visual-editor-node--locked {
+  border-color: var(--border);
+  cursor: default;
+}
+
+.visual-editor-node-title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.visual-editor-node-lock {
+  position: absolute;
+  top: 5px;
+  right: 5px;
+  width: 18px;
+  height: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 3px;
+  font-size: 9px;
+  font-weight: 700;
+  color: var(--text-muted);
+  background: var(--bg-overlay);
+}
+
+.visual-editor-node-lock:hover {
+  color: var(--text-primary);
+}
+
+.visual-editor-unsupported {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 20px;
+  overflow: auto;
+}
+
+.visual-editor-unsupported-title {
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+
+.visual-editor-unsupported pre {
+  margin: 0;
+  padding: 16px;
+  overflow: auto;
+  color: var(--text-secondary);
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: 6px;
 }
 
 .section-view > *:not(.mermaid-diagram) {
