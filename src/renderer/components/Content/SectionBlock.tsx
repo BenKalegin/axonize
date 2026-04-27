@@ -120,15 +120,52 @@ export const SectionBlock = React.memo(function SectionBlock({
     setVisualOpen(false)
   }, [onSave, section.id, draft])
 
+  const moveCursorToLineBoundary = useCallback(
+    (isHome: boolean, fullDocBoundary: boolean, extendSelection: boolean) => {
+      const ta = textareaRef.current
+      if (!ta) return
+      const { selectionStart, selectionEnd, value } = ta
+      let target: number
+      if (isHome) {
+        target = fullDocBoundary ? 0 : value.lastIndexOf('\n', selectionStart - 1) + 1
+      } else if (fullDocBoundary) {
+        target = value.length
+      } else {
+        const nextNewline = value.indexOf('\n', selectionEnd)
+        target = nextNewline === -1 ? value.length : nextNewline
+      }
+      if (extendSelection) {
+        if (isHome) ta.setSelectionRange(target, selectionEnd)
+        else ta.setSelectionRange(selectionStart, target)
+      } else {
+        ta.setSelectionRange(target, target)
+      }
+    },
+    []
+  )
+
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent) => {
-      if (e.key === 'Escape') handleCancel()
+      if (e.key === 'Escape') {
+        handleCancel()
+        return
+      }
       if (e.key === 's' && (e.metaKey || e.ctrlKey)) {
         e.preventDefault()
         handleSave()
+        return
+      }
+      if (e.key === 'Home' || e.key === 'End') {
+        e.preventDefault()
+        e.stopPropagation()
+        moveCursorToLineBoundary(e.key === 'Home', e.metaKey || e.ctrlKey, e.shiftKey)
+        return
+      }
+      if (e.key === 'PageUp' || e.key === 'PageDown') {
+        e.stopPropagation()
       }
     },
-    [handleCancel, handleSave]
+    [handleCancel, handleSave, moveCursorToLineBoundary]
   )
 
   const handleLlmSubmit = useCallback(async () => {
