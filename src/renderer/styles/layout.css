@@ -753,6 +753,10 @@
   overflow: hidden;
 }
 
+.visual-editor-modal--cloud {
+  width: min(1640px, 100%);
+}
+
 .visual-editor-header {
   flex-shrink: 0;
   height: 44px;
@@ -775,6 +779,27 @@
   display: flex;
   align-items: center;
   gap: 6px;
+}
+
+.visual-editor-cloud-host {
+  flex: 1;
+  min-height: 0;
+  background: var(--bg-base);
+}
+
+.visual-editor-cloud-warning {
+  position: fixed;
+  z-index: 205;
+  right: 36px;
+  bottom: 36px;
+  max-width: min(700px, calc(100vw - 72px));
+  padding: 10px 12px;
+  font-size: 12px;
+  color: var(--text-primary);
+  background: color-mix(in srgb, var(--bg-surface) 86%, var(--yellow) 14%);
+  border: 1px solid color-mix(in srgb, var(--yellow) 65%, var(--border) 35%);
+  border-radius: 8px;
+  box-shadow: 0 12px 36px rgba(0, 0, 0, 0.35);
 }
 
 .visual-editor-canvas {

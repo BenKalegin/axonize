@@ -9,7 +9,7 @@ import {
   stripMermaidFrontmatter
 } from '@/lib/mermaid-render-source'
 import type { MarkdownSection } from '@/lib/section-splitter'
-import { VisualMermaidEditorModal } from './VisualMermaidEditorModal'
+import { DiagramVisualEditorModal } from './DiagramVisualEditorModal'
 
 let mermaidCounter = 0
 let mermaidRenderQueue: Promise<unknown> = Promise.resolve()
@@ -270,7 +270,7 @@ export const SectionBlock = React.memo(function SectionBlock({
           )}
           {llmError && <div className="section-llm-error">{llmError}</div>}
           {visualOpen && (
-            <VisualMermaidEditorModal
+            <DiagramVisualEditorModal
               markdown={draft}
               onApply={(nextMarkdown) => {
                 setDraft(nextMarkdown)
