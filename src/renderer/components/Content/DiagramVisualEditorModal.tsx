@@ -1,9 +1,10 @@
 import { useCallback, useMemo, useState } from 'react'
 import {
-  CloudDiagramEditor,
+  CloudDiagramCanvas,
   createCloudDiagramDocument,
   importMermaidDiagram,
   PersistenceMode,
+  UndoRedoControls,
   type CloudDiagramDocument
 } from 'clouddiagram-editor'
 import { TEST_IDS } from '@/lib/testids'
@@ -71,29 +72,30 @@ export function DiagramVisualEditorModal({
     onApply(updateMermaidLayout(markdown, nodes))
   }, [currentDoc, fallbackNodeLookup, markdown, onApply])
 
+  const header = (
+    <div className="visual-editor-header">
+      <div className="visual-editor-title">Visual edit (CloudDiagram)</div>
+      <div className="visual-editor-actions">
+        <UndoRedoControls/>
+        <button className="toolbar-btn" onClick={onClose}>Cancel</button>
+        <button className="toolbar-btn active" onClick={handleApply}>Apply layout</button>
+      </div>
+    </div>
+  )
+
   return (
     <div className="visual-editor-backdrop" data-testid={TEST_IDS.MERMAID_VISUAL_EDITOR}>
       <div className="visual-editor-modal visual-editor-modal--cloud" role="dialog" aria-modal="true" aria-label="CloudDiagram editor">
-        <div className="visual-editor-header">
-          <div className="visual-editor-title">Visual edit (CloudDiagram)</div>
-          <div className="visual-editor-actions">
-            <button className="toolbar-btn" onClick={onClose}>Cancel</button>
-            <button className="toolbar-btn active" onClick={handleApply}>Apply layout</button>
-          </div>
-        </div>
-        <div className="visual-editor-cloud-host">
-          <CloudDiagramEditor
-            title="CloudDiagram"
-            value={initialDoc}
-            valueVersion={markdown.length}
-            onChange={setCurrentDoc}
-            persistenceMode={PersistenceMode.Host}
-            recoverOnMount={false}
-            showTopBar={true}
-            showPropertiesPane={true}
-            height="100%"
-          />
-        </div>
+        <CloudDiagramCanvas
+          header={header}
+          value={initialDoc}
+          valueVersion={markdown.length}
+          onChange={setCurrentDoc}
+          persistenceMode={PersistenceMode.Host}
+          recoverOnMount={false}
+          showPropertiesPane={true}
+          height="100%"
+        />
       </div>
     </div>
   )

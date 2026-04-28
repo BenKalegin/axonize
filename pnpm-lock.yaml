@@ -1832,7 +1832,7 @@ packages:
     engines: {node: '>=0.8'}
 
   clouddiagram-editor@file:../clouddiagram/react/clouddiagram-editor-0.1.0.tgz:
-    resolution: {integrity: sha512-xfAYPs2N4rUOHMTGe3IDxw5441pGtuT5O1TslMLAFCj50YvfAIfBq9WrA2ETQ9/ti3wZfGbn/sep2rOarzTkow==, tarball: file:../clouddiagram/react/clouddiagram-editor-0.1.0.tgz}
+    resolution: {integrity: sha512-9TFL0miVPUTrvRGiCdQQ3xFNtL3TrxjaMxm0KgODOIGVBO3Qh0xWwk91pjh+hhCqKT4406GxD+X3y0ddl5uWjA==, tarball: file:../clouddiagram/react/clouddiagram-editor-0.1.0.tgz}
     version: 0.1.0
     peerDependencies:
       react: '>=19'
