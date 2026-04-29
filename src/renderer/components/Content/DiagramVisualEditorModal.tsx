@@ -9,6 +9,11 @@ import {
 } from 'clouddiagram-editor'
 import { TEST_IDS } from '@/lib/testids'
 import {
+  DEFAULT_NODE_HEIGHT,
+  DEFAULT_NODE_WIDTH,
+  GRID_START_X,
+  GRID_START_Y,
+  isMermaidSafeIdentifier,
   MermaidVisualNode,
   parseMermaidVisualModel,
   updateMermaidLayout
@@ -23,7 +28,13 @@ interface DiagramVisualEditorModalProps {
 
 const ELEMENT_TYPE_CLASS_DIAGRAM = 2
 
-function createBaseCloudDiagram(): Record<string, unknown> {
+// Matches CloudDiagram's internal Diagram shape — kept loosely typed so we
+// don't bind to private clouddiagram-editor types.
+type ImportedDiagram = Record<string, unknown> & {
+  elements?: Record<string, Record<string, unknown>>
+}
+
+function createBaseCloudDiagram(): ImportedDiagram {
   return {
     id: 'axonize-mermaid',
     type: ELEMENT_TYPE_CLASS_DIAGRAM,
@@ -56,9 +67,10 @@ export function DiagramVisualEditorModal({
 
   const initialDoc = useMemo<CloudDiagramDocument>(() => {
     const source = extractMermaidCodeFence(markdown) ?? markdown
-    const imported = importMermaidDiagram(createBaseCloudDiagram() as Parameters<typeof importMermaidDiagram>[0], source)
-    const embeddedElements = (imported as { elements?: Record<string, Record<string, unknown>> }).elements ?? {}
-    return createCloudDiagramDocument(imported as Parameters<typeof createCloudDiagramDocument>[0], (id) => embeddedElements[id] as Parameters<Parameters<typeof createCloudDiagramDocument>[1] extends ((...args: never) => infer R) ? never : never>[0])
+    const baseDiagram = createBaseCloudDiagram() as ImportedDiagram
+    const imported = importMermaidDiagram(baseDiagram, source) as ImportedDiagram
+    const embeddedElements = imported.elements ?? {}
+    return createCloudDiagramDocument(imported, (id) => embeddedElements[id])
   }, [markdown])
 
   const [currentDoc, setCurrentDoc] = useState<CloudDiagramDocument>(initialDoc)
@@ -72,7 +84,7 @@ export function DiagramVisualEditorModal({
     onApply(updateMermaidLayout(markdown, nodes))
   }, [currentDoc, fallbackNodeLookup, markdown, onApply])
 
-  const header = (
+  const header = useMemo(() => (
     <div className="visual-editor-header">
       <div className="visual-editor-title">Visual edit (CloudDiagram)</div>
       <div className="visual-editor-actions">
@@ -81,7 +93,7 @@ export function DiagramVisualEditorModal({
         <button className="toolbar-btn active" onClick={handleApply}>Apply layout</button>
       </div>
     </div>
-  )
+  ), [onClose, handleApply])
 
   return (
     <div className="visual-editor-backdrop" data-testid={TEST_IDS.MERMAID_VISUAL_EDITOR}>
@@ -133,10 +145,10 @@ function extractMermaidVisualNodesFromCloudDoc(
     }
 
     const bounds = nodeData?.bounds ?? {}
-    const width = Number(bounds.width ?? 170)
-    const height = Number(bounds.height ?? 76)
-    const x = Number(bounds.x ?? 80)
-    const y = Number(bounds.y ?? 100)
+    const width = Number(bounds.width ?? DEFAULT_NODE_WIDTH)
+    const height = Number(bounds.height ?? DEFAULT_NODE_HEIGHT)
+    const x = Number(bounds.x ?? GRID_START_X)
+    const y = Number(bounds.y ?? GRID_START_Y)
     if (!Number.isFinite(width) || !Number.isFinite(height) || !Number.isFinite(x) || !Number.isFinite(y)) {
       continue
     }
@@ -153,8 +165,4 @@ function extractMermaidVisualNodesFromCloudDoc(
   }
 
   return nodes
-}
-
-function isMermaidSafeIdentifier(value: string): boolean {
-  return /^[A-Za-z_][\w-]*$/.test(value)
 }

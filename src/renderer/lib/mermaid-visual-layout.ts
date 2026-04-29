@@ -28,12 +28,16 @@ interface MermaidSourceParts {
   after: string
 }
 
-const DEFAULT_NODE_WIDTH = 170
-const DEFAULT_NODE_HEIGHT = 76
-const GRID_START_X = 80
-const GRID_START_Y = 100
+export const DEFAULT_NODE_WIDTH = 170
+export const DEFAULT_NODE_HEIGHT = 76
+export const GRID_START_X = 80
+export const GRID_START_Y = 100
 const GRID_GAP_X = 260
 const GRID_GAP_Y = 170
+
+export function isMermaidSafeIdentifier(value: string): boolean {
+  return /^[A-Za-z_][\w-]*$/.test(value)
+}
 
 export function isMermaidSection(markdown: string): boolean {
   return /^\s*```mermaid\b/i.test(markdown)
@@ -290,7 +294,7 @@ function stringifyAxonizeNodeLines(nodes: MermaidVisualNode[]): string[] {
 }
 
 function formatYamlKey(key: string): string {
-  return /^[A-Za-z_][\w-]*$/.test(key) ? key : JSON.stringify(key)
+  return isMermaidSafeIdentifier(key) ? key : JSON.stringify(key)
 }
 
 function unquote(value: string): string {
