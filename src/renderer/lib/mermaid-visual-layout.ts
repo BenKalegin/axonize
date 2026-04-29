@@ -34,9 +34,10 @@ export const GRID_START_X = 80
 export const GRID_START_Y = 100
 const GRID_GAP_X = 260
 const GRID_GAP_Y = 170
+const MERMAID_SAFE_ID_RE = /^[A-Za-z_][\w-]*$/
 
 export function isMermaidSafeIdentifier(value: string): boolean {
-  return /^[A-Za-z_][\w-]*$/.test(value)
+  return MERMAID_SAFE_ID_RE.test(value)
 }
 
 export function isMermaidSection(markdown: string): boolean {

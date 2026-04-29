@@ -11,10 +11,10 @@ x-axonize:
   editor: clouddiagram
   layout:
     nodes:
-      User: { x: 80, y: 120, width: 160, height: 80, locked: true }
-      Order: { x: 485, y: 126, width: 170, height: 80 }
-      PaymentService: { x: 75, y: 340, width: 210, height: 80 }
-      Inventory: { x: 431, y: 349, width: 180, height: 80 }
+      User: { x: 100, y: 100, width: 140, height: 90 }
+      Order: { x: 300, y: 100, width: 140, height: 108 }
+      PaymentService: { x: 500, y: 100, width: 140, height: 78 }
+      Inventory: { x: 700, y: 100, width: 140, height: 78 }
     spacing:
       User-Order: 260
       Order-PaymentService: 300

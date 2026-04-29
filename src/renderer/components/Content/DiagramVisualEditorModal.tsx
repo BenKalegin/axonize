@@ -28,8 +28,7 @@ interface DiagramVisualEditorModalProps {
 
 const ELEMENT_TYPE_CLASS_DIAGRAM = 2
 
-// Matches CloudDiagram's internal Diagram shape — kept loosely typed so we
-// don't bind to private clouddiagram-editor types.
+// Kept loosely typed so we don't bind to private clouddiagram-editor types.
 type ImportedDiagram = Record<string, unknown> & {
   elements?: Record<string, Record<string, unknown>>
 }
@@ -67,10 +66,11 @@ export function DiagramVisualEditorModal({
 
   const initialDoc = useMemo<CloudDiagramDocument>(() => {
     const source = extractMermaidCodeFence(markdown) ?? markdown
-    const baseDiagram = createBaseCloudDiagram() as ImportedDiagram
-    const imported = importMermaidDiagram(baseDiagram, source) as ImportedDiagram
-    const embeddedElements = imported.elements ?? {}
-    return createCloudDiagramDocument(imported, (id) => embeddedElements[id])
+    const baseDiagram = createBaseCloudDiagram() as unknown as Parameters<typeof importMermaidDiagram>[0]
+    const imported = importMermaidDiagram(baseDiagram, source)
+    const embeddedElements = (imported as unknown as ImportedDiagram).elements ?? {}
+    type ElementData = ReturnType<NonNullable<Parameters<typeof createCloudDiagramDocument>[1]>>
+    return createCloudDiagramDocument(imported, (id) => embeddedElements[id] as unknown as ElementData)
   }, [markdown])
 
   const [currentDoc, setCurrentDoc] = useState<CloudDiagramDocument>(initialDoc)
@@ -84,7 +84,7 @@ export function DiagramVisualEditorModal({
     onApply(updateMermaidLayout(markdown, nodes))
   }, [currentDoc, fallbackNodeLookup, markdown, onApply])
 
-  const header = useMemo(() => (
+  const header = (
     <div className="visual-editor-header">
       <div className="visual-editor-title">Visual edit (CloudDiagram)</div>
       <div className="visual-editor-actions">
@@ -93,7 +93,7 @@ export function DiagramVisualEditorModal({
         <button className="toolbar-btn active" onClick={handleApply}>Apply layout</button>
       </div>
     </div>
-  ), [onClose, handleApply])
+  )
 
   return (
     <div className="visual-editor-backdrop" data-testid={TEST_IDS.MERMAID_VISUAL_EDITOR}>
