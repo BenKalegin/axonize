@@ -1,4 +1,4 @@
-import { THEMES, DEFAULT_THEME_ID, type ThemeId, type ThemeColors } from '@core/themes'
+import { THEMES, DEFAULT_THEME_ID, type ThemeId, type ThemeMeta, type ThemeColors } from '@core/themes'
 
 /** CSS custom property name for each ThemeColors key. */
 const COLOR_TO_CSS_VAR: Record<keyof ThemeColors, string> = {
@@ -19,6 +19,13 @@ const COLOR_TO_CSS_VAR: Record<keyof ThemeColors, string> = {
   scrollbarThumb: '--scrollbar-thumb',
 }
 
+let _activeTheme: ThemeMeta = THEMES.find((t) => t.id === DEFAULT_THEME_ID)!
+
+/** Returns the currently active theme metadata. */
+export function getActiveTheme(): ThemeMeta {
+  return _activeTheme
+}
+
 /**
  * Apply a theme by setting CSS custom properties on `<html>`.
  * Falls back to the default theme when the given id is not found.
@@ -26,6 +33,8 @@ const COLOR_TO_CSS_VAR: Record<keyof ThemeColors, string> = {
 export function applyTheme(themeId: ThemeId): void {
   const theme = THEMES.find((t) => t.id === themeId) ?? THEMES.find((t) => t.id === DEFAULT_THEME_ID)
   if (!theme) return
+
+  _activeTheme = theme
 
   const root = document.documentElement
   const keys = Object.keys(COLOR_TO_CSS_VAR) as Array<keyof ThemeColors>

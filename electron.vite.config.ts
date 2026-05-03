@@ -30,8 +30,15 @@ export default defineConfig({
   },
   renderer: {
     root: resolve(__dirname, 'src/renderer'),
+    // Electron's bundled Chromium supports modern syntax. Default Vite/esbuild
+    // targets cause spurious transform failures on dep code (e.g. mermaid's
+    // destructured dynamic imports) under esbuild >= 0.28.
+    optimizeDeps: {
+      esbuildOptions: { target: 'esnext' }
+    },
     build: {
       outDir: 'out/renderer',
+      target: 'esnext',
       rollupOptions: {
         input: {
           index: resolve(__dirname, 'src/renderer/index.html')

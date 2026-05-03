@@ -5,8 +5,11 @@ import {
   importMermaidDiagram,
   PersistenceMode,
   UndoRedoControls,
-  type CloudDiagramDocument
+  type CloudDiagramDocument,
+  type DiagramTheme
 } from 'clouddiagram-editor'
+import { ThemeGroup } from '@core/themes'
+import { getActiveTheme } from '@/lib/theme-applier'
 import { TEST_IDS } from '@/lib/testids'
 import {
   DEFAULT_NODE_HEIGHT,
@@ -49,6 +52,20 @@ function createBaseCloudDiagram(): ImportedDiagram {
   }
 }
 
+function buildDiagramTheme(): DiagramTheme {
+  const { colors, group } = getActiveTheme()
+  return {
+    darkMode: group === ThemeGroup.Dark,
+    canvasBackground: colors.bgBase,
+    panelBackground: colors.bgSurface,
+    defaultColorSchema: {
+      strokeColor: colors.accent,
+      fillColor: colors.bgOverlay,
+      textColor: colors.textPrimary,
+    },
+  }
+}
+
 export function DiagramVisualEditorModal({
   markdown,
   onApply,
@@ -74,6 +91,7 @@ export function DiagramVisualEditorModal({
   }, [markdown])
 
   const [currentDoc, setCurrentDoc] = useState<CloudDiagramDocument>(initialDoc)
+  const diagramTheme = useMemo(() => buildDiagramTheme(), [])
 
   const handleApply = useCallback(() => {
     const nodes = extractMermaidVisualNodesFromCloudDoc(currentDoc, fallbackNodeLookup)
@@ -100,6 +118,7 @@ export function DiagramVisualEditorModal({
       <div className="visual-editor-modal visual-editor-modal--cloud" role="dialog" aria-modal="true" aria-label="CloudDiagram editor">
         <CloudDiagramCanvas
           header={header}
+          theme={diagramTheme}
           value={initialDoc}
           valueVersion={markdown.length}
           onChange={setCurrentDoc}
