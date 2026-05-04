@@ -1,0 +1,1 @@
+Run `pnpm audit` to check for vulnerabilities. If vulnerabilities are found, run `pnpm audit --fix` to auto-fix them. Then run `pnpm test` to verify no regressions were introduced by the fixes. Report a summary of: vulnerabilities found, what was fixed (if anything), and test results.
