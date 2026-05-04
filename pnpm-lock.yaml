@@ -1845,7 +1845,7 @@ packages:
     engines: {node: '>=0.8'}
 
   clouddiagram-editor@file:../clouddiagram/react/clouddiagram-editor-0.1.0.tgz:
-    resolution: {integrity: sha512-bG7IviXrB9MflcKIy+10Ly5KOgU9679GPV/ubCVmrSihltb22EZT+F+hIKkCfCIuZFuPXDhvDkNQ+q1BQbvq3w==, tarball: file:../clouddiagram/react/clouddiagram-editor-0.1.0.tgz}
+    resolution: {integrity: sha512-4NQssPzfMjIoLxe4wMJ4mfPbOFx8lWdsYoSCVmQxSFtYbGujeGdzqUbi1H2L79qm7A2MwMSe1hZwIGNow4dxHg==, tarball: file:../clouddiagram/react/clouddiagram-editor-0.1.0.tgz}
     version: 0.1.0
     peerDependencies:
       react: '>=19'

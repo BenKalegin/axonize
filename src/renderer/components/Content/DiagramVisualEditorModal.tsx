@@ -166,6 +166,26 @@ const MERMAID_FLOWCHART_ID_RE = /^(?:flowchart|class)-(.+?)-\d+$/
 const MERMAID_FALLBACK_NODE_WIDTH = 140
 const MERMAID_FALLBACK_NODE_HEIGHT = 60
 
+const TRANSLATE_RE = /translate\(\s*([-\d.]+)[\s,]+([-\d.]+)\s*\)/
+
+function readAncestorTranslate(node: Element): { x: number; y: number } {
+  let x = 0, y = 0
+  let current: Element | null = node.parentElement
+  while (current) {
+    const t = current.getAttribute('transform')
+    if (t) {
+      const match = t.match(TRANSLATE_RE)
+      if (match) {
+        const dx = Number(match[1])
+        const dy = Number(match[2])
+        if (Number.isFinite(dx) && Number.isFinite(dy)) { x += dx; y += dy }
+      }
+    }
+    current = current.parentElement
+  }
+  return { x, y }
+}
+
 function extractPositionsInline(svg: string): Map<string, MermaidNodePosition> {
   const positions = new Map<string, MermaidNodePosition>()
   if (!svg) return positions
@@ -177,11 +197,14 @@ function extractPositionsInline(svg: string): Map<string, MermaidNodePosition> {
     const id = dataId || (idMatch ? idMatch[1] : null)
     if (!id || positions.has(id)) continue
     const transform = node.getAttribute('transform') ?? ''
-    const tMatch = transform.match(/translate\(\s*([-\d.]+)[\s,]+([-\d.]+)\s*\)/)
+    const tMatch = transform.match(TRANSLATE_RE)
     if (!tMatch) continue
-    const cx = Number(tMatch[1])
-    const cy = Number(tMatch[2])
-    if (!Number.isFinite(cx) || !Number.isFinite(cy)) continue
+    const localX = Number(tMatch[1])
+    const localY = Number(tMatch[2])
+    if (!Number.isFinite(localX) || !Number.isFinite(localY)) continue
+    const ancestor = readAncestorTranslate(node)
+    const cx = localX + ancestor.x
+    const cy = localY + ancestor.y
     let width = MERMAID_FALLBACK_NODE_WIDTH
     let height = MERMAID_FALLBACK_NODE_HEIGHT
     const rect = node.querySelector('rect')
@@ -236,18 +259,38 @@ function applyMermaidLayoutToImported(
     }
   }
 
-  const display = (imported as { display?: { width?: number; height?: number; offset?: { x: number; y: number } } }).display
-  if (display) {
-    let maxRight = DISPLAY_MIN_WIDTH
-    let maxBottom = DISPLAY_MIN_HEIGHT
+  // Mermaid often emits coordinates that extend left/above origin (negative x/y).
+  // Konva clips at (0,0), so shift every node so the bounding box starts at
+  // (DISPLAY_PADDING, DISPLAY_PADDING) and size `display` to the full extent —
+  // otherwise fit-to-screen undershoots and nodes only appear once the user scrolls.
+  let minX = Infinity, minY = Infinity, maxRight = -Infinity, maxBottom = -Infinity
+  for (const node of Object.values(nodes)) {
+    const b = node.bounds
+    if (!b || b.x === undefined || b.y === undefined || b.width === undefined || b.height === undefined) continue
+    minX = Math.min(minX, b.x)
+    minY = Math.min(minY, b.y)
+    maxRight = Math.max(maxRight, b.x + b.width)
+    maxBottom = Math.max(maxBottom, b.y + b.height)
+  }
+  if (!Number.isFinite(minX) || !Number.isFinite(minY)) return
+
+  const shiftX = DISPLAY_PADDING - minX
+  const shiftY = DISPLAY_PADDING - minY
+  if (shiftX !== 0 || shiftY !== 0) {
     for (const node of Object.values(nodes)) {
       const b = node.bounds
-      if (!b || b.x === undefined || b.y === undefined || b.width === undefined || b.height === undefined) continue
-      maxRight = Math.max(maxRight, b.x + b.width)
-      maxBottom = Math.max(maxBottom, b.y + b.height)
+      if (!b || b.x === undefined || b.y === undefined) continue
+      b.x += shiftX
+      b.y += shiftY
     }
-    display.width = maxRight + DISPLAY_PADDING
-    display.height = maxBottom + DISPLAY_PADDING
+  }
+
+  const display = (imported as { display?: { width?: number; height?: number; offset?: { x: number; y: number } } }).display
+  if (display) {
+    const contentWidth = maxRight - minX
+    const contentHeight = maxBottom - minY
+    display.width = Math.max(DISPLAY_MIN_WIDTH, contentWidth + 2 * DISPLAY_PADDING)
+    display.height = Math.max(DISPLAY_MIN_HEIGHT, contentHeight + 2 * DISPLAY_PADDING)
   }
 }
 
