@@ -1,6 +1,6 @@
 import { createRoot } from 'react-dom/client'
 import { App } from './App'
-import { useVaultStore } from './store/vault-store'
+import { useVaultStore, getCurrentVaultFromSession } from './store/vault-store'
 import { useEditorStore } from './store/editor-store'
 import { useGraphStore } from './store/graph-store'
 import { useZoomStore } from './store/zoom-store'
@@ -86,21 +86,23 @@ function getVaultFromHash(): string | null {
   return params.get('vault') ? decodeURIComponent(params.get('vault')!) : null
 }
 
-const requestedVault = getVaultFromHash()
+// Resolve the vault to auto-open on startup.
+// Priority:
+//   1. sessionStorage — survives webContents.reload() so each window keeps its
+//      own vault on cmd+R, even when other windows have opened other vaults
+//      (which mutates the shared "recent vaults" list).
+//   2. URL hash — set by createWindow(vaultPath) for "open in new window".
+//   3. recentVaults[0] — first-launch fallback to most-recently-used vault.
+function resolveStartupVault(recentTop: string | null): string | null {
+  return getCurrentVaultFromSession() ?? getVaultFromHash() ?? recentTop
+}
 
-if (axonizeApi && requestedVault) {
-  // Opened via "open in new window" — open the specified vault directly
-  useVaultStore.getState().loadRecentVaults().then(() => {
-    useVaultStore.getState().openRecentVault(requestedVault).then(() => {
-      useRagStore.getState().indexVault(requestedVault)
-    })
-  })
-} else if (axonizeApi) {
-  // Normal startup — auto-open the most recent vault
+if (axonizeApi) {
   useVaultStore.getState().loadRecentVaults().then(() => {
     const { recentVaults, openRecentVault } = useVaultStore.getState()
-    if (recentVaults.length > 0) {
-      const vaultPath = recentVaults[0].path
+    const recentTop = recentVaults.length > 0 ? recentVaults[0].path : null
+    const vaultPath = resolveStartupVault(recentTop)
+    if (vaultPath) {
       openRecentVault(vaultPath).then(() => {
         useRagStore.getState().indexVault(vaultPath)
       })

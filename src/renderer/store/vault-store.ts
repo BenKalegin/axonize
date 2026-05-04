@@ -5,6 +5,27 @@ import { useRagStore } from './rag-store'
 import { useGraphStore } from './graph-store'
 import { useEditorStore } from './editor-store'
 
+// Per-window vault persistence. sessionStorage is per-renderer-process in Electron,
+// so it survives webContents.reload() (cmd+R) but not full app restart — exactly
+// what we want so each window keeps its own vault on reload.
+const CURRENT_VAULT_SESSION_KEY = 'axonize.currentVault'
+
+export function getCurrentVaultFromSession(): string | null {
+  try {
+    return sessionStorage.getItem(CURRENT_VAULT_SESSION_KEY)
+  } catch {
+    return null
+  }
+}
+
+function setCurrentVaultInSession(path: string): void {
+  try {
+    sessionStorage.setItem(CURRENT_VAULT_SESSION_KEY, path)
+  } catch {
+    /* sessionStorage unavailable */
+  }
+}
+
 async function loadSemanticCache(vaultPath: string): Promise<void> {
   const { cards, relations, dimensions } = await window.axonize.semantic.load(vaultPath)
   if (cards.length > 0) {
@@ -88,6 +109,7 @@ export const useVaultStore = create<VaultState>((set, get) => ({
     if (path) {
       useEditorStore.getState().clear()
       const name = vaultNameFromPath(path)
+      setCurrentVaultInSession(path)
       set({ vaultPath: path, vaultName: name })
       window.axonize.window.setTitle(name).catch(() => {})
       const files = await window.axonize.vault.readFiles(path) as FileEntry[]
@@ -125,6 +147,7 @@ export const useVaultStore = create<VaultState>((set, get) => ({
   openRecentVault: async (path: string) => {
     useEditorStore.getState().clear()
     const name = vaultNameFromPath(path)
+    setCurrentVaultInSession(path)
     set({ vaultPath: path, vaultName: name })
     window.axonize.window.setTitle(name).catch(() => {})
     const files = await window.axonize.vault.readFiles(path) as FileEntry[]
