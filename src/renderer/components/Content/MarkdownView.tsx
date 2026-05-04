@@ -102,6 +102,8 @@ export const MarkdownView = React.memo(function MarkdownView() {
   const presentationMode = viewMode === ViewMode.Presentation
   const { vaultPath, fileTree } = useVaultStore()
 
+  const fileDir = selectedFile ? selectedFile.replace(/\/[^/]+$/, '') : undefined
+
   const [sections, setSections] = useState<MarkdownSection[]>([])
   const [rawContent, setRawContent] = useState('')
   const [frontmatter, setFrontmatter] = useState('')
@@ -296,19 +298,19 @@ export const MarkdownView = React.memo(function MarkdownView() {
         {prevSlide && (
           <div className="presentation-adjacent presentation-adjacent--prev" style={{ opacity: ADJACENT_OPACITY }}>
             {prevSlide.map((s) => (
-              <SectionBlock key={s.id} section={s} onSave={handleSave} onLinkClick={handleLinkClick} />
+              <SectionBlock key={s.id} section={s} onSave={handleSave} onLinkClick={handleLinkClick} fileDir={fileDir} />
             ))}
           </div>
         )}
         <div className="presentation-current">
           {currentSlide.map((s) => (
-            <SectionBlock key={s.id} section={s} onSave={handleSave} onLinkClick={handleLinkClick} />
+            <SectionBlock key={s.id} section={s} onSave={handleSave} onLinkClick={handleLinkClick} fileDir={fileDir} />
           ))}
         </div>
         {nextSlide && (
           <div className="presentation-adjacent presentation-adjacent--next" style={{ opacity: ADJACENT_OPACITY }}>
             {nextSlide.map((s) => (
-              <SectionBlock key={s.id} section={s} onSave={handleSave} onLinkClick={handleLinkClick} />
+              <SectionBlock key={s.id} section={s} onSave={handleSave} onLinkClick={handleLinkClick} fileDir={fileDir} />
             ))}
           </div>
         )}
@@ -327,6 +329,7 @@ export const MarkdownView = React.memo(function MarkdownView() {
             section={section}
             onSave={handleSave}
             onLinkClick={handleLinkClick}
+            fileDir={fileDir}
           />
           <SectionInsert
             afterLine={section.endLine}

@@ -20,12 +20,14 @@ interface SectionBlockProps {
   section: MarkdownSection
   onSave: (sectionId: string, newMarkdown: string) => void
   onLinkClick: (e: React.MouseEvent) => void
+  fileDir?: string
 }
 
 export const SectionBlock = React.memo(function SectionBlock({
   section,
   onSave,
-  onLinkClick
+  onLinkClick,
+  fileDir
 }: SectionBlockProps) {
   const [editing, setEditing] = useState(false)
   const [draft, setDraft] = useState('')
@@ -50,7 +52,7 @@ export const SectionBlock = React.memo(function SectionBlock({
     }
 
     let cancelled = false
-    renderMarkdown(section.rawMarkdown).then((result) => {
+    renderMarkdown(section.rawMarkdown, fileDir).then((result) => {
       if (!cancelled) {
         setHtml(result)
         setSaving(false)
@@ -59,7 +61,7 @@ export const SectionBlock = React.memo(function SectionBlock({
     return () => {
       cancelled = true
     }
-  }, [isMermaidSection, section.rawMarkdown])
+  }, [isMermaidSection, section.rawMarkdown, fileDir])
 
   useEffect(() => {
     if (!isMermaidSection || editing) return

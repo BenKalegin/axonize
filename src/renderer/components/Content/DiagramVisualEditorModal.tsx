@@ -2,6 +2,7 @@ import { useCallback, useMemo, useState } from 'react'
 import {
   CloudDiagramCanvas,
   createCloudDiagramDocument,
+  defaultAppLayout,
   importMermaidDiagram,
   PersistenceMode,
   UndoRedoControls,
@@ -107,6 +108,7 @@ export function DiagramVisualEditorModal({
   const [currentDoc, setCurrentDoc] = useState<CloudDiagramDocument>(initialDoc)
   const [isFullscreen, setIsFullscreen] = useState(false)
   const diagramTheme = useMemo(() => buildDiagramTheme(), [])
+  const initialLayout = useMemo(() => ({ ...defaultAppLayout, propsPaneOpen: false }), [])
 
   const handleApply = useCallback(() => {
     const nodes = extractMermaidVisualNodesFromCloudDoc(currentDoc, fallbackNodeLookup)
@@ -151,6 +153,7 @@ export function DiagramVisualEditorModal({
           persistenceMode={PersistenceMode.Host}
           recoverOnMount={false}
           showPropertiesPane={true}
+          initialLayout={initialLayout}
           height="100%"
         />
       </div>

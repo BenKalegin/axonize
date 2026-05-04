@@ -66,7 +66,28 @@ const processor = unified()
   .use(rehypeHighlight, { detect: true })
   .use(rehypeStringify)
 
-export async function renderMarkdown(markdown: string): Promise<string> {
+function resolveAbsolutePath(dir: string, relative: string): string {
+  const parts = [...dir.split('/').filter(Boolean), ...relative.split('/')]
+  const stack: string[] = []
+  for (const part of parts) {
+    if (!part || part === '.') continue
+    if (part === '..') stack.pop()
+    else stack.push(part)
+  }
+  return '/' + stack.join('/')
+}
+
+function resolveImageSrcs(html: string, fileDir: string): string {
+  return html.replace(/(<img\b[^>]*?\bsrc=")([^"]*?)(")/g, (_match, pre, src, post) => {
+    if (!src || src.startsWith('http') || src.startsWith('file://') || src.startsWith('data:') || src.startsWith('/')) {
+      return `${pre}${src}${post}`
+    }
+    return `${pre}axonize-file://local${resolveAbsolutePath(fileDir, src)}${post}`
+  })
+}
+
+export async function renderMarkdown(markdown: string, fileDir?: string): Promise<string> {
   const result = await processor.process(markdown)
-  return String(result)
+  const html = String(result)
+  return fileDir ? resolveImageSrcs(html, fileDir) : html
 }

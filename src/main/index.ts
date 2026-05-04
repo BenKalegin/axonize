@@ -1,8 +1,35 @@
-import { app, BrowserWindow, ipcMain, Menu, nativeImage, shell } from 'electron'
-import { join } from 'path'
+import { app, BrowserWindow, ipcMain, Menu, nativeImage, protocol, session, shell } from 'electron'
+import { join, extname } from 'path'
+import { readFile } from 'fs/promises'
 import { registerIpcHandlers } from './ipc-handlers'
 import { loadWindowState, saveWindowState } from './window-state'
 import log from './logger'
+
+protocol.registerSchemesAsPrivileged([
+  { scheme: 'axonize-file', privileges: { secure: true, standard: true, supportFetchAPI: true } }
+])
+
+const MIME_TYPES: Record<string, string> = {
+  '.png': 'image/png',
+  '.jpg': 'image/jpeg',
+  '.jpeg': 'image/jpeg',
+  '.gif': 'image/gif',
+  '.webp': 'image/webp',
+  '.svg': 'image/svg+xml',
+  '.bmp': 'image/bmp',
+  '.ico': 'image/x-icon',
+}
+
+async function handleAxonizeFileRequest(request: Request): Promise<Response> {
+  try {
+    const filePath = decodeURIComponent(new URL(request.url).pathname)
+    const data = await readFile(filePath)
+    const mime = MIME_TYPES[extname(filePath).toLowerCase()] ?? 'application/octet-stream'
+    return new Response(data, { headers: { 'content-type': mime } })
+  } catch {
+    return new Response(null, { status: 404 })
+  }
+}
 
 const APP_NAME = 'Axonize'
 app.name = APP_NAME
@@ -159,6 +186,8 @@ app.whenReady().then(() => {
   ipcMain.handle('window:openNew', (_event, vaultPath?: string) => {
     createWindow(vaultPath)
   })
+
+  session.defaultSession.protocol.handle('axonize-file', handleAxonizeFileRequest)
 
   registerIpcHandlers()
   createWindow()
