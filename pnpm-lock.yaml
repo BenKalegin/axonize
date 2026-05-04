@@ -1845,7 +1845,7 @@ packages:
     engines: {node: '>=0.8'}
 
   clouddiagram-editor@file:../clouddiagram/react/clouddiagram-editor-0.1.0.tgz:
-    resolution: {integrity: sha512-4NQssPzfMjIoLxe4wMJ4mfPbOFx8lWdsYoSCVmQxSFtYbGujeGdzqUbi1H2L79qm7A2MwMSe1hZwIGNow4dxHg==, tarball: file:../clouddiagram/react/clouddiagram-editor-0.1.0.tgz}
+    resolution: {integrity: sha512-D8LYJphCbDKjsolqaElfeee+L89L94UAfGb1Enwlisr150ljh3k6wS6Qt1ZGdAGjhyGThU9mzd8OpUsp216DIg==, tarball: file:../clouddiagram/react/clouddiagram-editor-0.1.0.tgz}
     version: 0.1.0
     peerDependencies:
       react: '>=19'
@@ -8752,11 +8752,11 @@ snapshots:
 
   minimatch@3.1.5:
     dependencies:
-      brace-expansion: 5.0.4
+      brace-expansion: 5.0.5
 
   minimatch@5.1.9:
     dependencies:
-      brace-expansion: 5.0.4
+      brace-expansion: 5.0.5
 
   minimatch@9.0.9:
     dependencies:

@@ -131,9 +131,9 @@ export const MarkdownView = React.memo(function MarkdownView() {
   useEffect(() => {
     if (!selectedFile) return
     let cancelled = false
-    loadFile(selectedFile).then(() => {
-      if (cancelled) return
-    })
+    loadFile(selectedFile)
+      .then(() => { if (cancelled) return })
+      .catch(() => {})
     return () => {
       cancelled = true
     }
@@ -179,7 +179,12 @@ export const MarkdownView = React.memo(function MarkdownView() {
     async (sectionId: string, newMarkdown: string) => {
       if (!selectedFile) return
 
-      const diskContent = await window.axonize.file.read(selectedFile)
+      let diskContent: string
+      try {
+        diskContent = await window.axonize.file.read(selectedFile)
+      } catch {
+        return
+      }
       const diskHash = hashSimple(diskContent)
 
       if (diskHash !== fileHashRef.current) {
