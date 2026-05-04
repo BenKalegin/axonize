@@ -22,12 +22,18 @@ import {
   updateMermaidLayout
 } from '@/lib/mermaid-visual-layout'
 import { extractMermaidCodeFence } from '@/lib/mermaid-render-source'
+import { MermaidNodePosition } from '@/lib/mermaid-svg-layout'
 
 interface DiagramVisualEditorModalProps {
   markdown: string
+  renderedSvg?: string
   onApply: (markdown: string) => void
   onClose: () => void
 }
+
+const DISPLAY_PADDING = 80
+const DISPLAY_MIN_WIDTH = 800
+const DISPLAY_MIN_HEIGHT = 600
 
 const ELEMENT_TYPE_CLASS_DIAGRAM = 2
 
@@ -68,6 +74,7 @@ function buildDiagramTheme(): DiagramTheme {
 
 export function DiagramVisualEditorModal({
   markdown,
+  renderedSvg,
   onApply,
   onClose
 }: DiagramVisualEditorModalProps) {
@@ -84,13 +91,21 @@ export function DiagramVisualEditorModal({
   const initialDoc = useMemo<CloudDiagramDocument>(() => {
     const source = extractMermaidCodeFence(markdown) ?? markdown
     const baseDiagram = createBaseCloudDiagram() as unknown as Parameters<typeof importMermaidDiagram>[0]
-    const imported = importMermaidDiagram(baseDiagram, source)
-    const embeddedElements = (imported as unknown as ImportedDiagram).elements ?? {}
+    const imported = importMermaidDiagram(baseDiagram, source) as unknown as ImportedDiagram
+    const positions = renderedSvg ? extractPositionsInline(renderedSvg) : new Map<string, MermaidNodePosition>()
+    if (positions.size > 0) {
+      applyMermaidLayoutToImported(imported, positions)
+    }
+    const embeddedElements = imported.elements ?? {}
     type ElementData = ReturnType<NonNullable<Parameters<typeof createCloudDiagramDocument>[1]>>
-    return createCloudDiagramDocument(imported, (id) => embeddedElements[id] as unknown as ElementData)
-  }, [markdown])
+    return createCloudDiagramDocument(
+      imported as unknown as Parameters<typeof createCloudDiagramDocument>[0],
+      (id) => embeddedElements[id] as unknown as ElementData
+    )
+  }, [markdown, renderedSvg])
 
   const [currentDoc, setCurrentDoc] = useState<CloudDiagramDocument>(initialDoc)
+  const [isFullscreen, setIsFullscreen] = useState(false)
   const diagramTheme = useMemo(() => buildDiagramTheme(), [])
 
   const handleApply = useCallback(() => {
@@ -107,15 +122,26 @@ export function DiagramVisualEditorModal({
       <div className="visual-editor-title">Visual edit (CloudDiagram)</div>
       <div className="visual-editor-actions">
         <UndoRedoControls/>
+        <button
+          className="toolbar-btn"
+          onClick={() => setIsFullscreen(prev => !prev)}
+          title={isFullscreen ? "Exit full screen" : "Full screen"}
+          aria-pressed={isFullscreen}
+        >
+          {isFullscreen ? "Restore" : "Full screen"}
+        </button>
         <button className="toolbar-btn" onClick={onClose}>Cancel</button>
         <button className="toolbar-btn active" onClick={handleApply}>Apply layout</button>
       </div>
     </div>
   )
 
+  const backdropClassName = `visual-editor-backdrop${isFullscreen ? ' visual-editor-backdrop--fullscreen' : ''}`
+  const modalClassName = `visual-editor-modal visual-editor-modal--cloud${isFullscreen ? ' visual-editor-modal--fullscreen' : ''}`
+
   return (
-    <div className="visual-editor-backdrop" data-testid={TEST_IDS.MERMAID_VISUAL_EDITOR}>
-      <div className="visual-editor-modal visual-editor-modal--cloud" role="dialog" aria-modal="true" aria-label="CloudDiagram editor">
+    <div className={backdropClassName} data-testid={TEST_IDS.MERMAID_VISUAL_EDITOR}>
+      <div className={modalClassName} role="dialog" aria-modal="true" aria-label="CloudDiagram editor">
         <CloudDiagramCanvas
           header={header}
           theme={diagramTheme}
@@ -134,6 +160,95 @@ export function DiagramVisualEditorModal({
 
 function normalizeNodeKey(value: string): string {
   return value.trim().replace(/\s+/g, ' ').toLowerCase()
+}
+
+const MERMAID_FLOWCHART_ID_RE = /^(?:flowchart|class)-(.+?)-\d+$/
+const MERMAID_FALLBACK_NODE_WIDTH = 140
+const MERMAID_FALLBACK_NODE_HEIGHT = 60
+
+function extractPositionsInline(svg: string): Map<string, MermaidNodePosition> {
+  const positions = new Map<string, MermaidNodePosition>()
+  if (!svg) return positions
+  const doc = new DOMParser().parseFromString(`<div>${svg}</div>`, 'text/html')
+  for (const node of Array.from(doc.querySelectorAll('g.node'))) {
+    const dataId = node.getAttribute('data-id')
+    const idAttr = node.getAttribute('id') ?? ''
+    const idMatch = idAttr.match(MERMAID_FLOWCHART_ID_RE)
+    const id = dataId || (idMatch ? idMatch[1] : null)
+    if (!id || positions.has(id)) continue
+    const transform = node.getAttribute('transform') ?? ''
+    const tMatch = transform.match(/translate\(\s*([-\d.]+)[\s,]+([-\d.]+)\s*\)/)
+    if (!tMatch) continue
+    const cx = Number(tMatch[1])
+    const cy = Number(tMatch[2])
+    if (!Number.isFinite(cx) || !Number.isFinite(cy)) continue
+    let width = MERMAID_FALLBACK_NODE_WIDTH
+    let height = MERMAID_FALLBACK_NODE_HEIGHT
+    const rect = node.querySelector('rect')
+    if (rect) {
+      const w = Number(rect.getAttribute('width'))
+      const h = Number(rect.getAttribute('height'))
+      if (Number.isFinite(w) && w > 0) width = w
+      if (Number.isFinite(h) && h > 0) height = h
+    }
+    const label = node.querySelector('g.label')?.textContent?.trim() || undefined
+    positions.set(id, {
+      x: cx - width / 2,
+      y: cy - height / 2,
+      width,
+      height,
+      label
+    })
+  }
+  return positions
+}
+
+type NodeBoundsRecord = Record<string, { bounds?: { x?: number; y?: number; width?: number; height?: number } }>
+
+function applyMermaidLayoutToImported(
+  imported: ImportedDiagram,
+  positionsByUserId: Map<string, MermaidNodePosition>
+): void {
+  const elements = imported.elements ?? {}
+  const nodes = (imported as { nodes?: NodeBoundsRecord }).nodes
+  if (!nodes) return
+
+  const labelToPosition = new Map<string, MermaidNodePosition>()
+  for (const position of positionsByUserId.values()) {
+    if (position.label) labelToPosition.set(normalizeNodeKey(position.label), position)
+  }
+
+  for (const [cdId, nodeData] of Object.entries(nodes)) {
+    const element = elements[cdId]
+    const text = typeof element?.text === 'string' ? element.text : undefined
+    if (!text) continue
+
+    const position =
+      positionsByUserId.get(text) ??
+      labelToPosition.get(normalizeNodeKey(text))
+    if (!position) continue
+
+    nodeData.bounds = {
+      x: position.x,
+      y: position.y,
+      width: position.width,
+      height: position.height
+    }
+  }
+
+  const display = (imported as { display?: { width?: number; height?: number; offset?: { x: number; y: number } } }).display
+  if (display) {
+    let maxRight = DISPLAY_MIN_WIDTH
+    let maxBottom = DISPLAY_MIN_HEIGHT
+    for (const node of Object.values(nodes)) {
+      const b = node.bounds
+      if (!b || b.x === undefined || b.y === undefined || b.width === undefined || b.height === undefined) continue
+      maxRight = Math.max(maxRight, b.x + b.width)
+      maxBottom = Math.max(maxBottom, b.y + b.height)
+    }
+    display.width = maxRight + DISPLAY_PADDING
+    display.height = maxBottom + DISPLAY_PADDING
+  }
 }
 
 function extractMermaidVisualNodesFromCloudDoc(

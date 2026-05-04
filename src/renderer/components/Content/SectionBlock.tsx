@@ -272,6 +272,7 @@ export const SectionBlock = React.memo(function SectionBlock({
           {visualOpen && (
             <DiagramVisualEditorModal
               markdown={draft}
+              renderedSvg={mermaidSvg}
               onApply={(nextMarkdown) => {
                 setDraft(nextMarkdown)
                 setVisualOpen(false)
