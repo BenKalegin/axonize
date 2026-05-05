@@ -1,8 +1,21 @@
 import { create } from 'zustand'
 import type { UILayoutConfig } from '@core/rag/types'
 
-export type SidePanelId = 'files' | 'git' | 'outline' | 'agent' | 'llm-log' | 'errors'
-export type RightPanelId = 'properties' | 'related'
+export const SidePanelId = {
+  Files: 'files',
+  Git: 'git',
+  Outline: 'outline',
+  Agent: 'agent',
+  LlmLog: 'llm-log',
+  Errors: 'errors'
+} as const
+export type SidePanelId = (typeof SidePanelId)[keyof typeof SidePanelId]
+
+export const RightPanelId = {
+  Properties: 'properties',
+  Related: 'related'
+} as const
+export type RightPanelId = (typeof RightPanelId)[keyof typeof RightPanelId]
 
 export const ACTIVITY_BAR_WIDTH = 48
 const MIN_PANEL_WIDTH = 160
@@ -32,8 +45,8 @@ interface LayoutState {
 }
 
 export const useLayoutStore = create<LayoutState>((set, get) => ({
-  activePanelId: 'files',
-  activeRightPanelId: 'properties',
+  activePanelId: SidePanelId.Files,
+  activeRightPanelId: null,
   sidePanelWidth: DEFAULT_PANEL_WIDTH,
   rightPanelWidth: DEFAULT_RIGHT_PANEL_WIDTH,
   rightDrawerOpen: true,
@@ -64,8 +77,8 @@ export const useLayoutStore = create<LayoutState>((set, get) => ({
       }
       if (settings?.ui) {
         set({
-          activePanelId: (settings.ui.activePanelId as SidePanelId | null) ?? 'files',
-          activeRightPanelId: (settings.ui.activeRightPanelId as RightPanelId | null) ?? 'properties',
+          activePanelId: (settings.ui.activePanelId as SidePanelId | null) ?? SidePanelId.Files,
+          activeRightPanelId: (settings.ui.activeRightPanelId as RightPanelId | null) ?? null,
           sidePanelWidth: Math.min(
             maxPanelWidth(),
             Math.max(MIN_PANEL_WIDTH, settings.ui.sidePanelWidth ?? DEFAULT_PANEL_WIDTH)

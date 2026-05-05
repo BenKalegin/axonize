@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react'
 import { TEST_IDS } from '@/lib/testids'
-import { useLayoutStore, type SidePanelId } from '@/store/layout-store'
+import { useLayoutStore, SidePanelId } from '@/store/layout-store'
 
 interface ActivityItem {
   id: SidePanelId
@@ -57,12 +57,12 @@ const AgentIcon = () => (
 )
 
 const ACTIVITY_ITEMS: ActivityItem[] = [
-  { id: 'files', label: 'Explorer', icon: <FilesIcon /> },
-  { id: 'git', label: 'Source Control', icon: <GitIcon /> },
-  { id: 'outline', label: 'Outline', icon: <OutlineIcon /> },
-  { id: 'agent', label: 'Agent Sessions', icon: <AgentIcon /> },
-  { id: 'llm-log', label: 'LLM Log', icon: <LLMLogIcon /> },
-  { id: 'errors', label: 'Errors', icon: <ErrorsIcon /> }
+  { id: SidePanelId.Files, label: 'Explorer', icon: <FilesIcon /> },
+  { id: SidePanelId.Git, label: 'Source Control', icon: <GitIcon /> },
+  { id: SidePanelId.Outline, label: 'Outline', icon: <OutlineIcon /> },
+  { id: SidePanelId.Agent, label: 'Agent Sessions', icon: <AgentIcon /> },
+  { id: SidePanelId.LlmLog, label: 'LLM Log', icon: <LLMLogIcon /> },
+  { id: SidePanelId.Errors, label: 'Errors', icon: <ErrorsIcon /> }
 ]
 
 export function ActivityBar() {

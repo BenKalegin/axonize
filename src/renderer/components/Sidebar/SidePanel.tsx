@@ -1,6 +1,6 @@
 import { useCallback, useRef } from 'react'
 import { TEST_IDS } from '@/lib/testids'
-import { useLayoutStore } from '@/store/layout-store'
+import { useLayoutStore, SidePanelId } from '@/store/layout-store'
 import { FileExplorer } from './FileExplorer'
 import { GitPanel } from './GitPanel'
 import { LLMLogPanel } from './LLMLogPanel'
@@ -50,12 +50,12 @@ export function SidePanel() {
       style={{ position: 'relative' }}
     >
       <div className="side-panel-content">
-        {activePanelId === 'files' && <FileExplorer />}
-        {activePanelId === 'git' && <GitPanel />}
-        {activePanelId === 'outline' && <OutlinePanel />}
-        {activePanelId === 'agent' && <AgentPanel />}
-        {activePanelId === 'llm-log' && <LLMLogPanel />}
-        {activePanelId === 'errors' && <SemanticErrorsPanel />}
+        {activePanelId === SidePanelId.Files && <FileExplorer />}
+        {activePanelId === SidePanelId.Git && <GitPanel />}
+        {activePanelId === SidePanelId.Outline && <OutlinePanel />}
+        {activePanelId === SidePanelId.Agent && <AgentPanel />}
+        {activePanelId === SidePanelId.LlmLog && <LLMLogPanel />}
+        {activePanelId === SidePanelId.Errors && <SemanticErrorsPanel />}
       </div>
       <div
         className="resize-handle"
