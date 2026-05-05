@@ -349,28 +349,6 @@ export function FileExplorer() {
   return (
     <div className="file-explorer" data-testid={TEST_IDS.FILE_EXPLORER}>
       <div className="sidebar-header">
-        <div className="nav-buttons">
-          <button
-            className="toolbar-btn nav-btn"
-            onClick={goBack}
-            disabled={!canGoBack}
-            title="Go back"
-          >
-            <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
-              <path d="M8 1L3 6L8 11" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-            </svg>
-          </button>
-          <button
-            className="toolbar-btn nav-btn"
-            onClick={goForward}
-            disabled={!canGoForward}
-            title="Go forward"
-          >
-            <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
-              <path d="M4 1L9 6L4 11" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-            </svg>
-          </button>
-        </div>
         {searchOpen ? (
           <div className="file-search-inline">
             <input
@@ -397,6 +375,26 @@ export function FileExplorer() {
           <>
             <span>Files</span>
             <div className="sidebar-header-actions">
+              <button
+                className="toolbar-btn nav-btn"
+                onClick={goBack}
+                disabled={!canGoBack}
+                title="Go back"
+              >
+                <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+                  <path d="M8 1L3 6L8 11" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                </svg>
+              </button>
+              <button
+                className="toolbar-btn nav-btn"
+                onClick={goForward}
+                disabled={!canGoForward}
+                title="Go forward"
+              >
+                <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+                  <path d="M4 1L9 6L4 11" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                </svg>
+              </button>
               <div ref={recentRef} className="recent-files-wrapper">
                 <button
                   className="toolbar-btn nav-btn"
