@@ -85,6 +85,8 @@ export const TEST_IDS = {
   AGENT_SESSION_ITEM: 'agent-session-item',
   AGENT_SESSION_TOGGLE: 'agent-session-toggle',
   AGENT_DELETE_SESSION_BTN: 'agent-delete-session-btn',
+  AGENT_CLEAR_SESSION_BTN: 'agent-clear-session-btn',
+  AGENT_CLEAR_SESSION_CONFIRM_BTN: 'agent-clear-session-confirm-btn',
   AGENT_PROMPT_INPUT: 'agent-prompt-input',
   AGENT_SEND_PROMPT_BTN: 'agent-send-prompt-btn',
   AGENT_TURN: 'agent-turn',

@@ -1,8 +1,9 @@
-import { useCallback } from 'react'
+import { useCallback, useEffect, useRef } from 'react'
 import { TEST_IDS } from '@/lib/testids'
 import { useAgentStore, type AgentSession, type AgentTurn } from '@/store/agent-store'
 import { useEditorStore, isAgentTurnSelection } from '@/store/editor-store'
-import { AgentTurnItem } from './AgentTurnItem'
+import { AgentTurnRole } from '@core/agent/turn-kinds'
+import { AgentTurnItem, scrollAgentTurnIntoView } from './AgentTurnItem'
 import { CollapsibleTrace } from './CollapsibleTrace'
 
 function formatTime(ts: number): string {
@@ -13,7 +14,6 @@ interface AgentAccordionRowProps {
   session: AgentSession
   active: boolean
   vaultPath: string | null
-  onRequestEnableEdits: (sessionId: string) => void
 }
 
 interface RowHeaderProps {
@@ -87,13 +87,20 @@ function StreamingTurn({ sessionId }: { sessionId: string }) {
   )
 }
 
-export function AgentAccordionRow({ session, active, vaultPath, onRequestEnableEdits }: AgentAccordionRowProps) {
+export function AgentAccordionRow({ session, active, vaultPath }: AgentAccordionRowProps) {
   const selection = useEditorStore((s) => s.selection)
   const selectAgentTurn = useEditorStore((s) => s.selectAgentTurn)
   const selectSession = useAgentStore((s) => s.selectSession)
   const deleteSession = useAgentStore((s) => s.deleteSession)
   const toggleSessionCollapsed = useAgentStore((s) => s.toggleSessionCollapsed)
-  const setAllowEdits = useAgentStore((s) => s.setAllowEdits)
+
+  const lastUserTurnId = session.turns.findLast((t) => t.role === AgentTurnRole.User)?.id ?? null
+  const seenUserTurnIdRef = useRef<string | null>(lastUserTurnId)
+  useEffect(() => {
+    if (lastUserTurnId === seenUserTurnIdRef.current) return
+    seenUserTurnIdRef.current = lastUserTurnId
+    if (lastUserTurnId) scrollAgentTurnIntoView(lastUserTurnId)
+  }, [lastUserTurnId])
 
   const onActivate = useCallback(() => selectSession(session.id), [selectSession, session.id])
   const onToggleCollapsed = useCallback(
@@ -104,13 +111,6 @@ export function AgentAccordionRow({ session, active, vaultPath, onRequestEnableE
     () => deleteSession(vaultPath, session.id),
     [deleteSession, vaultPath, session.id]
   )
-  const onToggleAllowEdits = useCallback(() => {
-    if (session.allowEdits) {
-      setAllowEdits(vaultPath, session.id, false)
-    } else {
-      onRequestEnableEdits(session.id)
-    }
-  }, [session.allowEdits, session.id, setAllowEdits, vaultPath, onRequestEnableEdits])
 
   const selectedTurnId = isAgentTurnSelection(selection) && selection.sessionId === session.id
     ? selection.turnId
@@ -132,15 +132,6 @@ export function AgentAccordionRow({ session, active, vaultPath, onRequestEnableE
       />
       {!session.collapsed && (
         <div className="agent-accordion-body">
-          <div className="agent-accordion-body-header">
-            <button
-              className={`agent-mode-pill${session.allowEdits ? ' enabled' : ''}`}
-              onClick={onToggleAllowEdits}
-              title={session.allowEdits ? 'Click to switch back to read-only' : 'Click to enable edits'}
-            >
-              {session.allowEdits ? '🔓 Edits enabled' : '🔒 Read-only'}
-            </button>
-          </div>
           {session.turns.length === 0 ? (
             <EmptyIntro />
           ) : (

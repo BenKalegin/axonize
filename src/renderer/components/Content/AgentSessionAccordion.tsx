@@ -44,11 +44,16 @@ export function AgentSessionAccordion({ sessions, vaultPath, onRequestEnableEdit
             session={session}
             active={session.id === activeSessionId}
             vaultPath={vaultPath}
-            onRequestEnableEdits={onRequestEnableEdits}
           />
         ))}
       </div>
-      {activeSessionId && <AgentPromptComposer sessionId={activeSessionId} vaultPath={vaultPath} />}
+      {activeSessionId && (
+        <AgentPromptComposer
+          sessionId={activeSessionId}
+          vaultPath={vaultPath}
+          onRequestEnableEdits={onRequestEnableEdits}
+        />
+      )}
     </div>
   )
 }

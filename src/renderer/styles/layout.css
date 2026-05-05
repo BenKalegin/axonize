@@ -2041,18 +2041,47 @@
   background: var(--bg-overlay);
 }
 
+.agent-clear-session-btn {
+  flex-shrink: 0;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--bg-base);
+  color: var(--text-muted);
+  font-size: 11px;
+  padding: 2px 10px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.12s, color 0.12s, border-color 0.12s, filter 0.12s;
+}
+
+.agent-clear-session-btn:hover:not(:disabled) {
+  background: var(--bg-overlay);
+  color: var(--text-primary);
+}
+
+.agent-clear-session-btn:disabled {
+  cursor: default;
+  opacity: 0.4;
+}
+
+.agent-clear-session-btn.confirming {
+  background: var(--red);
+  border-color: var(--red);
+  color: #fff;
+  font-weight: 500;
+}
+
+.agent-clear-session-btn.confirming:hover {
+  background: var(--red);
+  filter: brightness(1.1);
+}
+
 .agent-accordion-body {
   display: flex;
   flex-direction: column;
   gap: 8px;
   padding: 8px 10px 12px 14px;
   background: var(--bg-base);
-}
-
-.agent-accordion-body-header {
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
 }
 
 .agent-mode-pill {
@@ -2254,11 +2283,6 @@
 
 .agent-composer-footer .toolbar-btn {
   margin-left: auto;
-}
-
-.agent-hint {
-  font-size: 11px;
-  color: var(--text-muted);
 }
 
 .agent-error {

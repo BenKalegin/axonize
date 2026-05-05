@@ -6,6 +6,15 @@ import { CollapsibleTrace } from './CollapsibleTrace'
 
 const TURN_INDENT_PX = 16
 
+const AGENT_TURN_DOM_ID_PREFIX = 'agent-turn-'
+
+export function scrollAgentTurnIntoView(turnId: string): void {
+  requestAnimationFrame(() => {
+    const el = document.getElementById(`${AGENT_TURN_DOM_ID_PREFIX}${turnId}`)
+    el?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  })
+}
+
 interface AgentTurnItemProps {
   turn: AgentTurn
   selected: boolean
@@ -36,6 +45,7 @@ export function AgentTurnItem(props: AgentTurnItemProps) {
   const isUser = turn.role === AgentTurnRole.User
   return (
     <div
+      id={`${AGENT_TURN_DOM_ID_PREFIX}${turn.id}`}
       className={`agent-turn agent-turn--${turn.role}`}
       data-testid={TEST_IDS.AGENT_TURN}
       style={{ marginLeft: depth * TURN_INDENT_PX }}

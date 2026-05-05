@@ -46,6 +46,7 @@ interface AgentStore {
   hydrate: (vaultPath: string | null) => Promise<void>
   createSession: (vaultPath: string | null) => void
   deleteSession: (vaultPath: string | null, sessionId: string) => Promise<void>
+  clearSession: (vaultPath: string | null, sessionId: string) => Promise<void>
   selectSession: (sessionId: string) => void
   toggleSessionCollapsed: (vaultPath: string | null, sessionId: string) => void
   setAllowEdits: (vaultPath: string | null, sessionId: string, allowEdits: boolean) => void
@@ -322,6 +323,15 @@ function summarizeInput(input: Record<string, unknown>): string {
   return ''
 }
 
+async function deleteHistoryDirIgnoreMissing(vaultPath: string | null, sessionId: string): Promise<void> {
+  if (!vaultPath) return
+  try {
+    await window.axonize.agentHistory.deleteSession(vaultPath, sessionId)
+  } catch {
+    // session dir may not exist yet for sessions with no assistant turns
+  }
+}
+
 function buildInMemoryErrorTurn(content: string, toolTrace: string[]): AgentTurn {
   return {
     id: crypto.randomUUID(),
@@ -465,13 +475,30 @@ export const useAgentStore = create<AgentStore>((set, get) => {
       const selectedSessionId = ensureSelection(sessions, currentSelected === sessionId ? null : currentSelected)
       set({ sessions, selectedSessionId, error: null })
       persist(vaultPath, { sessions, selectedSessionId })
-      if (vaultPath) {
-        try {
-          await window.axonize.agentHistory.deleteSession(vaultPath, sessionId)
-        } catch {
-          // file may not exist yet for sessions with no assistant turns
-        }
-      }
+      await deleteHistoryDirIgnoreMissing(vaultPath, sessionId)
+    },
+
+    clearSession: async (vaultPath, sessionId) => {
+      const wasRunning = get().runningSessionId === sessionId
+      if (wasRunning) window.axonize.agent.cancel(sessionId)
+
+      const sessions = updateSession(get().sessions, sessionId, (session) => ({
+        ...session,
+        turns: [],
+        claudeSessionId: undefined,
+        updatedAt: Date.now()
+      }))
+      const nextDrafts = { ...get().promptDrafts }
+      delete nextDrafts[sessionId]
+
+      set({
+        sessions,
+        promptDrafts: nextDrafts,
+        error: null,
+        ...(wasRunning ? { runningSessionId: null, streamingText: '', toolTrace: [] } : {})
+      })
+      persist(vaultPath, { sessions, selectedSessionId: get().selectedSessionId })
+      await deleteHistoryDirIgnoreMissing(vaultPath, sessionId)
     },
 
     selectSession: (sessionId) => {
