@@ -8,7 +8,7 @@ import {
   UndoRedoControls,
   type CloudDiagramDocument,
   type DiagramTheme
-} from 'clouddiagram-editor'
+} from '@benkalegin/clouddiagram-editor'
 import { ThemeGroup } from '@core/themes'
 import { getActiveTheme } from '@/lib/theme-applier'
 import { TEST_IDS } from '@/lib/testids'
