@@ -74,6 +74,8 @@ To consume a new clouddiagram-editor version: bump the dep in `package.json` (e.
   - **DIP** — depend on abstractions (interfaces/types), not concrete implementations; inject dependencies via constructor params.
 - **Abstraction.** Use interfaces, type aliases, and helper functions to hide implementation details. Prefer composition over inheritance.
 - **Typecheck must pass.** Run `pnpm typecheck` after every change.
+- **Never commit or push unless explicitly asked.** Wait for the user to review changes and request a commit.
+- **Commit messages: one line.** Use a single concise line. Only use a second line if the change is genuinely large and one line cannot summarize it — and even then, no blank separator line and no trailers (no `Co-Authored-By`, no "Generated with..."). Keep `git log --oneline` readable.
 - **No magic numbers.** Every numeric literal (timeouts, sizes, thresholds, opacities, etc.) must be a named constant with a descriptive name. Group related constants together at the top of the file. The only exceptions are `0`, `1`, `-1`, and simple arithmetic identities.
 - **No fallbacks.** Never add fallback logic, backward-compatibility shims, or degraded-mode code paths. If a feature requires a capability, send the command and let it fail — do not silently fall back to an older mechanism.
 
