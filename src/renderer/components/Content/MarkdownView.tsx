@@ -12,6 +12,7 @@ import { ConflictDialog } from './ConflictDialog'
 mermaid.registerLayoutLoaders(elkLayouts)
 mermaid.initialize({
   startOnLoad: false,
+  securityLevel: 'loose', // Enable click links in diagrams (safe for local vault content)
   theme: 'base',
   themeVariables: {
     background: '#1e1e2e',
@@ -70,6 +71,31 @@ declare global {
 }
 
 const FRONTMATTER_RE = /^---\n[\s\S]*?\n---\n/
+
+/** When picking the nearest heading above the viewport, allow this many px of slack below scrollTop */
+const NEAREST_HEADING_TOLERANCE_PX = 100
+
+function findNearestHeadingId(): string | null {
+  const scrollContainer = document.querySelector('.content-scroll')
+  if (!scrollContainer) return null
+
+  const headings = scrollContainer.querySelectorAll('h1[id], h2[id], h3[id], h4[id], h5[id], h6[id]')
+  const scrollTop = scrollContainer.scrollTop
+  const containerTop = scrollContainer.getBoundingClientRect().top
+  let nearestId: string | null = null
+  let nearestDistance = Infinity
+
+  for (const heading of headings) {
+    const relativeTop = heading.getBoundingClientRect().top - containerTop + scrollTop
+    if (relativeTop > scrollTop + NEAREST_HEADING_TOLERANCE_PX) continue
+    const distance = Math.abs(relativeTop - scrollTop)
+    if (distance < nearestDistance) {
+      nearestDistance = distance
+      nearestId = heading.getAttribute('id')
+    }
+  }
+  return nearestId
+}
 
 function hashSimple(str: string): string {
   let h = 0
@@ -258,13 +284,18 @@ export const MarkdownView = React.memo(function MarkdownView() {
       const anchor = (e.target as HTMLElement).closest('a')
       if (!anchor) return
 
-      const href = anchor.getAttribute('href')
+      // SVG anchors use xlink:href, HTML anchors use href
+      const href = anchor.getAttribute('href') ?? anchor.getAttribute('xlink:href')
       if (!href) return
 
       if (href.startsWith('http://') || href.startsWith('https://'))
         return
 
       e.preventDefault()
+
+      // Persist the visible section to history before navigating so back returns there
+      const headingId = findNearestHeadingId()
+      if (headingId) useEditorStore.getState().updateCurrentHash(headingId)
 
       if (href.startsWith('#')) {
         if (selectedFile) selectFile(`${selectedFile}${href}`)

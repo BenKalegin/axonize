@@ -3,6 +3,18 @@ import { TEST_IDS } from '@/lib/testids'
 import { useVaultStore } from '@/store/vault-store'
 import { useEditorStore, ViewMode } from '@/store/editor-store'
 
+const BackIcon = () => (
+  <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+    <path d="M8 1L3 6L8 11" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+  </svg>
+)
+
+const ForwardIcon = () => (
+  <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+    <path d="M4 1L9 6L4 11" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+  </svg>
+)
+
 interface TopTab {
   id: ViewMode
   label: string
@@ -20,7 +32,7 @@ import { JobStatusIndicator } from './JobStatusIndicator'
 
 export function Toolbar() {
   const { vaultPath, vaultName, openVault, recentVaults, openRecentVault, openVaultInNewWindow, loadRecentVaults, removeRecentVault, refreshVault } = useVaultStore()
-  const { viewMode, setViewMode } = useEditorStore()
+  const { viewMode, setViewMode, canGoBack, canGoForward, goBack, goForward, backTarget, forwardTarget } = useEditorStore()
   const { chunkCount } = useRagStore()
   const [dropdownOpen, setDropdownOpen] = useState(false)
   const [settingsOpen, setSettingsOpen] = useState(false)
@@ -160,6 +172,22 @@ export function Toolbar() {
                 <path d="M12 2v4h-4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
                 <path d="M10.5 9A5 5 0 1 1 11.1 4.5L12 6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
               </svg>
+            </button>
+            <button
+              className="toolbar-btn nav-btn"
+              onClick={goBack}
+              disabled={!canGoBack}
+              data-tooltip={backTarget ? `Back to ${backTarget}` : 'Go back'}
+            >
+              <BackIcon />
+            </button>
+            <button
+              className="toolbar-btn nav-btn"
+              onClick={goForward}
+              disabled={!canGoForward}
+              data-tooltip={forwardTarget ? `Forward to ${forwardTarget}` : 'Go forward'}
+            >
+              <ForwardIcon />
             </button>
           </>
         )}

@@ -1,6 +1,9 @@
 import { create } from 'zustand'
 import { useVaultStore } from './vault-store'
 
+/** Delay before scrolling to hash after navigating to a different file */
+const CROSS_FILE_SCROLL_DELAY_MS = 100
+
 export const ViewMode = {
   Markdown: 'markdown',
   Presentation: 'presentation',
@@ -50,11 +53,21 @@ function splitLocation(loc: string): [string, string | null] {
   return [loc.slice(0, idx), loc.slice(idx + 1)]
 }
 
+function getContentScrollContainer(): Element | null {
+  return document.querySelector('.content-scroll')
+}
+
 function scrollToHash(hash: string | null): void {
   if (!hash) return
   requestAnimationFrame(() => {
     const el = document.getElementById(hash)
     el?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  })
+}
+
+function scrollToTop(): void {
+  requestAnimationFrame(() => {
+    getContentScrollContainer()?.scrollTo({ top: 0, behavior: 'smooth' })
   })
 }
 
@@ -78,6 +91,33 @@ function selectionsEqual(a: Selection | null, b: Selection | null): boolean {
   }
 }
 
+function formatSelectionTarget(sel: Selection | null): string | null {
+  if (!sel) return null
+  if (sel.kind === SelectionKind.File) {
+    const fileName = sel.path.split('/').pop()?.replace(/\.md$/, '') ?? sel.path
+    return sel.hash ? `${fileName} › ${sel.hash.replace(/-/g, ' ')}` : fileName
+  }
+  return 'Agent turn'
+}
+
+interface NavState {
+  canGoBack: boolean
+  canGoForward: boolean
+  backTarget: string | null
+  forwardTarget: string | null
+}
+
+function navStateFor(history: Selection[], index: number): NavState {
+  const canGoBack = index > 0
+  const canGoForward = index < history.length - 1
+  return {
+    canGoBack,
+    canGoForward,
+    backTarget: canGoBack ? formatSelectionTarget(history[index - 1]) : null,
+    forwardTarget: canGoForward ? formatSelectionTarget(history[index + 1]) : null
+  }
+}
+
 interface EditorState {
   viewMode: ViewMode
   selection: Selection | null
@@ -85,7 +125,10 @@ interface EditorState {
   historyIndex: number
   canGoBack: boolean
   canGoForward: boolean
+  backTarget: string | null
+  forwardTarget: string | null
   presentationIndex: number
+  updateCurrentHash: (hash: string | null) => void
   presentationTotal: number
   setViewMode: (mode: ViewMode) => void
   selectFile: (location: string) => void
@@ -113,11 +156,16 @@ function applyHistoryStep(
     selection: next,
     viewMode: preserveIfPresentation(viewMode),
     historyIndex: newIndex,
-    canGoBack: newIndex > 0,
-    canGoForward: newIndex < history.length - 1
+    ...navStateFor(history, newIndex)
   })
 
-  if (nextIsSameFile && isFileSelection(next)) scrollToHash(next.hash)
+  if (!isFileSelection(next)) return
+  if (next.hash) {
+    if (nextIsSameFile) scrollToHash(next.hash)
+    else setTimeout(() => scrollToHash(next.hash), CROSS_FILE_SCROLL_DELAY_MS)
+  } else if (nextIsSameFile) {
+    scrollToTop()
+  }
 }
 
 export const useEditorStore = create<EditorState>((set, get) => ({
@@ -127,6 +175,8 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   historyIndex: -1,
   canGoBack: false,
   canGoForward: false,
+  backTarget: null,
+  forwardTarget: null,
   presentationIndex: 0,
   presentationTotal: 0,
 
@@ -157,8 +207,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       viewMode: preserveIfPresentation(viewMode),
       history: trimmed,
       historyIndex: newIndex,
-      canGoBack: newIndex > 0,
-      canGoForward: false
+      ...navStateFor(trimmed, newIndex)
     })
 
     scrollToHash(next.hash)
@@ -188,8 +237,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       selection: next,
       history: trimmed,
       historyIndex: newIndex,
-      canGoBack: newIndex > 0,
-      canGoForward: false
+      ...navStateFor(trimmed, newIndex)
     })
   },
 
@@ -200,6 +248,8 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     historyIndex: -1,
     canGoBack: false,
     canGoForward: false,
+    backTarget: null,
+    forwardTarget: null,
     presentationIndex: 0,
     presentationTotal: 0
   }),
@@ -214,6 +264,18 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     const { history, historyIndex } = get()
     if (historyIndex >= history.length - 1) return
     applyHistoryStep(get, set, historyIndex + 1)
+  },
+
+  updateCurrentHash: (hash: string | null) => {
+    const { history, historyIndex, selection } = get()
+    if (historyIndex < 0 || !selection || selection.kind !== SelectionKind.File) return
+    if (selection.hash === hash) return
+
+    const updated = { ...selection, hash }
+    const newHistory = [...history]
+    newHistory[historyIndex] = updated
+
+    set({ selection: updated, history: newHistory })
   },
 
   setPresentationIndex: (i) =>

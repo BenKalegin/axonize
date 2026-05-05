@@ -396,7 +396,38 @@ async function renderMermaidSource(rawSource: string): Promise<string> {
   const wrapper = document.createElement('div')
   wrapper.innerHTML = svg
   lockSvgToIntrinsicSize(wrapper)
+  applyMermaidClickLinks(wrapper, rawSource)
   return wrapper.innerHTML
+}
+
+// Mermaid's ELK renderer emits <a> elements without href; this wires up href from `click NODE "url"` directives in the source.
+function applyMermaidClickLinks(wrapper: HTMLElement, source: string): void {
+  const clickRegex = /click\s+(\w+)\s+["']([^"']+)["']/g
+  const links = new Map<string, string>()
+
+  let match
+  while ((match = clickRegex.exec(source)) !== null) {
+    const [, nodeId, url] = match
+    links.set(nodeId, url)
+  }
+
+  if (links.size === 0) return
+
+  const anchors = wrapper.querySelectorAll('a')
+  for (const anchor of anchors) {
+    if (anchor.hasAttribute('href') || anchor.hasAttribute('xlink:href')) continue
+
+    const nodeGroup = anchor.closest('[id]')
+    const nodeId = nodeGroup?.getAttribute('id')
+    if (!nodeId) continue
+
+    for (const [linkNodeId, url] of links) {
+      if (nodeId.includes(linkNodeId)) {
+        anchor.setAttribute('xlink:href', url)
+        break
+      }
+    }
+  }
 }
 
 function renderMermaidPreparedSource(source: string, fallbackSource: string): Promise<string> {
