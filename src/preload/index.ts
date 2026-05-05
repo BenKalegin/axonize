@@ -106,6 +106,7 @@ export interface AxonizeAPI {
   window: {
     setTitle: (vaultName: string | null) => Promise<void>
     openNew: (vaultPath?: string) => Promise<void>
+    setVault: (vaultPath: string | null) => Promise<void>
   }
   vault: {
     open: () => Promise<string | null>
@@ -191,7 +192,8 @@ export interface AxonizeAPI {
 const api: AxonizeAPI = {
   window: {
     setTitle: (vaultName: string | null) => ipcRenderer.invoke('window:setTitle', vaultName),
-    openNew: (vaultPath?: string) => ipcRenderer.invoke('window:openNew', vaultPath)
+    openNew: (vaultPath?: string) => ipcRenderer.invoke('window:openNew', vaultPath),
+    setVault: (vaultPath: string | null) => ipcRenderer.invoke('window:setVault', vaultPath)
   },
   vault: {
     open: () => ipcRenderer.invoke('vault:open'),

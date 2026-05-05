@@ -112,6 +112,7 @@ export const useVaultStore = create<VaultState>((set, get) => ({
       setCurrentVaultInSession(path)
       set({ vaultPath: path, vaultName: name })
       window.axonize.window.setTitle(name).catch(() => {})
+      window.axonize.window.setVault(path).catch(() => {})
       const files = await window.axonize.vault.readFiles(path) as FileEntry[]
       set({ fileTree: files })
       await get().loadRecentVaults()
@@ -150,6 +151,7 @@ export const useVaultStore = create<VaultState>((set, get) => ({
     setCurrentVaultInSession(path)
     set({ vaultPath: path, vaultName: name })
     window.axonize.window.setTitle(name).catch(() => {})
+    window.axonize.window.setVault(path).catch(() => {})
     const files = await window.axonize.vault.readFiles(path) as FileEntry[]
     set({ fileTree: files })
     await window.axonize.vault.addRecent(path, name)

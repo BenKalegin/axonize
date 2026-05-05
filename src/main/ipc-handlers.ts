@@ -14,6 +14,17 @@ import {startWatching, stopWatching} from './file-watcher'
 import log from './logger'
 
 const DOC_SLUGS = new Set(['doc', 'docs'])
+const TEMP_SUFFIX = '.tmp'
+
+// Per-vault mutation queues to prevent concurrent write races on recent-files.json
+const recentFilesQueues = new Map<string, Promise<void>>()
+
+function enqueueRecentFiles<T>(vaultPath: string, work: () => Promise<T>): Promise<T> {
+  const prev = recentFilesQueues.get(vaultPath) ?? Promise.resolve()
+  const next = prev.then(work, work)
+  recentFilesQueues.set(vaultPath, next.then(() => undefined, () => undefined))
+  return next
+}
 
 function vaultNameFromPath(p: string): string {
   const parts = p.split('/').filter(Boolean)
@@ -128,19 +139,25 @@ export function registerIpcHandlers(): void {
   })
 
   ipcMain.handle('vault:addRecentFile', async (_event, vaultPath: string, filePath: string) => {
-    const jsonPath = join(vaultPath, '.axonize', 'recent-files.json')
-    let entries: Array<{ path: string; openedAt: number }> = []
-    try {
-      const data = await readFile(jsonPath, 'utf-8')
-      entries = JSON.parse(data)
-    } catch { /* no file yet */ }
+    // Use queue to prevent concurrent writes from multiple windows clobbering each other
+    return enqueueRecentFiles(vaultPath, async () => {
+      const jsonPath = join(vaultPath, '.axonize', 'recent-files.json')
+      const tempPath = `${jsonPath}${TEMP_SUFFIX}`
+      let entries: Array<{ path: string; openedAt: number }> = []
+      try {
+        const data = await readFile(jsonPath, 'utf-8')
+        entries = JSON.parse(data)
+      } catch { /* no file yet */ }
 
-    entries = entries.filter((e) => e.path !== filePath)
-    entries.unshift({ path: filePath, openedAt: Date.now() })
-    entries = entries.slice(0, RECENT_FILES_MAX)
+      entries = entries.filter((e) => e.path !== filePath)
+      entries.unshift({ path: filePath, openedAt: Date.now() })
+      entries = entries.slice(0, RECENT_FILES_MAX)
 
-    await mkdir(join(vaultPath, '.axonize'), { recursive: true })
-    await writeFile(jsonPath, JSON.stringify(entries, null, 2), 'utf-8')
+      await mkdir(join(vaultPath, '.axonize'), { recursive: true })
+      // Atomic write: write to temp file then rename
+      await writeFile(tempPath, JSON.stringify(entries, null, 2), 'utf-8')
+      await rename(tempPath, jsonPath)
+    })
   })
 
   registerRAGIpcHandlers()

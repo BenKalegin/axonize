@@ -2,7 +2,7 @@ import { app, BrowserWindow, ipcMain, Menu, nativeImage, protocol, session, shel
 import { join, extname } from 'path'
 import { readFile } from 'fs/promises'
 import { registerIpcHandlers } from './ipc-handlers'
-import { loadWindowState, saveWindowState } from './window-state'
+import { loadWindowState, saveWindowState, loadWindowSessions, saveWindowSessions, type WindowSession } from './window-state'
 import log from './logger'
 
 protocol.registerSchemesAsPrivileged([
@@ -34,6 +34,12 @@ async function handleAxonizeFileRequest(request: Request): Promise<Response> {
 const APP_NAME = 'Axonize'
 app.name = APP_NAME
 
+// Track window -> vault associations for session restore
+const windowVaults = new Map<BrowserWindow, string | null>()
+
+// Track if app is quitting to avoid saving incomplete session state
+let isQuitting = false
+
 let saveTimeout: ReturnType<typeof setTimeout> | null = null
 
 function debouncedSave(win: BrowserWindow) {
@@ -45,14 +51,39 @@ function debouncedSave(win: BrowserWindow) {
   }, 300)
 }
 
+// Save all window sessions atomically
+function saveAllWindowSessions(): void {
+  const windows = BrowserWindow.getAllWindows()
+  const sessions: WindowSession[] = windows
+    .filter((win) => !win.isDestroyed())
+    .map((win) => ({
+      state: { ...win.getBounds(), maximized: win.isMaximized() },
+      vaultPath: windowVaults.get(win) ?? null
+    }))
+  saveWindowSessions(sessions)
+}
+
+// Debounced session save
+let sessionSaveTimeout: ReturnType<typeof setTimeout> | null = null
+function debouncedSaveAllSessions(): void {
+  if (sessionSaveTimeout) clearTimeout(sessionSaveTimeout)
+  sessionSaveTimeout = setTimeout(saveAllWindowSessions, 500)
+}
+
 const WINDOW_OFFSET_PX = 30
 
-function createWindow(vaultPath?: string): BrowserWindow {
+interface CreateWindowOptions {
+  vaultPath?: string
+  state?: { x?: number; y?: number; width: number; height: number; maximized?: boolean }
+}
+
+function createWindow(options: CreateWindowOptions = {}): BrowserWindow {
+  const { vaultPath, state: providedState } = options
   const iconPath = join(__dirname, '../../resources/icon.png')
-  const state = loadWindowState()
+  const state = providedState ?? loadWindowState()
 
   const existingWindows = BrowserWindow.getAllWindows().length
-  const offset = existingWindows * WINDOW_OFFSET_PX
+  const offset = providedState ? 0 : existingWindows * WINDOW_OFFSET_PX
 
   const win = new BrowserWindow({
     title: APP_NAME,
@@ -70,17 +101,37 @@ function createWindow(vaultPath?: string): BrowserWindow {
     }
   })
 
+  // Track vault association
+  windowVaults.set(win, vaultPath ?? null)
+
   if (state.maximized && existingWindows === 0) win.maximize()
 
   // Prevent the HTML <title> from overriding our window title (fixes dev mode showing "Electron")
   win.on('page-title-updated', (e) => e.preventDefault())
 
-  win.on('resize', () => debouncedSave(win))
-  win.on('move', () => debouncedSave(win))
+  win.on('resize', () => {
+    debouncedSave(win)
+    debouncedSaveAllSessions()
+  })
+  win.on('move', () => {
+    debouncedSave(win)
+    debouncedSaveAllSessions()
+  })
   win.on('close', () => {
     if (saveTimeout) clearTimeout(saveTimeout)
     const bounds = win.getBounds()
     saveWindowState({ ...bounds, maximized: win.isMaximized() })
+    // Don't save sessions here if app is quitting - before-quit handles that
+    // Only save when user closes individual windows during normal operation
+    if (!isQuitting) {
+      // Remove this window from tracking before saving
+      windowVaults.delete(win)
+      saveAllWindowSessions()
+    }
+  })
+  win.on('closed', () => {
+    // Clean up in case close handler didn't run (e.g., during quit)
+    windowVaults.delete(win)
   })
 
   win.webContents.setWindowOpenHandler(({ url }) => {
@@ -184,19 +235,48 @@ app.whenReady().then(() => {
   })
 
   ipcMain.handle('window:openNew', (_event, vaultPath?: string) => {
-    createWindow(vaultPath)
+    createWindow({ vaultPath })
+    // Save immediately - important state change, don't risk losing it
+    saveAllWindowSessions()
+  })
+
+  // Allow renderer to report which vault it opened (for session restore tracking)
+  ipcMain.handle('window:setVault', (event, vaultPath: string | null) => {
+    const win = BrowserWindow.fromWebContents(event.sender)
+    if (!win) return
+    windowVaults.set(win, vaultPath)
+    // Save immediately - important state change, don't risk losing it
+    saveAllWindowSessions()
   })
 
   session.defaultSession.protocol.handle('axonize-file', handleAxonizeFileRequest)
 
   registerIpcHandlers()
-  createWindow()
+
+  // Restore previous window sessions or create a single new window
+  const sessions = loadWindowSessions()
+  if (sessions.length > 0) {
+    log.info(`Restoring ${sessions.length} window session(s)`)
+    for (const sess of sessions) {
+      createWindow({ vaultPath: sess.vaultPath ?? undefined, state: sess.state })
+    }
+  } else {
+    createWindow()
+  }
+  // Save immediately after creating windows to ensure state is persisted
+  saveAllWindowSessions()
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) {
       createWindow()
     }
   })
+})
+
+// Save sessions before quitting
+app.on('before-quit', () => {
+  isQuitting = true
+  saveAllWindowSessions()
 })
 
 app.on('window-all-closed', () => {
