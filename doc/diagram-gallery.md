@@ -110,6 +110,145 @@ erDiagram
     }
 ```
 
+## Mermaid Gantt Chart
+
+```mermaid
+gantt
+    title Diagram Editing Milestones
+    dateFormat  YYYY-MM-DD
+    section Authoring
+    Draft gallery examples      :done,    draft, 2026-04-01, 2026-04-03
+    Review Mermaid coverage     :active,  review, 2026-04-04, 2026-04-05
+    section Rendering
+    Validate visual editor flow :         visual, 2026-04-06, 2026-04-08
+    Ship gallery fixture        :         ship,   2026-04-09, 2026-04-10
+```
+
+## Mermaid Pie Chart
+
+```mermaid
+pie showData
+    title Diagram Block Coverage
+    "Mermaid" : 15
+    "PlantUML" : 1
+    "Graphviz" : 1
+    "D2" : 1
+    "BPMN" : 1
+```
+
+## Mermaid User Journey
+
+```mermaid
+journey
+    title Diagram Authoring Journey
+    section Draft
+      Write markdown diagram: 5: User
+      Ask AI for a revision: 4: User, AI Agent
+    section Edit
+      Open visual editor: 5: User
+      Adjust node spacing: 4: User, CloudDiagram
+    section Save
+      Persist updated metadata: 5: Axonize
+```
+
+## Mermaid Git Graph
+
+```mermaid
+gitGraph
+   commit id: "draft"
+   branch visual-editor
+   checkout visual-editor
+   commit id: "layout"
+   checkout main
+   commit id: "docs"
+   merge visual-editor id: "sync"
+```
+
+## Mermaid Mindmap
+
+```mermaid
+mindmap
+  root((Axonize diagrams))
+    Mermaid
+      Class layout
+      Flowcharts
+      State transitions
+    Visual editing
+      Node positions
+      Metadata sync
+    Export
+      Markdown source
+      Rendered SVG
+```
+
+## Mermaid Timeline
+
+```mermaid
+timeline
+    title Diagram Roadmap
+    2026 Q1 : Markdown gallery
+            : Mermaid renderer
+    2026 Q2 : Visual editor metadata
+            : AI diagram edits
+    2026 Q3 : Export workflows
+            : Collaboration review
+```
+
+## Mermaid Quadrant Chart
+
+```mermaid
+quadrantChart
+    title Diagram Feature Priorities
+    x-axis Low effort --> High effort
+    y-axis Low impact --> High impact
+    quadrant-1 Strategic bets
+    quadrant-2 Major investments
+    quadrant-3 Fill-ins
+    quadrant-4 Quick wins
+    Visual editor: [0.72, 0.86]
+    Markdown preview: [0.25, 0.78]
+    Export formats: [0.58, 0.52]
+    Theme presets: [0.22, 0.38]
+```
+
+## Mermaid Requirement Diagram
+
+```mermaid
+requirementDiagram
+    requirement render_gallery {
+        id: RD-1
+        text: Diagram gallery examples render in Axonize
+        risk: medium
+        verifymethod: test
+    }
+
+    element markdown_view {
+        type: component
+    }
+
+    markdown_view - satisfies -> render_gallery
+```
+
+## Mermaid Block Diagram
+
+```mermaid
+block-beta
+  columns 3
+  draft["Draft"] review["Review"] save["Save"]
+  draft --> review
+  review --> save
+```
+
+## Mermaid XY Chart
+
+```mermaid
+xychart-beta
+    title "Diagram Render Checks"
+    x-axis [Class, Flow, Sequence, State, ER]
+    y-axis "Checks" 0 --> 5
+    bar [5, 5, 5, 5, 5]
+```
+
 ## PlantUML Sequence Diagram
 
 ```plantuml
