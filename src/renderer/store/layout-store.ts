@@ -49,7 +49,7 @@ export const useLayoutStore = create<LayoutState>((set, get) => ({
   activeRightPanelId: null,
   sidePanelWidth: DEFAULT_PANEL_WIDTH,
   rightPanelWidth: DEFAULT_RIGHT_PANEL_WIDTH,
-  rightDrawerOpen: true,
+  rightDrawerOpen: false,
 
   togglePanel: (id) =>
     set((s) => ({
@@ -78,12 +78,12 @@ export const useLayoutStore = create<LayoutState>((set, get) => ({
       if (settings?.ui) {
         set({
           activePanelId: (settings.ui.activePanelId as SidePanelId | null) ?? SidePanelId.Files,
-          activeRightPanelId: (settings.ui.activeRightPanelId as RightPanelId | null) ?? null,
+          activeRightPanelId: null, // Always start with properties panel collapsed
           sidePanelWidth: Math.min(
             maxPanelWidth(),
             Math.max(MIN_PANEL_WIDTH, settings.ui.sidePanelWidth ?? DEFAULT_PANEL_WIDTH)
           ),
-          rightDrawerOpen: (settings.ui as unknown as Record<string, unknown>).rightDrawerOpen !== false
+          rightDrawerOpen: false
         })
       }
     } catch {
