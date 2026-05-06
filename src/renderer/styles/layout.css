@@ -3634,3 +3634,82 @@
   min-width: 48px;
   text-align: center;
 }
+
+/* Diff Preview */
+.diff-view {
+  padding: 16px 24px;
+}
+
+.diff-group {
+  border-radius: 3px;
+  margin: 1px 0;
+  padding: 2px 8px;
+}
+
+.diff-group p {
+  margin: 0;
+}
+
+.diff-group pre {
+  background: transparent;
+  margin: 0;
+  padding: 0;
+  border-radius: 0;
+}
+
+.diff-group pre code.hljs {
+  background: transparent;
+  color: var(--text-primary);
+  padding: 0;
+}
+
+.diff-group--added {
+  background: var(--diff-added-bg);
+  border-left: 2px solid var(--green);
+}
+
+.diff-group--removed {
+  background: var(--diff-removed-bg);
+  border-left: 2px solid var(--red);
+}
+
+.diff-group--hunk-header {
+  background: var(--bg-overlay);
+  color: var(--text-muted);
+  font-style: italic;
+  margin-top: 8px;
+  font-size: 12px;
+}
+
+.diff-group--context {
+  color: var(--text-secondary);
+}
+
+.diff-group--file-header {
+  display: none;
+}
+
+.diff-loading,
+.diff-empty {
+  padding: 24px;
+  color: var(--text-muted);
+}
+
+.diff-error {
+  padding: 24px;
+  color: var(--red);
+}
+
+.diff-preview-label {
+  font-size: 13px;
+  color: var(--text-secondary);
+  font-weight: 500;
+}
+
+.git-file-name--clickable {
+  cursor: pointer;
+}
+
+.git-file-name--clickable:hover {
+  text-decoration: underline;
+}

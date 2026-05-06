@@ -37,6 +37,8 @@ export interface ThemeColors {
   border: string
   scrollbarBg: string
   scrollbarThumb: string
+  diffAddedBg: string
+  diffRemovedBg: string
 }
 
 export interface ThemeMeta {
@@ -66,6 +68,8 @@ const CATPPUCCIN_MOCHA: ThemeColors = {
   border: '#313244',
   scrollbarBg: '#181825',
   scrollbarThumb: '#45475a',
+  diffAddedBg: '#1e2d22',
+  diffRemovedBg: '#2d1e24',
 }
 
 const NORD: ThemeColors = {
@@ -84,6 +88,8 @@ const NORD: ThemeColors = {
   border: '#3B4252',
   scrollbarBg: '#272C36',
   scrollbarThumb: '#4C566A',
+  diffAddedBg: '#2a3b2e',
+  diffRemovedBg: '#3b2a30',
 }
 
 const SOLARIZED_DARK: ThemeColors = {
@@ -102,6 +108,8 @@ const SOLARIZED_DARK: ThemeColors = {
   border: '#073642',
   scrollbarBg: '#002B36',
   scrollbarThumb: '#586E75',
+  diffAddedBg: '#062e18',
+  diffRemovedBg: '#2e060e',
 }
 
 const DRACULA: ThemeColors = {
@@ -120,6 +128,8 @@ const DRACULA: ThemeColors = {
   border: '#44475A',
   scrollbarBg: '#21222C',
   scrollbarThumb: '#6272A4',
+  diffAddedBg: '#1e3526',
+  diffRemovedBg: '#3d1e26',
 }
 
 const GRUVBOX_DARK: ThemeColors = {
@@ -138,6 +148,8 @@ const GRUVBOX_DARK: ThemeColors = {
   border: '#3C3836',
   scrollbarBg: '#1D2021',
   scrollbarThumb: '#504945',
+  diffAddedBg: '#272d1e',
+  diffRemovedBg: '#2d1e1e',
 }
 
 const SOLARIZED_LIGHT: ThemeColors = {
@@ -156,6 +168,8 @@ const SOLARIZED_LIGHT: ThemeColors = {
   border: '#D3CBB8',
   scrollbarBg: '#EEE8D5',
   scrollbarThumb: '#93A1A1',
+  diffAddedBg: '#dff0d4',
+  diffRemovedBg: '#f0d5cf',
 }
 
 const GITHUB_LIGHT: ThemeColors = {
@@ -174,6 +188,8 @@ const GITHUB_LIGHT: ThemeColors = {
   border: '#E1E4E8',
   scrollbarBg: '#F6F8FA',
   scrollbarThumb: '#D1D5DA',
+  diffAddedBg: '#e6ffec',
+  diffRemovedBg: '#ffebe9',
 }
 
 const GRUVBOX_LIGHT: ThemeColors = {
@@ -192,6 +208,8 @@ const GRUVBOX_LIGHT: ThemeColors = {
   border: '#D5C4A1',
   scrollbarBg: '#EBDBB2',
   scrollbarThumb: '#BDAE93',
+  diffAddedBg: '#e0eaaa',
+  diffRemovedBg: '#f5d4c8',
 }
 
 // ---------------------------------------------------------------------------

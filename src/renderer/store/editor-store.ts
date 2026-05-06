@@ -140,6 +140,9 @@ interface EditorState {
   setPresentationTotal: (n: number) => void
   presentationNext: () => void
   presentationPrev: () => void
+  diffPreviewFile: { path: string; staged: boolean } | null
+  setDiffPreviewFile: (file: { path: string; staged: boolean }) => void
+  clearDiffPreviewFile: () => void
 }
 
 function applyHistoryStep(
@@ -179,6 +182,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   forwardTarget: null,
   presentationIndex: 0,
   presentationTotal: 0,
+  diffPreviewFile: null,
 
   setViewMode: (mode: ViewMode) => {
     const prev = get().viewMode
@@ -207,6 +211,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       viewMode: preserveIfPresentation(viewMode),
       history: trimmed,
       historyIndex: newIndex,
+      diffPreviewFile: null,
       ...navStateFor(trimmed, newIndex)
     })
 
@@ -237,6 +242,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       selection: next,
       history: trimmed,
       historyIndex: newIndex,
+      diffPreviewFile: null,
       ...navStateFor(trimmed, newIndex)
     })
   },
@@ -251,8 +257,12 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     backTarget: null,
     forwardTarget: null,
     presentationIndex: 0,
-    presentationTotal: 0
+    presentationTotal: 0,
+    diffPreviewFile: null
   }),
+
+  setDiffPreviewFile: (file) => set({ diffPreviewFile: file }),
+  clearDiffPreviewFile: () => set({ diffPreviewFile: null }),
 
   goBack: () => {
     const { historyIndex } = get()

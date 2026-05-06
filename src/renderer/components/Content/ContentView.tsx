@@ -18,6 +18,7 @@ import { GraphView } from '../Graph/GraphView'
 import { WelcomeScreen } from './WelcomeScreen'
 import { ZoomControls } from './ZoomControls'
 import { AgentTurnHeader } from './AgentTurnHeader'
+import { DiffView } from './DiffView'
 
 const ZOOM_STEPS = [50, 67, 80, 90, 100, 110, 125, 150, 175, 200]
 
@@ -29,6 +30,7 @@ export function ContentView() {
   const presentationNext = useEditorStore((s) => s.presentationNext)
   const presentationPrev = useEditorStore((s) => s.presentationPrev)
   const setViewMode = useEditorStore((s) => s.setViewMode)
+  const diffPreviewFile = useEditorStore((s) => s.diffPreviewFile)
   const selectedFile = selectedFilePath(selection)
   const presentationMode = viewMode === ViewMode.Presentation
   const isGraph = viewMode === ViewMode.Graph
@@ -140,10 +142,18 @@ export function ContentView() {
 
   const showZoom = vaultPath && !isGraph && (
     lastResponse ||
-    (viewMode === ViewMode.Markdown && selectedFile)
+    (viewMode === ViewMode.Markdown && selectedFile) ||
+    !!diffPreviewFile
   )
 
   const renderBody = () => {
+    if (diffPreviewFile) {
+      return (
+        <div className="content-scroll" ref={scrollRef}>
+          <DiffView />
+        </div>
+      )
+    }
     if (vaultPath && isGraph) return <GraphView />
     return (
       <div className="content-scroll" ref={scrollRef}>

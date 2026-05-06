@@ -17,6 +17,8 @@ const COLOR_TO_CSS_VAR: Record<keyof ThemeColors, string> = {
   border: '--border',
   scrollbarBg: '--scrollbar-bg',
   scrollbarThumb: '--scrollbar-thumb',
+  diffAddedBg: '--diff-added-bg',
+  diffRemovedBg: '--diff-removed-bg',
 }
 
 let _activeTheme: ThemeMeta = THEMES.find((t) => t.id === DEFAULT_THEME_ID)!

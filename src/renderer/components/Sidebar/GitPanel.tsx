@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo } from 'react'
 import { TEST_IDS } from '@/lib/testids'
 import { useGitStore } from '@/store/git-store'
 import { useVaultStore } from '@/store/vault-store'
+import { useEditorStore } from '@/store/editor-store'
 import { GitStatus } from '@core/git/types'
 import type { GitFileStatus } from '@core/git/types'
 
@@ -36,24 +37,43 @@ function fileName(path: string): string {
 
 function FileRow({
   file,
-  onToggle
+  onToggle,
+  onPreview
 }: {
   file: GitFileStatus
   onToggle: (path: string, staged: boolean) => void
+  onPreview: (path: string, staged: boolean) => void
 }) {
-  const handleClick = useCallback(() => {
+  const handleToggle = useCallback(() => {
     onToggle(file.path, file.staged)
   }, [file.path, file.staged, onToggle])
+
+  const handlePreview = useCallback(() => {
+    onPreview(file.path, file.staged)
+  }, [file.path, file.staged, onPreview])
+
+  const handlePreviewKeyDown = useCallback((e: React.KeyboardEvent) => {
+    if (e.key === 'Enter' || e.key === ' ') handlePreview()
+  }, [handlePreview])
 
   return (
     <div className="git-file-row" data-testid={TEST_IDS.GIT_FILE_ROW}>
       <StatusIcon status={file.status} />
-      <span className="git-file-name" title={file.path}>{fileName(file.path)}</span>
+      <span
+        className="git-file-name git-file-name--clickable"
+        title={file.path}
+        onClick={handlePreview}
+        role="button"
+        tabIndex={0}
+        onKeyDown={handlePreviewKeyDown}
+      >
+        {fileName(file.path)}
+      </span>
       <span className="git-file-path" title={file.path}>{file.path}</span>
       <button
         className="git-file-action"
         title={file.staged ? 'Unstage' : 'Stage'}
-        onClick={handleClick}
+        onClick={handleToggle}
       >
         {file.staged ? '−' : '+'}
       </button>
@@ -90,6 +110,7 @@ function SectionHeader({
 
 export function GitPanel() {
   const vaultPath = useVaultStore((s) => s.vaultPath)
+  const setDiffPreviewFile = useEditorStore((s) => s.setDiffPreviewFile)
   const {
     isRepo,
     files,
@@ -133,6 +154,11 @@ export function GitPanel() {
       }
     },
     [stage, unstage]
+  )
+
+  const handlePreview = useCallback(
+    (path: string, staged: boolean) => setDiffPreviewFile({ path, staged }),
+    [setDiffPreviewFile]
   )
 
   if (!vaultPath) {
@@ -230,7 +256,7 @@ export function GitPanel() {
         />
         <div className="git-file-list">
           {staged.map((f) => (
-            <FileRow key={`s-${f.path}`} file={f} onToggle={handleToggle} />
+            <FileRow key={`s-${f.path}`} file={f} onToggle={handleToggle} onPreview={handlePreview} />
           ))}
         </div>
       </div>
@@ -244,7 +270,7 @@ export function GitPanel() {
         />
         <div className="git-file-list">
           {unstaged.map((f) => (
-            <FileRow key={`u-${f.path}`} file={f} onToggle={handleToggle} />
+            <FileRow key={`u-${f.path}`} file={f} onToggle={handleToggle} onPreview={handlePreview} />
           ))}
         </div>
       </div>

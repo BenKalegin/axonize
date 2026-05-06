@@ -161,6 +161,10 @@ export const TEST_IDS = {
   OUTLINE_PANEL: 'outline-panel',
   OUTLINE_HEADING: 'outline-heading',
 
+  // Diff Preview
+  DIFF_VIEW: 'diff-view',
+  DIFF_PREVIEW_BACK_BTN: 'diff-preview-back-btn',
+
   // Git Panel
   GIT_PANEL: 'git-panel',
   GIT_FILE_ROW: 'git-file-row',

@@ -165,6 +165,7 @@ export interface AxonizeAPI {
     root: (cwd: string) => Promise<string | null>
     status: (cwd: string) => Promise<GitFileStatus[]>
     diff: (cwd: string, staged: boolean) => Promise<string>
+    diffFile: (cwd: string, filePath: string, staged: boolean) => Promise<string>
     stage: (cwd: string, filePath: string) => Promise<void>
     unstage: (cwd: string, filePath: string) => Promise<void>
     stageAll: (cwd: string) => Promise<void>
@@ -291,6 +292,8 @@ const api: AxonizeAPI = {
     root: (cwd: string) => ipcRenderer.invoke('git:root', { cwd }),
     status: (cwd: string) => ipcRenderer.invoke('git:status', { cwd }),
     diff: (cwd: string, staged: boolean) => ipcRenderer.invoke('git:diff', { cwd, staged }),
+    diffFile: (cwd: string, filePath: string, staged: boolean) =>
+      ipcRenderer.invoke('git:diffFile', { cwd, filePath, staged }),
     stage: (cwd: string, filePath: string) => ipcRenderer.invoke('git:stage', { cwd, filePath }),
     unstage: (cwd: string, filePath: string) => ipcRenderer.invoke('git:unstage', { cwd, filePath }),
     stageAll: (cwd: string) => ipcRenderer.invoke('git:stageAll', { cwd }),

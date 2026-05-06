@@ -32,7 +32,7 @@ import { JobStatusIndicator } from './JobStatusIndicator'
 
 export function Toolbar() {
   const { vaultPath, vaultName, openVault, recentVaults, openRecentVault, openVaultInNewWindow, loadRecentVaults, removeRecentVault, refreshVault } = useVaultStore()
-  const { viewMode, setViewMode, canGoBack, canGoForward, goBack, goForward, backTarget, forwardTarget } = useEditorStore()
+  const { viewMode, setViewMode, canGoBack, canGoForward, goBack, goForward, backTarget, forwardTarget, diffPreviewFile, clearDiffPreviewFile } = useEditorStore()
   const { chunkCount } = useRagStore()
   const [dropdownOpen, setDropdownOpen] = useState(false)
   const [settingsOpen, setSettingsOpen] = useState(false)
@@ -58,6 +58,8 @@ export function Toolbar() {
       setDropdownOpen(false)
     }
   }
+
+  const diffPreviewFileName = diffPreviewFile?.path.split('/').pop()
 
   return (
     <div className="toolbar-content">
@@ -193,16 +195,31 @@ export function Toolbar() {
         )}
       </div>
       <div className="toolbar-center">
-        {TOP_TABS.map((tab) => (
-          <button
-            key={tab.id}
-            data-testid={tab.testId}
-            className={`toolbar-btn ${viewMode === tab.id ? 'active' : ''}`}
-            onClick={() => setViewMode(tab.id)}
-          >
-            {tab.label}
-          </button>
-        ))}
+        {diffPreviewFile ? (
+          <>
+            <span className="diff-preview-label">
+              Changes: {diffPreviewFileName}
+            </span>
+            <button
+              className="toolbar-btn"
+              data-testid={TEST_IDS.DIFF_PREVIEW_BACK_BTN}
+              onClick={clearDiffPreviewFile}
+            >
+              Back
+            </button>
+          </>
+        ) : (
+          TOP_TABS.map((tab) => (
+            <button
+              key={tab.id}
+              data-testid={tab.testId}
+              className={`toolbar-btn ${viewMode === tab.id ? 'active' : ''}`}
+              onClick={() => setViewMode(tab.id)}
+            >
+              {tab.label}
+            </button>
+          ))
+        )}
       </div>
       <div className="toolbar-right">
         <JobStatusIndicator />

@@ -1,6 +1,8 @@
 import { ipcMain } from 'electron'
 import { execFile } from 'child_process'
 import { promisify } from 'util'
+import { readFile } from 'fs/promises'
+import path from 'path'
 import { getSettings } from './settings-service'
 import { getLLMProvider } from './rag/provider-factory'
 import type { LLMMessage } from '../core/rag/types'
@@ -65,6 +67,23 @@ export function registerGitIpcHandlers(): void {
   gitHandler('git:diff', async (payload: { cwd: string; staged: boolean }) => {
     const args = payload.staged ? ['diff', '--cached'] : ['diff']
     return await runGit(payload.cwd, args)
+  })
+
+  gitHandler('git:diffFile', async (payload: { cwd: string; filePath: string; staged: boolean }) => {
+    const { cwd, filePath, staged } = payload
+    const args = staged
+      ? ['diff', '--cached', '--', filePath]
+      : ['diff', '--', filePath]
+    const diff = await runGit(cwd, args)
+    if (diff) return diff
+    try {
+      const content = await readFile(path.join(cwd, filePath), 'utf-8')
+      const lines = content.split('\n')
+      const added = lines.map((l) => `+${l}`).join('\n')
+      return `--- /dev/null\n+++ b/${filePath}\n@@ -0,0 +1,${lines.length} @@\n${added}`
+    } catch {
+      return ''
+    }
   })
 
   gitHandler('git:stage', async (payload: { cwd: string; filePath: string }) => {
