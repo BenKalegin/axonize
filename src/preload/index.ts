@@ -150,6 +150,7 @@ export interface AxonizeAPI {
   }
   llm: {
     rewriteSection: (section: string, instruction: string) => Promise<string>
+    summarizeSession: (payload: { prevTitle: string; userPrompt: string; assistantPreview: string }) => Promise<string>
   }
   agent: {
     start: (payload: AgentStartPayload) => void
@@ -185,6 +186,7 @@ export interface AxonizeAPI {
   agentHistory: {
     save: (vaultPath: string, payload: SaveAgentTurnPayload) => Promise<AgentTurnMeta>
     deleteSession: (vaultPath: string, sessionId: string) => Promise<void>
+    deleteTurns: (vaultPath: string, sessionId: string, turnIds: string[]) => Promise<void>
     promote: (filePath: string, targetPath: string) => Promise<void>
     cleanup: (vaultPath: string) => Promise<number>
   }
@@ -270,7 +272,9 @@ const api: AxonizeAPI = {
   },
   llm: {
     rewriteSection: (section: string, instruction: string) =>
-      ipcRenderer.invoke('llm:rewriteSection', { section, instruction })
+      ipcRenderer.invoke('llm:rewriteSection', { section, instruction }),
+    summarizeSession: (payload: { prevTitle: string; userPrompt: string; assistantPreview: string }) =>
+      ipcRenderer.invoke('llm:summarizeSession', payload)
   },
   agent: {
     start: (payload: AgentStartPayload) => ipcRenderer.send('agent:start', payload),
@@ -322,6 +326,8 @@ const api: AxonizeAPI = {
       ipcRenderer.invoke('agent-history:save', { vaultPath, payload }),
     deleteSession: (vaultPath: string, sessionId: string) =>
       ipcRenderer.invoke('agent-history:deleteSession', { vaultPath, sessionId }),
+    deleteTurns: (vaultPath: string, sessionId: string, turnIds: string[]) =>
+      ipcRenderer.invoke('agent-history:deleteTurns', { vaultPath, sessionId, turnIds }),
     promote: (filePath: string, targetPath: string) =>
       ipcRenderer.invoke('agent-history:promote', { filePath, targetPath }),
     cleanup: (vaultPath: string) =>

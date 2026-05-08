@@ -4,6 +4,7 @@ import { useAgentStore, type AgentSession, type AgentTurn } from '@/store/agent-
 import { useEditorStore, isAgentTurnSelection } from '@/store/editor-store'
 import { AgentTurnRole } from '@core/agent/turn-kinds'
 import { AgentTurnItem, scrollAgentTurnIntoView } from './AgentTurnItem'
+import { AgentPromptComposer } from './AgentPromptComposer'
 import { CollapsibleTrace } from './CollapsibleTrace'
 
 function formatTime(ts: number): string {
@@ -14,6 +15,7 @@ interface AgentAccordionRowProps {
   session: AgentSession
   active: boolean
   vaultPath: string | null
+  onRequestEnableEdits: (sessionId: string) => void
 }
 
 interface RowHeaderProps {
@@ -25,7 +27,6 @@ interface RowHeaderProps {
 }
 
 function RowHeader({ session, active, onActivate, onToggleCollapsed, onDelete }: RowHeaderProps) {
-  const chevron = session.collapsed ? '▸' : '▾'
   return (
     <div
       className={`agent-accordion-header${active ? ' active' : ''}`}
@@ -33,14 +34,14 @@ function RowHeader({ session, active, onActivate, onToggleCollapsed, onDelete }:
       onClick={onActivate}
     >
       <button
-        className="agent-accordion-chevron"
+        className={`agent-accordion-chevron${session.collapsed ? '' : ' expanded'}`}
         data-testid={TEST_IDS.AGENT_SESSION_TOGGLE}
         onClick={(e) => { e.stopPropagation(); onToggleCollapsed() }}
         title={session.collapsed ? 'Expand' : 'Collapse'}
       >
-        {chevron}
+        ›
       </button>
-      <span className="agent-accordion-title">{session.name}</span>
+      <span className="agent-accordion-title" title={session.name}>{session.summary ?? session.name}</span>
       <span className="agent-accordion-meta">
         {session.turns.length} turn{session.turns.length === 1 ? '' : 's'}
         {session.allowEdits ? ' · edits' : ''}
@@ -87,11 +88,12 @@ function StreamingTurn({ sessionId }: { sessionId: string }) {
   )
 }
 
-export function AgentAccordionRow({ session, active, vaultPath }: AgentAccordionRowProps) {
+export function AgentAccordionRow({ session, active, vaultPath, onRequestEnableEdits }: AgentAccordionRowProps) {
   const selection = useEditorStore((s) => s.selection)
   const selectAgentTurn = useEditorStore((s) => s.selectAgentTurn)
   const selectSession = useAgentStore((s) => s.selectSession)
   const deleteSession = useAgentStore((s) => s.deleteSession)
+  const deleteTurnPair = useAgentStore((s) => s.deleteTurnPair)
   const toggleSessionCollapsed = useAgentStore((s) => s.toggleSessionCollapsed)
 
   const lastUserTurnId = session.turns.findLast((t) => t.role === AgentTurnRole.User)?.id ?? null
@@ -141,11 +143,23 @@ export function AgentAccordionRow({ session, active, vaultPath }: AgentAccordion
                 turn={turn}
                 selected={selectedTurnId === turn.id}
                 onShowDetails={() => showTurn(turn)}
+                onDeleteUserTurn={
+                  turn.role === AgentTurnRole.User
+                    ? () => deleteTurnPair(vaultPath, session.id, turn.id)
+                    : undefined
+                }
               />
             ))
           )}
           <StreamingTurn sessionId={session.id} />
         </div>
+      )}
+      {active && (
+        <AgentPromptComposer
+          sessionId={session.id}
+          vaultPath={vaultPath}
+          onRequestEnableEdits={onRequestEnableEdits}
+        />
       )}
     </div>
   )

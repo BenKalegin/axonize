@@ -4,6 +4,8 @@ const MIN_ANALYTICAL_CHAR_COUNT = 280
 const MIN_BULLETS_FOR_ANALYTICAL = 2
 const PREVIEW_LINE_COUNT = 3
 const PREVIEW_MAX_CHARS = 240
+const USER_SUMMARY_DEFAULT_MAX_CHARS = 100
+const FIRST_SENTENCE_REGEX = /^[^.!?\n]+[.!?]/
 
 const HEADING_REGEX = /^#{1,6}\s+\S/m
 const FENCED_CODE_REGEX = /^```/m
@@ -38,4 +40,13 @@ export function makePreview(text: string): string {
   const head = lines.slice(0, PREVIEW_LINE_COUNT).join('\n')
   if (head.length <= PREVIEW_MAX_CHARS) return head
   return `${head.slice(0, PREVIEW_MAX_CHARS - 1)}…`
+}
+
+export function summarizeUserPrompt(text: string, maxChars: number = USER_SUMMARY_DEFAULT_MAX_CHARS): string {
+  const normalized = text.replace(/\s+/g, ' ').trim()
+  if (!normalized) return ''
+  const sentenceMatch = normalized.match(FIRST_SENTENCE_REGEX)
+  const candidate = sentenceMatch ? sentenceMatch[0].trim() : normalized
+  if (candidate.length <= maxChars) return candidate
+  return `${candidate.slice(0, maxChars - 1).trimEnd()}…`
 }

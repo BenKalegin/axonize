@@ -15,6 +15,7 @@ let mermaidCounter = 0
 let mermaidRenderQueue: Promise<unknown> = Promise.resolve()
 
 const TEXTAREA_MIN_HEIGHT = 120
+const COPY_RESET_DELAY_MS = 2000
 
 interface SectionBlockProps {
   section: MarkdownSection
@@ -34,6 +35,7 @@ export const SectionBlock = React.memo(function SectionBlock({
   const [html, setHtml] = useState('')
   const [saving, setSaving] = useState(false)
   const [renderKey, setRenderKey] = useState(0)
+  const [copied, setCopied] = useState(false)
   const [llmOpen, setLlmOpen] = useState(false)
   const [llmInstruction, setLlmInstruction] = useState('')
   const [llmLoading, setLlmLoading] = useState(false)
@@ -197,6 +199,13 @@ export const SectionBlock = React.memo(function SectionBlock({
     [handleLlmSubmit]
   )
 
+  const handleCopy = useCallback(() => {
+    navigator.clipboard.writeText(draft).then(() => {
+      setCopied(true)
+      setTimeout(() => setCopied(false), COPY_RESET_DELAY_MS)
+    })
+  }, [draft])
+
   const autoResizeTextarea = useCallback(() => {
     const ta = textareaRef.current
     if (!ta) return
@@ -245,6 +254,11 @@ export const SectionBlock = React.memo(function SectionBlock({
                 onClick={() => setVisualOpen(true)}
               >
                 Visual edit
+              </button>
+            )}
+            {isMermaidSection && (
+              <button className="toolbar-btn" onClick={handleCopy}>
+                {copied ? 'Copied!' : 'Copy'}
               </button>
             )}
           </div>

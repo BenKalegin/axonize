@@ -168,17 +168,35 @@ gitGraph
 
 ```mermaid
 mindmap
-  root((Axonize diagrams))
-    Mermaid
-      Class layout
-      Flowcharts
-      State transitions
-    Visual editing
-      Node positions
-      Metadata sync
-    Export
-      Markdown source
-      Rendered SVG
+  root((Nature))
+    Mammals
+      Dogs
+        Labrador
+        Husky
+      Cats
+        Siamese
+        Persian
+    Insects
+      Ants
+        Fire Ant
+        Carpenter Ant
+      Butterflies
+        Monarch
+        Swallowtail
+    Birds
+      Eagles
+        Bald Eagle
+        Golden Eagle
+      Parrots
+        Macaw
+        Cockatoo
+    Reptiles
+      Snakes
+        Python
+        Cobra
+      Lizards
+        Gecko
+        Iguana
 ```
 
 ## Mermaid Timeline
@@ -292,4 +310,141 @@ CloudDiagram -> Markdown: writes x-axonize metadata
     <bpmn:endEvent id="done" name="Saved" />
   </bpmn:process>
 </bpmn:definitions>
+```
+
+## AWS Deployment Diagram
+
+```mermaid
+---
+x-axonize:
+  version: 1
+  editor: clouddiagram
+  layout:
+    nodes:
+      Users: { x: 60, y: 320, width: 120, height: 60 }
+      Route53: { x: 260, y: 140, width: 160, height: 60 }
+      CloudFront: { x: 260, y: 240, width: 180, height: 60 }
+      WAF: { x: 260, y: 340, width: 140, height: 60 }
+      ALB: { x: 520, y: 140, width: 200, height: 60 }
+      APIGW: { x: 520, y: 280, width: 180, height: 60 }
+      Cognito: { x: 520, y: 420, width: 160, height: 60 }
+      APIService: { x: 800, y: 60, width: 180, height: 60 }
+      WorkerService: { x: 800, y: 180, width: 200, height: 60 }
+      AuthService: { x: 800, y: 300, width: 180, height: 60 }
+      SchedulerService: { x: 800, y: 420, width: 220, height: 60 }
+      RDS_Primary: { x: 1080, y: 60, width: 200, height: 60 }
+      RDS_Replica: { x: 1080, y: 180, width: 220, height: 60 }
+      DynamoDB: { x: 1080, y: 300, width: 160, height: 60 }
+      ElastiCache: { x: 1080, y: 420, width: 220, height: 60 }
+      S3_Assets: { x: 1080, y: 540, width: 180, height: 60 }
+      S3_Backups: { x: 1080, y: 660, width: 180, height: 60 }
+      SQS: { x: 1360, y: 160, width: 140, height: 60 }
+      SNS: { x: 1360, y: 280, width: 140, height: 60 }
+      EventBridge: { x: 1360, y: 400, width: 180, height: 60 }
+      LambdaProcessor: { x: 1600, y: 100, width: 220, height: 60 }
+      LambdaAuthorizer: { x: 1600, y: 240, width: 220, height: 60 }
+      LambdaNotifier: { x: 1600, y: 380, width: 200, height: 60 }
+      SecretsManager: { x: 1880, y: 80, width: 220, height: 60 }
+      ParameterStore: { x: 1880, y: 200, width: 220, height: 60 }
+      KMS: { x: 1880, y: 320, width: 140, height: 60 }
+      ECR: { x: 1880, y: 440, width: 140, height: 60 }
+      CloudWatch: { x: 2140, y: 160, width: 180, height: 60 }
+      XRay: { x: 2140, y: 300, width: 160, height: 60 }
+      NATGateway: { x: 2140, y: 440, width: 200, height: 60 }
+      IGW: { x: 2140, y: 560, width: 220, height: 60 }
+---
+flowchart LR
+    subgraph Internet["Internet"]
+        Users(["Users"])
+    end
+    subgraph Edge["Edge"]
+        Route53["Route 53"]
+        CloudFront["CloudFront CDN"]
+        WAF["AWS WAF"]
+    end
+    subgraph Ingress["Ingress"]
+        ALB["App Load Balancer"]
+        APIGW["API Gateway"]
+        Cognito["Cognito"]
+    end
+    subgraph Compute["ECS Cluster — us-east-1"]
+        APIService["API Service"]
+        WorkerService["Worker Service"]
+        AuthService["Auth Service"]
+        SchedulerService["Scheduler Service"]
+    end
+    subgraph Data["Data"]
+        RDS_Primary[("RDS Primary")]
+        RDS_Replica[("RDS Read Replica")]
+        DynamoDB[("DynamoDB")]
+        ElastiCache[("ElastiCache / Redis")]
+        S3_Assets[("S3 — Assets")]
+        S3_Backups[("S3 — Backups")]
+    end
+    subgraph Messaging["Messaging"]
+        SQS["SQS"]
+        SNS["SNS"]
+        EventBridge["EventBridge"]
+    end
+    subgraph Serverless["Serverless"]
+        LambdaProcessor["Lambda Processor"]
+        LambdaAuthorizer["Lambda Authorizer"]
+        LambdaNotifier["Lambda Notifier"]
+    end
+    subgraph Security["Security and DevOps"]
+        SecretsManager["Secrets Manager"]
+        ParameterStore["Parameter Store"]
+        KMS["KMS"]
+        ECR["ECR"]
+    end
+    subgraph Observability["Observability"]
+        CloudWatch["CloudWatch"]
+        XRay["X-Ray"]
+    end
+    subgraph Network["Network"]
+        NATGateway["NAT Gateway"]
+        IGW["Internet Gateway"]
+    end
+
+    Users --> Route53
+    Route53 --> CloudFront
+    CloudFront --> WAF
+    WAF --> ALB
+    WAF --> APIGW
+    ALB --> APIService
+    ALB --> AuthService
+    APIGW --> LambdaAuthorizer
+    APIGW --> LambdaProcessor
+    Cognito -.-> AuthService
+    APIService --> RDS_Primary
+    APIService --> ElastiCache
+    APIService --> DynamoDB
+    APIService --> S3_Assets
+    APIService --> SQS
+    WorkerService --> SQS
+    WorkerService --> RDS_Primary
+    WorkerService --> S3_Backups
+    AuthService --> Cognito
+    AuthService --> RDS_Primary
+    SchedulerService --> EventBridge
+    EventBridge --> LambdaProcessor
+    EventBridge --> LambdaNotifier
+    SQS --> LambdaProcessor
+    SNS --> LambdaNotifier
+    LambdaProcessor --> DynamoDB
+    LambdaProcessor --> S3_Backups
+    LambdaProcessor --> SNS
+    RDS_Primary --> RDS_Replica
+    APIService --> SecretsManager
+    WorkerService --> SecretsManager
+    SecretsManager --> KMS
+    ParameterStore --> KMS
+    ECR --> APIService
+    ECR --> WorkerService
+    ECR --> AuthService
+    ECR --> SchedulerService
+    APIService --> CloudWatch
+    WorkerService --> CloudWatch
+    LambdaProcessor --> XRay
+    NATGateway --> IGW
 ```

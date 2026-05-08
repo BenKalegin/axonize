@@ -2,7 +2,6 @@ import { useCallback } from 'react'
 import { TEST_IDS } from '@/lib/testids'
 import { useAgentStore, type AgentSession } from '@/store/agent-store'
 import { AgentAccordionRow } from './AgentAccordionRow'
-import { AgentPromptComposer } from './AgentPromptComposer'
 
 interface AgentSessionAccordionProps {
   sessions: AgentSession[]
@@ -44,16 +43,10 @@ export function AgentSessionAccordion({ sessions, vaultPath, onRequestEnableEdit
             session={session}
             active={session.id === activeSessionId}
             vaultPath={vaultPath}
+            onRequestEnableEdits={onRequestEnableEdits}
           />
         ))}
       </div>
-      {activeSessionId && (
-        <AgentPromptComposer
-          sessionId={activeSessionId}
-          vaultPath={vaultPath}
-          onRequestEnableEdits={onRequestEnableEdits}
-        />
-      )}
     </div>
   )
 }
