@@ -40,8 +40,8 @@ importers:
         specifier: ^0.2.81
         version: 0.2.81(zod@4.3.6)
       '@benkalegin/clouddiagram-editor':
-        specifier: ^0.1.0
-        version: 0.1.0(@babel/core@7.29.0)(@babel/template@7.28.6)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)(zod@4.3.6)
+        specifier: ^0.1.1
+        version: 0.1.1(@babel/core@7.29.0)(@babel/template@7.28.6)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)(zod@4.3.6)
       '@mermaid-js/layout-elk':
         specifier: ^0.2.0
         version: 0.2.0(mermaid@11.12.3)
@@ -274,8 +274,8 @@ packages:
     resolution: {integrity: sha512-LwdZHpScM4Qz8Xw2iKSzS+cfglZzJGvofQICy7W7v4caru4EaAmyUuO6BGrbyQ2mYV11W0U8j5mBhd14dd3B0A==}
     engines: {node: '>=6.9.0'}
 
-  '@benkalegin/clouddiagram-editor@0.1.0':
-    resolution: {integrity: sha512-YY4Tg+gOXx7RYTuzhg93kU+98iW5vmIRNEK+n/NSWpRSdo181lC7b4aYZkXGBWqz+uJj9OWh7cVOMD7FPOGySQ==, tarball: https://npm.pkg.github.com/download/@benkalegin/clouddiagram-editor/0.1.0/d72c0c177c4f4c8cffd4e74eec5cff9a7244961b}
+  '@benkalegin/clouddiagram-editor@0.1.1':
+    resolution: {integrity: sha512-/9SB4FZ0Dqme04y1EPshFhCoz2IoO57jBrmHC7hqu3a4t29Avp5FI1YDTXMnnALAHRRIAdxFdoO9YpN2bn7Rog==, tarball: https://npm.pkg.github.com/download/@benkalegin/clouddiagram-editor/0.1.1/05b376e4db29b470d4f563e0627d5884e7c6659d}
     peerDependencies:
       react: '>=19'
       react-dom: '>=19'
@@ -4965,7 +4965,7 @@ snapshots:
       '@babel/helper-string-parser': 7.27.1
       '@babel/helper-validator-identifier': 7.28.5
 
-  '@benkalegin/clouddiagram-editor@0.1.0(@babel/core@7.29.0)(@babel/template@7.28.6)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)(zod@4.3.6)':
+  '@benkalegin/clouddiagram-editor@0.1.1(@babel/core@7.29.0)(@babel/template@7.28.6)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)(zod@4.3.6)':
     dependencies:
       '@dagrejs/dagre': 3.0.0
       '@emotion/react': 11.14.0(@types/react@19.2.14)(react@19.2.4)
