@@ -12,6 +12,7 @@ import { useSemanticErrorsStore } from './store/semantic-errors-store'
 import './styles/global.css'
 import './styles/layout.css'
 import '@benkalegin/ui26/styles.css'
+import '@benkalegin/clouddiagram-editor/styles.css'
 import 'highlight.js/styles/github-dark.min.css'
 import 'katex/dist/katex.min.css'
 
