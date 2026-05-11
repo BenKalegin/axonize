@@ -3677,7 +3677,8 @@
 
 /* Diff Preview */
 .diff-view {
-  padding: 16px 24px;
+  padding: 16px 8px;
+  overflow-x: auto;
 }
 
 .diff-group {
@@ -3687,6 +3688,17 @@
 }
 
 .diff-group p {
+  margin: 0;
+}
+
+.diff-group ol,
+.diff-group ul {
+  margin: 0;
+  padding-left: 1.5em;
+  list-style-position: inside;
+}
+
+.diff-group li {
   margin: 0;
 }
 
