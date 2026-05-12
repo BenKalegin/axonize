@@ -43,8 +43,8 @@ importers:
         specifier: ^0.2.2
         version: 0.2.2(@babel/core@7.29.0)(@babel/template@7.28.6)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)(zod@4.3.6)
       '@benkalegin/ui26':
-        specifier: ^0.1.3
-        version: 0.1.3(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
+        specifier: ^0.1.4
+        version: 0.1.4(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
       '@mermaid-js/layout-elk':
         specifier: ^0.2.0
         version: 0.2.0(mermaid@11.12.3)
@@ -279,8 +279,8 @@ packages:
       react: '>=19'
       react-dom: '>=19'
 
-  '@benkalegin/ui26@0.1.3':
-    resolution: {integrity: sha512-YGTBqB5h7SlrneNzmiDHU4CEZP0Z3EDn9HbMQI6U1sFz8bGh2rRChda7fcLGfmZyjWJ7ccYhEiRiJF29p4eUTg==, tarball: https://npm.pkg.github.com/download/@benkalegin/ui26/0.1.3/1538ad6558d7f46b05a971e7e86165a436389e7c}
+  '@benkalegin/ui26@0.1.4':
+    resolution: {integrity: sha512-OMc0nTAM6A92NJd41VtDOUw//+4k3zBVPeCE8mAJp0o/OtV3daxjQDPpiJGUqkhDUofLllvLIhnECT0R7PeIAA==, tarball: https://npm.pkg.github.com/download/@benkalegin/ui26/0.1.4/c082eb8804243db2b9439608114350dd4d364cbb}
     peerDependencies:
       react: '>=19'
       react-dom: '>=19'
@@ -4779,7 +4779,7 @@ snapshots:
 
   '@benkalegin/clouddiagram-editor@0.2.2(@babel/core@7.29.0)(@babel/template@7.28.6)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)(zod@4.3.6)':
     dependencies:
-      '@benkalegin/ui26': 0.1.3(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
+      '@benkalegin/ui26': 0.1.4(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
       '@dagrejs/dagre': 3.0.0
       '@modelcontextprotocol/sdk': 1.29.0(zod@4.3.6)
       '@reduxjs/toolkit': 2.11.2(react@19.2.4)
@@ -4807,7 +4807,7 @@ snapshots:
       - supports-color
       - zod
 
-  '@benkalegin/ui26@0.1.3(react-dom@19.2.4(react@19.2.4))(react@19.2.4)':
+  '@benkalegin/ui26@0.1.4(react-dom@19.2.4(react@19.2.4))(react@19.2.4)':
     dependencies:
       '@floating-ui/react': 0.27.19(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
       lucide-react: 1.14.0(react@19.2.4)
