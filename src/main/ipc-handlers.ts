@@ -10,10 +10,11 @@ import {registerLLMIpcHandlers} from './llm-ipc-handlers'
 import {registerAgentIpcHandlers} from './agent-ipc-handlers'
 import {registerAgentHistoryIpcHandlers} from './agent-history-ipc-handlers'
 import {registerGitIpcHandlers} from './git-ipc-handlers'
+import {registerVaultIconIpcHandlers} from './vault-icon-ipc-handlers'
 import {startWatching, stopWatching} from './file-watcher'
+import {vaultNameFromPath} from '../core/vault/name'
 import log from './logger'
 
-const DOC_SLUGS = new Set(['doc', 'docs'])
 const TEMP_SUFFIX = '.tmp'
 
 // Per-vault mutation queues to prevent concurrent write races on recent-files.json
@@ -24,15 +25,6 @@ function enqueueRecentFiles<T>(vaultPath: string, work: () => Promise<T>): Promi
   const next = prev.then(work, work)
   recentFilesQueues.set(vaultPath, next.then(() => undefined, () => undefined))
   return next
-}
-
-function vaultNameFromPath(p: string): string {
-  const parts = p.split('/').filter(Boolean)
-  const last = parts.at(-1) || p
-  if (DOC_SLUGS.has(last.toLowerCase()) && parts.length >= 2) {
-    return parts.at(-2)!
-  }
-  return last
 }
 
 export function registerIpcHandlers(): void {
@@ -50,6 +42,37 @@ export function registerIpcHandlers(): void {
     const vaultPath = result.filePaths[0]
     const name = vaultNameFromPath(vaultPath)
     await addRecentVault(vaultPath, name)
+    setCurrentVaultPath(vaultPath, event.sender.id)
+    return vaultPath
+  })
+
+  ipcMain.handle('vault:pickParentDir', async (event) => {
+    const win = BrowserWindow.fromWebContents(event.sender)
+    if (!win) return null
+    const result = await dialog.showOpenDialog(win, {
+      properties: ['openDirectory', 'createDirectory'],
+      title: 'Choose location for new vault'
+    })
+    if (result.canceled || result.filePaths.length === 0) return null
+    return result.filePaths[0]
+  })
+
+  ipcMain.handle('vault:createNew', async (event, parentDir: string, name: string) => {
+    const trimmed = name.trim()
+    if (!trimmed) throw new Error('Vault name is required')
+    // Reject path separators and traversal segments so a typo can't escape parentDir.
+    if (/[\\/]/.test(trimmed) || trimmed === '.' || trimmed === '..') {
+      throw new Error('Vault name cannot contain path separators')
+    }
+    const vaultPath = join(parentDir, trimmed)
+    try {
+      await mkdir(vaultPath, { recursive: false })
+    } catch (e) {
+      const err = e as NodeJS.ErrnoException
+      if (err.code === 'EEXIST') throw new Error('A folder with that name already exists')
+      throw e
+    }
+    await addRecentVault(vaultPath, vaultNameFromPath(vaultPath))
     setCurrentVaultPath(vaultPath, event.sender.id)
     return vaultPath
   })
@@ -167,4 +190,5 @@ export function registerIpcHandlers(): void {
   registerAgentIpcHandlers()
   registerAgentHistoryIpcHandlers()
   registerGitIpcHandlers()
+  registerVaultIconIpcHandlers()
 }

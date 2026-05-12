@@ -1,5 +1,6 @@
 import { create } from 'zustand'
 import type { AppSettings } from '@core/rag/types'
+import { vaultNameFromPath } from '@core/vault/name'
 import { useGeneratedDocsStore } from './generated-docs-store'
 import { useRagStore } from './rag-store'
 import { useGraphStore } from './graph-store'
@@ -53,17 +54,6 @@ async function restoreLastFile(vaultPath: string): Promise<void> {
   } catch { /* no recent files */ }
 }
 
-const DOC_SLUGS = new Set(['doc', 'docs'])
-
-function vaultNameFromPath(p: string): string {
-  const parts = p.split('/').filter(Boolean)
-  const last = parts.at(-1) || p
-  if (DOC_SLUGS.has(last.toLowerCase()) && parts.length >= 2) {
-    return parts.at(-2)!
-  }
-  return last
-}
-
 interface FileEntry {
   name: string
   path: string
@@ -85,6 +75,7 @@ interface VaultState {
   recentVaults: RecentVault[]
   excludedFolders: string[]
   openVault: () => Promise<void>
+  createNewVault: () => Promise<string | null>
   setVaultPath: (path: string) => void
   loadFileTree: (path: string) => Promise<void>
   loadRecentVaults: () => Promise<void>
@@ -97,6 +88,37 @@ interface VaultState {
   openVaultInNewWindow: (path: string) => Promise<void>
 }
 
+// Shared activation flow for any code path that switches this window to a vault
+// (initial open, picking a recent vault, creating a brand-new vault). The
+// addRecent flag is true when the path may not yet be in the recents list —
+// vault:open already records the new path on the main side, but openRecentVault
+// and createNewVault need an explicit save to bump openedAt.
+async function activateVaultInWindow(
+  path: string,
+  set: (partial: Partial<VaultState>) => void,
+  get: () => VaultState,
+  options: { addRecent: boolean }
+): Promise<void> {
+  useEditorStore.getState().clear()
+  const name = vaultNameFromPath(path)
+  setCurrentVaultInSession(path)
+  set({ vaultPath: path, vaultName: name })
+  window.axonize.window.setTitle(name).catch(() => {})
+  window.axonize.window.setVault(path).catch(() => {})
+  const files = await window.axonize.vault.readFiles(path) as FileEntry[]
+  set({ fileTree: files })
+  if (options.addRecent) {
+    await window.axonize.vault.addRecent(path, name)
+  }
+  await get().loadRecentVaults()
+  await get().loadExcludedFolders()
+  restoreLastFile(path).catch(() => {})
+  useGeneratedDocsStore.getState().runCleanup(path).catch(() => {})
+  window.axonize.agentHistory.cleanup(path).catch(() => {})
+  loadSemanticCacheOnly(path).catch(() => {})
+  window.axonize.vault.startWatch(path).catch(() => {})
+}
+
 export const useVaultStore = create<VaultState>((set, get) => ({
   vaultPath: null,
   vaultName: null,
@@ -107,22 +129,20 @@ export const useVaultStore = create<VaultState>((set, get) => ({
   openVault: async () => {
     const path = await window.axonize.vault.open()
     if (path) {
-      useEditorStore.getState().clear()
-      const name = vaultNameFromPath(path)
-      setCurrentVaultInSession(path)
-      set({ vaultPath: path, vaultName: name })
-      window.axonize.window.setTitle(name).catch(() => {})
-      window.axonize.window.setVault(path).catch(() => {})
-      const files = await window.axonize.vault.readFiles(path) as FileEntry[]
-      set({ fileTree: files })
-      await get().loadRecentVaults()
-      await get().loadExcludedFolders()
-      restoreLastFile(path).catch(() => {})
-      useGeneratedDocsStore.getState().runCleanup(path).catch(() => {})
-      window.axonize.agentHistory.cleanup(path).catch(() => {})
-      loadSemanticCacheOnly(path).catch(() => {})
-      window.axonize.vault.startWatch(path).catch(() => {})
+      await activateVaultInWindow(path, set, get, { addRecent: false })
     }
+  },
+
+  createNewVault: async () => {
+    const parent = await window.axonize.vault.pickParentDir()
+    if (!parent) return null
+    // Renderer-side prompt for the name. Keep it simple — a window.prompt avoids
+    // building another modal just for this one input.
+    const name = window.prompt('Name for the new vault:', 'New Vault')
+    if (!name?.trim()) return null
+    const path = await window.axonize.vault.createNew(parent, name.trim())
+    await activateVaultInWindow(path, set, get, { addRecent: false })
+    return path
   },
 
   setVaultPath: (path: string) => {
@@ -146,22 +166,7 @@ export const useVaultStore = create<VaultState>((set, get) => ({
   },
 
   openRecentVault: async (path: string) => {
-    useEditorStore.getState().clear()
-    const name = vaultNameFromPath(path)
-    setCurrentVaultInSession(path)
-    set({ vaultPath: path, vaultName: name })
-    window.axonize.window.setTitle(name).catch(() => {})
-    window.axonize.window.setVault(path).catch(() => {})
-    const files = await window.axonize.vault.readFiles(path) as FileEntry[]
-    set({ fileTree: files })
-    await window.axonize.vault.addRecent(path, name)
-    await get().loadRecentVaults()
-    await get().loadExcludedFolders()
-    restoreLastFile(path).catch(() => {})
-    useGeneratedDocsStore.getState().runCleanup(path).catch(() => {})
-    window.axonize.agentHistory.cleanup(path).catch(() => {})
-    loadSemanticCacheOnly(path).catch(() => {})
-    window.axonize.vault.startWatch(path).catch(() => {})
+    await activateVaultInWindow(path, set, get, { addRecent: true })
   },
 
   loadExcludedFolders: async () => {

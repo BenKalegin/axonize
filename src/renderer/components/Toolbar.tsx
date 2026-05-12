@@ -1,7 +1,8 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState } from 'react'
 import { TEST_IDS } from '@/lib/testids'
 import { useVaultStore } from '@/store/vault-store'
 import { useEditorStore, ViewMode } from '@/store/editor-store'
+import { VaultMenu } from './VaultMenu'
 
 const BackIcon = () => (
   <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
@@ -31,139 +32,19 @@ import { SettingsDialog } from './SettingsDialog'
 import { JobStatusIndicator } from './JobStatusIndicator'
 
 export function Toolbar() {
-  const { vaultPath, vaultName, openVault, recentVaults, openRecentVault, openVaultInNewWindow, loadRecentVaults, removeRecentVault, refreshVault } = useVaultStore()
+  const { vaultPath, refreshVault } = useVaultStore()
   const { viewMode, setViewMode, canGoBack, canGoForward, goBack, goForward, backTarget, forwardTarget, diffPreviewFile, clearDiffPreviewFile } = useEditorStore()
   const { chunkCount } = useRagStore()
-  const [dropdownOpen, setDropdownOpen] = useState(false)
   const [settingsOpen, setSettingsOpen] = useState(false)
-  const [confirmRemove, setConfirmRemove] = useState<string | null>(null)
-  const groupRef = useRef<HTMLDivElement>(null)
-
-  useEffect(() => {
-    if (!dropdownOpen) return
-    function handleClickOutside(e: MouseEvent) {
-      if (groupRef.current && !groupRef.current.contains(e.target as Node)) {
-        setDropdownOpen(false)
-      }
-    }
-    document.addEventListener('mousedown', handleClickOutside)
-    return () => document.removeEventListener('mousedown', handleClickOutside)
-  }, [dropdownOpen])
-
-  const toggleDropdown = async () => {
-    if (!dropdownOpen) {
-      await loadRecentVaults()
-      setDropdownOpen(true)
-    } else {
-      setDropdownOpen(false)
-    }
-  }
 
   const diffPreviewFileName = diffPreviewFile?.path.split('/').pop()
 
   return (
     <div className="toolbar-content">
       <div className="toolbar-left">
-        <div className="vault-btn-group" ref={groupRef}>
-          <button
-            data-testid={TEST_IDS.OPEN_VAULT_BTN}
-            className="toolbar-btn"
-            onClick={openVault}
-          >
-            Open Vault
-          </button>
-          <button
-            className="vault-chevron"
-            onClick={toggleDropdown}
-          >
-            <svg width="10" height="6" viewBox="0 0 10 6" fill="none">
-              <path d="M1 1L5 5L9 1" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-            </svg>
-          </button>
-          {dropdownOpen && (
-            <div data-testid={TEST_IDS.VAULT_DROPDOWN} className="vault-dropdown">
-              {recentVaults.length > 0 ? (
-                recentVaults.map(vault => (
-                  <div key={vault.path}>
-                    <div
-                      data-testid={TEST_IDS.VAULT_DROPDOWN_ITEM}
-                      className="vault-dropdown-item"
-                    >
-                      <div
-                        className="vault-dropdown-item-info"
-                        onClick={() => {
-                          openRecentVault(vault.path)
-                          setDropdownOpen(false)
-                          setConfirmRemove(null)
-                        }}
-                      >
-                        <span className="vault-dropdown-item-name">{vault.name}</span>
-                        <span className="vault-dropdown-item-path">{vault.path}</span>
-                      </div>
-                      <button
-                        className="vault-dropdown-newwin"
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          openVaultInNewWindow(vault.path)
-                          setDropdownOpen(false)
-                        }}
-                        title="Open in new window"
-                      >
-                        <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
-                          <rect x="1" y="3" width="7" height="7" rx="1" stroke="currentColor" strokeWidth="1.2"/>
-                          <path d="M4 3V2a1 1 0 0 1 1-1h5a1 1 0 0 1 1 1v5a1 1 0 0 1-1 1H9" stroke="currentColor" strokeWidth="1.2"/>
-                        </svg>
-                      </button>
-                      <button
-                        className="vault-dropdown-remove"
-                        data-testid={TEST_IDS.VAULT_DROPDOWN_REMOVE}
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          setConfirmRemove(confirmRemove === vault.path ? null : vault.path)
-                        }}
-                        title="Remove from recents"
-                      >
-                        &times;
-                      </button>
-                    </div>
-                    {confirmRemove === vault.path && (
-                      <div className="vault-dropdown-confirm">
-                        <span>Remove {vault.name}?</span>
-                        <div className="vault-dropdown-confirm-btns">
-                          <button
-                            className="vault-dropdown-confirm-btn vault-dropdown-confirm-btn--cancel"
-                            onClick={() => setConfirmRemove(null)}
-                          >
-                            Cancel
-                          </button>
-                          <button
-                            className="vault-dropdown-confirm-btn vault-dropdown-confirm-btn--delete"
-                            onClick={async () => {
-                              await removeRecentVault(vault.path)
-                              setConfirmRemove(null)
-                              if (vaultPath === vault.path) {
-                                useVaultStore.setState({ vaultPath: null, vaultName: null, fileTree: [] })
-                              }
-                            }}
-                          >
-                            Remove
-                          </button>
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                ))
-              ) : (
-                <div className="vault-dropdown-empty">No recent vaults</div>
-              )}
-            </div>
-          )}
-        </div>
+        <VaultMenu />
         {vaultPath && (
           <>
-            <span data-testid={TEST_IDS.VAULT_NAME} className="vault-name">
-              {vaultName}
-            </span>
             <button
               data-testid={TEST_IDS.REFRESH_VAULT_BTN}
               className="toolbar-btn toolbar-refresh-btn"

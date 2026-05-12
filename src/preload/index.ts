@@ -1,4 +1,5 @@
 import { contextBridge, ipcRenderer } from 'electron'
+import { homedir } from 'os'
 import type { CardKind, StalenessInfo } from '../core/semantic/types'
 import type {
   AgentTurnMeta,
@@ -102,14 +103,28 @@ export interface AgentEventPayload {
   event: AgentEventBody
 }
 
+export interface OpenWindowInfo {
+  windowId: number
+  vaultPath: string | null
+  vaultName: string | null
+  isCurrent: boolean
+}
+
 export interface AxonizeAPI {
+  // Captured once at preload time so the renderer can render `~`-prefixed paths
+  // without an async round-trip.
+  homeDir: string
   window: {
     setTitle: (vaultName: string | null) => Promise<void>
     openNew: (vaultPath?: string) => Promise<void>
     setVault: (vaultPath: string | null) => Promise<void>
+    listOpen: () => Promise<OpenWindowInfo[]>
+    focus: (windowId: number) => Promise<void>
   }
   vault: {
     open: () => Promise<string | null>
+    pickParentDir: () => Promise<string | null>
+    createNew: (parentDir: string, name: string) => Promise<string>
     readFiles: (vaultPath: string) => Promise<unknown[]>
     getRecent: () => Promise<RecentVault[]>
     addRecent: (path: string, name: string) => Promise<void>
@@ -117,6 +132,9 @@ export interface AxonizeAPI {
     startWatch: (path: string) => Promise<void>
     stopWatch: () => Promise<void>
     onFilesChanged: (callback: () => void) => () => void
+    readIcon: (vaultPath: string) => Promise<string | null>
+    writeIcon: (vaultPath: string, svg: string) => Promise<void>
+    generateIcon: (vaultPath: string, prompt: string) => Promise<string>
   }
   file: {
     read: (filePath: string) => Promise<string>
@@ -193,13 +211,19 @@ export interface AxonizeAPI {
 }
 
 const api: AxonizeAPI = {
+  homeDir: homedir(),
   window: {
     setTitle: (vaultName: string | null) => ipcRenderer.invoke('window:setTitle', vaultName),
     openNew: (vaultPath?: string) => ipcRenderer.invoke('window:openNew', vaultPath),
-    setVault: (vaultPath: string | null) => ipcRenderer.invoke('window:setVault', vaultPath)
+    setVault: (vaultPath: string | null) => ipcRenderer.invoke('window:setVault', vaultPath),
+    listOpen: () => ipcRenderer.invoke('window:listOpen'),
+    focus: (windowId: number) => ipcRenderer.invoke('window:focus', windowId)
   },
   vault: {
     open: () => ipcRenderer.invoke('vault:open'),
+    pickParentDir: () => ipcRenderer.invoke('vault:pickParentDir'),
+    createNew: (parentDir: string, name: string) =>
+      ipcRenderer.invoke('vault:createNew', parentDir, name),
     readFiles: (vaultPath: string) => ipcRenderer.invoke('vault:readFiles', vaultPath),
     getRecent: () => ipcRenderer.invoke('vault:getRecent'),
     addRecent: (path: string, name: string) => ipcRenderer.invoke('vault:addRecent', path, name),
@@ -212,7 +236,12 @@ const api: AxonizeAPI = {
       return () => {
         ipcRenderer.removeListener('vault:filesChanged', listener)
       }
-    }
+    },
+    readIcon: (vaultPath: string) => ipcRenderer.invoke('vault:readIcon', vaultPath),
+    writeIcon: (vaultPath: string, svg: string) =>
+      ipcRenderer.invoke('vault:writeIcon', vaultPath, svg),
+    generateIcon: (vaultPath: string, prompt: string) =>
+      ipcRenderer.invoke('vault:generateIcon', vaultPath, prompt)
   },
   file: {
     read: (filePath: string) => ipcRenderer.invoke('file:read', filePath),

@@ -3,6 +3,7 @@ import { join, extname } from 'path'
 import { readFile } from 'fs/promises'
 import { registerIpcHandlers } from './ipc-handlers'
 import { loadWindowState, saveWindowState, loadWindowSessions, saveWindowSessions, type WindowSession } from './window-state'
+import { vaultNameFromPath } from '../core/vault/name'
 import log from './logger'
 
 protocol.registerSchemesAsPrivileged([
@@ -247,6 +248,29 @@ app.whenReady().then(() => {
     windowVaults.set(win, vaultPath)
     // Save immediately - important state change, don't risk losing it
     saveAllWindowSessions()
+  })
+
+  // Enumerate every live Axonize window with its vault path, flagging the caller's own window.
+  ipcMain.handle('window:listOpen', (event) => {
+    const callerId = BrowserWindow.fromWebContents(event.sender)?.id
+    return BrowserWindow.getAllWindows()
+      .filter((w) => !w.isDestroyed())
+      .map((w) => {
+        const vaultPath = windowVaults.get(w) ?? null
+        return {
+          windowId: w.id,
+          vaultPath,
+          vaultName: vaultPath ? vaultNameFromPath(vaultPath) : null,
+          isCurrent: w.id === callerId
+        }
+      })
+  })
+
+  ipcMain.handle('window:focus', (_event, windowId: number) => {
+    const target = BrowserWindow.getAllWindows().find((w) => w.id === windowId && !w.isDestroyed())
+    if (!target) return
+    if (target.isMinimized()) target.restore()
+    target.focus()
   })
 
   session.defaultSession.protocol.handle('axonize-file', handleAxonizeFileRequest)

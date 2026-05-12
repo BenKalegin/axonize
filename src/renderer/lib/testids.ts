@@ -47,9 +47,17 @@ export const TEST_IDS = {
   RECENT_VAULT_ITEM: 'recent-vault-item',
   RECENT_VAULT_REMOVE: 'recent-vault-remove',
 
-  // Vault Dropdown
+  // Vault Menu (split-button popover)
+  VAULT_MENU_TRIGGER: 'vault-menu-trigger',
+  VAULT_MENU_CHEVRON: 'vault-menu-chevron',
   VAULT_DROPDOWN: 'vault-dropdown',
   VAULT_DROPDOWN_ITEM: 'vault-dropdown-item',
+  VAULT_MENU_NEW: 'vault-menu-new',
+  VAULT_MENU_OPEN: 'vault-menu-open',
+  VAULT_MENU_OPEN_WINDOW: 'vault-menu-open-window',
+  VAULT_MENU_ICON_EDIT: 'vault-menu-icon-edit',
+  VAULT_MENU_ICON_PROMPT: 'vault-menu-icon-prompt',
+  VAULT_MENU_ICON_GENERATE: 'vault-menu-icon-generate',
 
   // Command Palette
   COMMAND_PALETTE: 'command-palette',
