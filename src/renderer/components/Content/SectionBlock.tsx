@@ -199,11 +199,20 @@ export const SectionBlock = React.memo(function SectionBlock({
     [handleLlmSubmit]
   )
 
-  const handleCopy = useCallback(() => {
-    navigator.clipboard.writeText(draft).then(() => {
-      setCopied(true)
-      setTimeout(() => setCopied(false), COPY_RESET_DELAY_MS)
-    })
+  const handleCopy = useCallback(async () => {
+    const source = extractMermaidCodeFence(draft) ?? draft
+    try {
+      const svg = await renderMermaidSource(source)
+      const utf8Safe = unescape(encodeURIComponent(svg))
+      const dataUri = `data:image/svg+xml;base64,${btoa(utf8Safe)}`
+      const html = `<img src="${dataUri}" alt="mermaid diagram" />`
+      await window.axonize.clipboard.writeTextAndHtml(draft, html)
+    } catch (err) {
+      console.error('[copy] mermaid render failed, copying source only:', err)
+      await navigator.clipboard.writeText(draft)
+    }
+    setCopied(true)
+    setTimeout(() => setCopied(false), COPY_RESET_DELAY_MS)
   }, [draft])
 
   const autoResizeTextarea = useCallback(() => {

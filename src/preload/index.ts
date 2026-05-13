@@ -170,6 +170,9 @@ export interface AxonizeAPI {
     rewriteSection: (section: string, instruction: string) => Promise<string>
     summarizeSession: (payload: { prevTitle: string; userPrompt: string; assistantPreview: string }) => Promise<string>
   }
+  clipboard: {
+    writeTextAndHtml: (text: string, html: string) => Promise<void>
+  }
   agent: {
     start: (payload: AgentStartPayload) => void
     cancel: (sessionId: string) => void
@@ -304,6 +307,10 @@ const api: AxonizeAPI = {
       ipcRenderer.invoke('llm:rewriteSection', { section, instruction }),
     summarizeSession: (payload: { prevTitle: string; userPrompt: string; assistantPreview: string }) =>
       ipcRenderer.invoke('llm:summarizeSession', payload)
+  },
+  clipboard: {
+    writeTextAndHtml: (text: string, html: string) =>
+      ipcRenderer.invoke('clipboard:writeTextAndHtml', text, html)
   },
   agent: {
     start: (payload: AgentStartPayload) => ipcRenderer.send('agent:start', payload),
