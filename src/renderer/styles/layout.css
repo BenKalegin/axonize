@@ -3579,6 +3579,241 @@
   white-space: nowrap;
 }
 
+/* Lint activity bar badge */
+.activity-lint-badge {
+  position: absolute;
+  top: 5px;
+  right: 5px;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  border: 1.5px solid var(--bg-primary, #1e1e2e);
+  pointer-events: none;
+}
+
+.activity-lint-badge--error { background: var(--red); }
+.activity-lint-badge--warning { background: var(--yellow); }
+.activity-lint-badge--running {
+  background: var(--text-muted);
+  animation: lint-badge-pulse 1s ease-in-out infinite;
+}
+
+@keyframes lint-badge-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.25; }
+}
+
+/* Lint Panel */
+.lint-panel {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+.lint-summary {
+  display: flex;
+  gap: 4px;
+  align-items: center;
+}
+
+.lint-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  height: 16px;
+  padding: 0 4px;
+  border-radius: 3px;
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.lint-count--error {
+  background: color-mix(in srgb, var(--red) 20%, transparent);
+  color: var(--red);
+}
+
+.lint-count--warning {
+  background: color-mix(in srgb, var(--yellow) 20%, transparent);
+  color: var(--yellow);
+}
+
+.lint-list {
+  flex: 1;
+  overflow-y: auto;
+  padding: 4px 0;
+}
+
+.lint-empty {
+  padding: 12px;
+  color: var(--text-muted);
+  font-size: 13px;
+}
+
+.lint-empty--ok {
+  color: var(--green);
+}
+
+.lint-rule-group {
+  border-bottom: 1px solid var(--border);
+}
+
+.lint-rule-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 8px 5px 12px;
+  background: var(--bg-overlay);
+}
+
+.lint-rule-name {
+  flex: 1;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-muted);
+}
+
+.lint-rule-header--error .lint-rule-name { color: var(--red); }
+.lint-rule-header--warning .lint-rule-name { color: var(--yellow); }
+
+.lint-rule-count {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.lint-rule-actions {
+  display: flex;
+  gap: 2px;
+  flex-shrink: 0;
+}
+
+.lint-issue-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  padding: 5px 8px 5px 12px;
+  border-bottom: 1px solid var(--border);
+  transition: background 0.1s;
+}
+
+.lint-issue-row--navigable {
+  cursor: pointer;
+}
+
+.lint-issue-row:hover {
+  background: var(--bg-overlay);
+}
+
+.lint-issue-row:hover .lint-issue-actions {
+  opacity: 1;
+}
+
+.lint-issue-actions {
+  display: flex;
+  gap: 2px;
+  flex-shrink: 0;
+  opacity: 0;
+  transition: opacity 0.1s;
+  margin-top: 1px;
+}
+
+.lint-fix-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 3px;
+  color: var(--text-muted);
+  font-size: 11px;
+  transition: background 0.1s, color 0.1s;
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 0;
+  font-family: inherit;
+}
+
+.lint-fix-btn:hover:not(:disabled) {
+  background: var(--bg-overlay);
+  color: var(--text-primary);
+}
+
+.lint-fix-btn--llm:hover:not(:disabled) {
+  color: var(--accent, #89b4fa);
+}
+
+.lint-fix-btn:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+/* Group-level fix buttons are always visible and more prominent */
+.lint-rule-actions .lint-fix-btn {
+  color: var(--text-primary);
+  background: color-mix(in srgb, var(--text-primary) 8%, transparent);
+}
+
+.lint-rule-actions .lint-fix-btn:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--text-primary) 18%, transparent);
+}
+
+.lint-rule-actions .lint-fix-btn--llm {
+  color: var(--accent, #89b4fa);
+  background: color-mix(in srgb, var(--accent, #89b4fa) 12%, transparent);
+}
+
+.lint-rule-actions .lint-fix-btn--llm:hover:not(:disabled) {
+  color: var(--accent, #89b4fa);
+  background: color-mix(in srgb, var(--accent, #89b4fa) 22%, transparent);
+}
+
+.lint-issue-badge {
+  flex-shrink: 0;
+  padding: 1px 5px;
+  border-radius: 3px;
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  margin-top: 1px;
+}
+
+.lint-issue-row--error .lint-issue-badge {
+  background: color-mix(in srgb, var(--red) 20%, transparent);
+  color: var(--red);
+}
+
+.lint-issue-row--warning .lint-issue-badge {
+  background: color-mix(in srgb, var(--yellow) 20%, transparent);
+  color: var(--yellow);
+}
+
+.lint-issue-row--info .lint-issue-badge {
+  background: var(--bg-overlay);
+  color: var(--text-muted);
+}
+
+.lint-issue-message {
+  flex: 1;
+  font-size: 12px;
+  color: var(--text-primary);
+  line-height: 1.4;
+  word-break: break-word;
+}
+
+.lint-issue-line {
+  flex-shrink: 0;
+  font-size: 11px;
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+  margin-top: 1px;
+}
+
 /* Related Docs Panel */
 .related-docs-panel {
   height: 100%;

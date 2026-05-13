@@ -220,6 +220,7 @@ export const SectionBlock = React.memo(function SectionBlock({
   if (editing) {
     return (
       <div
+        id={section.id}
         className="section-block section-block--editing"
         data-testid={TEST_IDS.SECTION_BLOCK}
         onKeyDown={handleKeyDown}
@@ -303,6 +304,7 @@ export const SectionBlock = React.memo(function SectionBlock({
 
   return (
     <div
+      id={section.id}
       className={`section-block${saving ? ' section-block--saving' : ''}`}
       data-testid={TEST_IDS.SECTION_BLOCK}
     >

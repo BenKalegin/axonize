@@ -1,4 +1,5 @@
 import type { Block } from '../markdown/types'
+import { WIKILINK_RE, MD_LINK_RE } from '../markdown/link-patterns'
 
 export interface LinkReference {
   type: 'wikilink' | 'markdown'
@@ -6,9 +7,6 @@ export interface LinkReference {
   fragment?: string
   sourceBlockId: string
 }
-
-const WIKILINK_RE = /\[\[([^\]|]+)(?:\|[^\]]+)?\]\]/g
-const MD_LINK_RE = /\[([^\]]+)\]\(([^)]+)\)/g
 
 export function detectLinks(block: Block): LinkReference[] {
   const links: LinkReference[] = []

@@ -1,3 +1,10 @@
+import {
+  stripMermaidFrontmatter,
+  splitMermaidFrontmatter
+} from '@core/markdown/mermaid-frontmatter'
+
+export { stripMermaidFrontmatter }
+
 const MERMAID_START_RE =
   /^\s*(?:---\s*\n[\s\S]*?\n---\s*\n)?(?:architecture|block-beta|classDiagram|erDiagram|flowchart|gantt|gitGraph|graph|journey|mindmap|pie|quadrantChart|requirementDiagram|sequenceDiagram|stateDiagram|stateDiagram-v2|timeline|xychart-beta)\b/i
 
@@ -19,26 +26,9 @@ export function prepareMermaidSourceForRender(source: string): string {
   return `---\n${frontmatter}\n---\n${parts.body.trimStart()}`
 }
 
-export function stripMermaidFrontmatter(source: string): string {
-  return splitMermaidFrontmatter(source.replace(/\r\n/g, '\n'))?.body.trimStart() ?? source
-}
-
 export function extractMermaidCodeFence(markdown: string): string | null {
   const match = markdown.match(/^\s*```mermaid[^\n]*\n([\s\S]*?)\n```\s*$/i)
   return match?.[1] ?? null
-}
-
-function splitMermaidFrontmatter(source: string): { frontmatter: string; body: string } | null {
-  const trimmedStart = source.trimStart()
-  if (!trimmedStart.startsWith('---\n')) return null
-
-  const closing = trimmedStart.indexOf('\n---\n', 4)
-  if (closing < 0) return null
-
-  return {
-    frontmatter: trimmedStart.slice(4, closing),
-    body: trimmedStart.slice(closing + 5)
-  }
 }
 
 function removeTopLevelYamlBlock(frontmatter: string, key: string): string {

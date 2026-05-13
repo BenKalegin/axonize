@@ -7,7 +7,8 @@ export const SidePanelId = {
   Outline: 'outline',
   Agent: 'agent',
   LlmLog: 'llm-log',
-  Errors: 'errors'
+  Errors: 'errors',
+  Lint: 'lint'
 } as const
 export type SidePanelId = (typeof SidePanelId)[keyof typeof SidePanelId]
 

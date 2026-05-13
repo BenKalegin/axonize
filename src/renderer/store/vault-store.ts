@@ -1,5 +1,6 @@
 import { create } from 'zustand'
 import type { AppSettings } from '@core/rag/types'
+import type { FileEntry } from '@core/vault/types'
 import { vaultNameFromPath } from '@core/vault/name'
 import { useGeneratedDocsStore } from './generated-docs-store'
 import { useRagStore } from './rag-store'
@@ -54,13 +55,7 @@ async function restoreLastFile(vaultPath: string): Promise<void> {
   } catch { /* no recent files */ }
 }
 
-interface FileEntry {
-  name: string
-  path: string
-  relativePath: string
-  isDirectory: boolean
-  children?: FileEntry[]
-}
+export type { FileEntry }
 
 interface RecentVault {
   path: string

@@ -1,6 +1,8 @@
 import type { ReactNode } from 'react'
 import { TEST_IDS } from '@/lib/testids'
 import { useLayoutStore, SidePanelId } from '@/store/layout-store'
+import { useLintStore } from '@/store/lint-store'
+import { useEditorStore, selectedFilePath } from '@/store/editor-store'
 
 interface ActivityItem {
   id: SidePanelId
@@ -56,13 +58,46 @@ const AgentIcon = () => (
   </svg>
 )
 
+const LintIconSvg = () => (
+  <svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <path d="M4 5h12M4 10h8M4 15h6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+    <circle cx="15" cy="13" r="3.5" stroke="currentColor" strokeWidth="1.5" />
+    <line x1="17.5" y1="15.5" x2="19" y2="17" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+  </svg>
+)
+
+function getLintBadgeClass(running: boolean, hasErrors: boolean, hasWarnings: boolean): string | null {
+  if (running) return 'activity-lint-badge activity-lint-badge--running'
+  if (hasErrors) return 'activity-lint-badge activity-lint-badge--error'
+  if (hasWarnings) return 'activity-lint-badge activity-lint-badge--warning'
+  return null
+}
+
+function LintIcon() {
+  const { issues, running } = useLintStore()
+  const selection = useEditorStore((s) => s.selection)
+  const filePath = selectedFilePath(selection)
+  const fileIssues = filePath ? (issues[filePath] ?? []) : []
+  const hasErrors = fileIssues.some((i) => i.severity === 'error')
+  const hasWarnings = fileIssues.some((i) => i.severity === 'warning')
+  const badgeClass = getLintBadgeClass(running, hasErrors, hasWarnings)
+
+  return (
+    <>
+      <LintIconSvg />
+      {badgeClass && <span className={badgeClass} />}
+    </>
+  )
+}
+
 const ACTIVITY_ITEMS: ActivityItem[] = [
   { id: SidePanelId.Files, label: 'Explorer', icon: <FilesIcon /> },
   { id: SidePanelId.Git, label: 'Source Control', icon: <GitIcon /> },
   { id: SidePanelId.Outline, label: 'Outline', icon: <OutlineIcon /> },
   { id: SidePanelId.Agent, label: 'Agent Sessions', icon: <AgentIcon /> },
   { id: SidePanelId.LlmLog, label: 'LLM Log', icon: <LLMLogIcon /> },
-  { id: SidePanelId.Errors, label: 'Errors', icon: <ErrorsIcon /> }
+  { id: SidePanelId.Errors, label: 'Errors', icon: <ErrorsIcon /> },
+  { id: SidePanelId.Lint, label: 'Doc Lint', icon: <LintIcon /> }
 ]
 
 export function ActivityBar() {

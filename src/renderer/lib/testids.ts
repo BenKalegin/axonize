@@ -180,6 +180,10 @@ export const TEST_IDS = {
   GIT_COMMIT_BTN: 'git-commit-btn',
   GIT_SUGGEST_BTN: 'git-suggest-btn',
 
+  // Lint Panel
+  LINT_PANEL: 'lint-panel',
+  LINT_ISSUE_ROW: 'lint-issue-row',
+
   // Related Docs Panel
   RELATED_DOCS_PANEL: 'related-docs-panel',
   RELATED_DOC_CARD: 'related-doc-card',

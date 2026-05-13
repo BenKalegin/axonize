@@ -7,6 +7,7 @@ import { LLMLogPanel } from './LLMLogPanel'
 import { OutlinePanel } from './OutlinePanel'
 import { SemanticErrorsPanel } from './SemanticErrorsPanel'
 import { AgentPanel } from './AgentPanel'
+import { LintPanel } from './LintPanel'
 
 export function SidePanel() {
   const { activePanelId, sidePanelWidth, setSidePanelWidth, persistToSettings } =
@@ -56,6 +57,7 @@ export function SidePanel() {
         {activePanelId === SidePanelId.Agent && <AgentPanel />}
         {activePanelId === SidePanelId.LlmLog && <LLMLogPanel />}
         {activePanelId === SidePanelId.Errors && <SemanticErrorsPanel />}
+        {activePanelId === SidePanelId.Lint && <LintPanel />}
       </div>
       <div
         className="resize-handle"
