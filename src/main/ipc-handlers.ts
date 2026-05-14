@@ -1,5 +1,5 @@
 import {BrowserWindow, dialog, ipcMain} from 'electron'
-import {readVaultFiles} from './file-service'
+import {readVaultFiles, listAllFiles} from './file-service'
 import {mkdir, readFile, writeFile, rename, unlink} from 'fs/promises'
 import {join} from 'path'
 import {addRecentVault, getRecentVaults, removeRecentVault} from './recent-vaults-service'
@@ -47,25 +47,17 @@ export function registerIpcHandlers(): void {
     return vaultPath
   })
 
-  ipcMain.handle('vault:pickParentDir', async (event) => {
+  ipcMain.handle('vault:createNew', async (event) => {
     const win = BrowserWindow.fromWebContents(event.sender)
     if (!win) return null
-    const result = await dialog.showOpenDialog(win, {
-      properties: ['openDirectory', 'createDirectory'],
-      title: 'Choose location for new vault'
+    const result = await dialog.showSaveDialog(win, {
+      title: 'Create New Vault',
+      buttonLabel: 'Create',
+      defaultPath: 'New Vault',
+      properties: ['createDirectory', 'showOverwriteConfirmation']
     })
-    if (result.canceled || result.filePaths.length === 0) return null
-    return result.filePaths[0]
-  })
-
-  ipcMain.handle('vault:createNew', async (event, parentDir: string, name: string) => {
-    const trimmed = name.trim()
-    if (!trimmed) throw new Error('Vault name is required')
-    // Reject path separators and traversal segments so a typo can't escape parentDir.
-    if (/[\\/]/.test(trimmed) || trimmed === '.' || trimmed === '..') {
-      throw new Error('Vault name cannot contain path separators')
-    }
-    const vaultPath = join(parentDir, trimmed)
+    if (result.canceled || !result.filePath) return null
+    const vaultPath = result.filePath
     try {
       await mkdir(vaultPath, { recursive: false })
     } catch (e) {
@@ -84,6 +76,15 @@ export function registerIpcHandlers(): void {
       return readVaultFiles(vaultPath)
     } catch (e) {
       log.error('vault:readFiles failed:', e)
+      throw e
+    }
+  })
+
+  ipcMain.handle('vault:listAllFiles', async (_event, vaultPath: string) => {
+    try {
+      return listAllFiles(vaultPath)
+    } catch (e) {
+      log.error('vault:listAllFiles failed:', e)
       throw e
     }
   })

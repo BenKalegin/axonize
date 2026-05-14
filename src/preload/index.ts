@@ -123,8 +123,7 @@ export interface AxonizeAPI {
   }
   vault: {
     open: () => Promise<string | null>
-    pickParentDir: () => Promise<string | null>
-    createNew: (parentDir: string, name: string) => Promise<string>
+    createNew: () => Promise<string | null>
     readFiles: (vaultPath: string) => Promise<unknown[]>
     listAllFiles: (vaultPath: string) => Promise<string[]>
     getRecent: () => Promise<RecentVault[]>
@@ -227,9 +226,7 @@ const api: AxonizeAPI = {
   },
   vault: {
     open: () => ipcRenderer.invoke('vault:open'),
-    pickParentDir: () => ipcRenderer.invoke('vault:pickParentDir'),
-    createNew: (parentDir: string, name: string) =>
-      ipcRenderer.invoke('vault:createNew', parentDir, name),
+    createNew: () => ipcRenderer.invoke('vault:createNew'),
     readFiles: (vaultPath: string) => ipcRenderer.invoke('vault:readFiles', vaultPath),
     listAllFiles: (vaultPath: string) => ipcRenderer.invoke('vault:listAllFiles', vaultPath),
     getRecent: () => ipcRenderer.invoke('vault:getRecent'),

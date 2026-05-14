@@ -129,13 +129,8 @@ export const useVaultStore = create<VaultState>((set, get) => ({
   },
 
   createNewVault: async () => {
-    const parent = await window.axonize.vault.pickParentDir()
-    if (!parent) return null
-    // Renderer-side prompt for the name. Keep it simple — a window.prompt avoids
-    // building another modal just for this one input.
-    const name = window.prompt('Name for the new vault:', 'New Vault')
-    if (!name?.trim()) return null
-    const path = await window.axonize.vault.createNew(parent, name.trim())
+    const path = await window.axonize.vault.createNew()
+    if (!path) return null
     await activateVaultInWindow(path, set, get, { addRecent: false })
     return path
   },
