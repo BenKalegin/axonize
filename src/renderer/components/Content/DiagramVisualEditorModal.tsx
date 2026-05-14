@@ -110,14 +110,12 @@ export function DiagramVisualEditorModal({
   const diagramTheme = useMemo(() => buildDiagramTheme(), [])
   const initialLayout = useMemo(() => ({ ...defaultAppLayout, propsPaneOpen: false }), [])
 
+  // Layout persistence (x-axonize frontmatter overlay) is intentionally disabled.
+  // The next iteration moves to a hint-based persistence model — see
+  // docs/todo/doodles/p2-axonize-integration.md.
   const handleApply = useCallback(() => {
-    const nodes = extractMermaidVisualNodesFromCloudDoc(currentDoc, fallbackNodeLookup)
-    if (nodes.length === 0) {
-      onApply(markdown)
-      return
-    }
-    onApply(updateMermaidLayout(markdown, nodes))
-  }, [currentDoc, fallbackNodeLookup, markdown, onApply])
+    onApply(markdown)
+  }, [markdown, onApply])
 
   const header = (
     <div className="visual-editor-header">
