@@ -8,6 +8,7 @@ import {
   prepareMermaidSourceForRender,
   stripMermaidFrontmatter
 } from '@/lib/mermaid-render-source'
+import { canRenderWithDoodles, renderMermaidWithDoodles } from '@/lib/doodles-render'
 import type { MarkdownSection } from '@/lib/section-splitter'
 import { DiagramVisualEditorModal } from './DiagramVisualEditorModal'
 
@@ -456,6 +457,19 @@ function applyMermaidClickLinks(wrapper: HTMLElement, source: string): void {
 }
 
 function renderMermaidPreparedSource(source: string, fallbackSource: string): Promise<string> {
+  // Try doodles first for kinds it knows how to render (flowchart/graph/
+  // classDiagram/C4). Doodles renders deterministically from a string —
+  // no DOM, no global state, no serialization queue. Falls through to the
+  // mermaid lib for unsupported kinds or any error.
+  if (canRenderWithDoodles(source)) {
+    return renderMermaidWithDoodles(source).catch(() =>
+      renderMermaidViaLibrary(source, fallbackSource)
+    )
+  }
+  return renderMermaidViaLibrary(source, fallbackSource)
+}
+
+function renderMermaidViaLibrary(source: string, fallbackSource: string): Promise<string> {
   const id = `mermaid-${Date.now()}-${++mermaidCounter}`
   const render = async () => {
     document.getElementById(`d${id}`)?.remove()
