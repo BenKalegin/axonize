@@ -17,6 +17,8 @@ interface GitState {
   unstage: (filePath: string) => Promise<void>
   stageAll: () => Promise<void>
   unstageAll: () => Promise<void>
+  discard: (filePath: string, untracked: boolean) => Promise<void>
+  discardAll: (count: number) => Promise<void>
   commit: () => Promise<void>
   suggestMessage: () => Promise<void>
   setCommitMessage: (msg: string) => void
@@ -86,6 +88,28 @@ export const useGitStore = create<GitState>((set, get) => ({
   unstage: (filePath) => gitAction(get, set, (root) => window.axonize.git.unstage(root, filePath)),
   stageAll: () => gitAction(get, set, (root) => window.axonize.git.stageAll(root)),
   unstageAll: () => gitAction(get, set, (root) => window.axonize.git.unstageAll(root)),
+
+  discard: async (filePath, untracked) => {
+    const { gitRoot } = get()
+    if (!gitRoot) return
+    try {
+      const confirmed = await window.axonize.git.discard(gitRoot, filePath, untracked)
+      if (confirmed) await get().refresh()
+    } catch (e) {
+      set({ error: String(e) })
+    }
+  },
+
+  discardAll: async (count) => {
+    const { gitRoot } = get()
+    if (!gitRoot) return
+    try {
+      const confirmed = await window.axonize.git.discardAll(gitRoot, count)
+      if (confirmed) await get().refresh()
+    } catch (e) {
+      set({ error: String(e) })
+    }
+  },
 
   commit: async () => {
     const { gitRoot, commitMessage } = get()

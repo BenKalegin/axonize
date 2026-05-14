@@ -8,6 +8,13 @@ import type { GitFileStatus } from '@core/git/types'
 
 const REFRESH_INTERVAL_MS = 5000
 
+const DiscardIcon = () => (
+  <svg width="12" height="12" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
+    <path d="M8 3a5 5 0 0 1 4.546 2.916l1.318-.762A6.5 6.5 0 1 0 14.5 9.5h-1.51A5 5 0 1 1 8 3z" />
+    <path d="M14 1l.5 4.5L10 5z" />
+  </svg>
+)
+
 const STATUS_COLORS: Record<string, string> = {
   [GitStatus.Modified]: 'var(--git-modified, #d19a66)',
   [GitStatus.Added]: 'var(--git-added, #98c379)',
@@ -38,15 +45,21 @@ function fileName(path: string): string {
 function FileRow({
   file,
   onToggle,
+  onDiscard,
   onPreview
 }: {
   file: GitFileStatus
   onToggle: (path: string, staged: boolean) => void
+  onDiscard: ((path: string, status: string) => void) | null
   onPreview: (path: string, staged: boolean) => void
 }) {
   const handleToggle = useCallback(() => {
     onToggle(file.path, file.staged)
   }, [file.path, file.staged, onToggle])
+
+  const handleDiscard = useCallback(() => {
+    onDiscard?.(file.path, file.status)
+  }, [file.path, file.status, onDiscard])
 
   const handlePreview = useCallback(() => {
     onPreview(file.path, file.staged)
@@ -70,6 +83,16 @@ function FileRow({
         {fileName(file.path)}
       </span>
       <span className="git-file-path" title={file.path}>{file.path}</span>
+      {onDiscard && (
+        <button
+          className="git-file-action git-file-action--discard"
+          data-testid={TEST_IDS.GIT_DISCARD_BTN}
+          title="Discard Changes"
+          onClick={handleDiscard}
+        >
+          <DiscardIcon />
+        </button>
+      )}
       <button
         className="git-file-action"
         title={file.staged ? 'Unstage' : 'Stage'}
@@ -85,24 +108,38 @@ function SectionHeader({
   title,
   count,
   isStage,
-  onAction
+  onAction,
+  onDiscardAll
 }: {
   title: string
   count: number
   isStage: boolean
   onAction: () => void
+  onDiscardAll?: () => void
 }) {
   return (
     <div className="git-section-header">
       <span>{title} ({count})</span>
       {count > 0 && (
-        <button
-          className="git-section-action"
-          title={isStage ? 'Stage All' : 'Unstage All'}
-          onClick={onAction}
-        >
-          {isStage ? '+' : '−'}
-        </button>
+        <div className="git-section-actions">
+          {onDiscardAll && (
+            <button
+              className="git-section-action git-section-action--discard"
+              data-testid={TEST_IDS.GIT_DISCARD_ALL_BTN}
+              title="Discard All Changes"
+              onClick={onDiscardAll}
+            >
+              <DiscardIcon />
+            </button>
+          )}
+          <button
+            className="git-section-action"
+            title={isStage ? 'Stage All' : 'Unstage All'}
+            onClick={onAction}
+          >
+            {isStage ? '+' : '−'}
+          </button>
+        </div>
       )}
     </div>
   )
@@ -125,6 +162,8 @@ export function GitPanel() {
     unstage,
     stageAll,
     unstageAll,
+    discard,
+    discardAll,
     commit,
     suggestMessage,
     setCommitMessage,
@@ -160,6 +199,13 @@ export function GitPanel() {
     (path: string, staged: boolean) => setDiffPreviewFile({ path, staged }),
     [setDiffPreviewFile]
   )
+
+  const handleDiscard = useCallback(
+    (path: string, status: string) => discard(path, status === GitStatus.Untracked),
+    [discard]
+  )
+
+  const handleDiscardAll = useCallback(() => discardAll(unstaged.length), [discardAll, unstaged.length])
 
   if (!vaultPath) {
     return (
@@ -256,7 +302,13 @@ export function GitPanel() {
         />
         <div className="git-file-list">
           {staged.map((f) => (
-            <FileRow key={`s-${f.path}`} file={f} onToggle={handleToggle} onPreview={handlePreview} />
+            <FileRow
+              key={`s-${f.path}`}
+              file={f}
+              onToggle={handleToggle}
+              onDiscard={null}
+              onPreview={handlePreview}
+            />
           ))}
         </div>
       </div>
@@ -267,10 +319,17 @@ export function GitPanel() {
           count={unstaged.length}
           isStage={true}
           onAction={stageAll}
+          onDiscardAll={handleDiscardAll}
         />
         <div className="git-file-list">
           {unstaged.map((f) => (
-            <FileRow key={`u-${f.path}`} file={f} onToggle={handleToggle} onPreview={handlePreview} />
+            <FileRow
+              key={`u-${f.path}`}
+              file={f}
+              onToggle={handleToggle}
+              onDiscard={handleDiscard}
+              onPreview={handlePreview}
+            />
           ))}
         </div>
       </div>

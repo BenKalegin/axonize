@@ -1,7 +1,7 @@
-import { ipcMain } from 'electron'
+import { BrowserWindow, dialog, ipcMain } from 'electron'
 import { execFile } from 'child_process'
 import { promisify } from 'util'
-import { readFile } from 'fs/promises'
+import { readFile, rm } from 'fs/promises'
 import path from 'path'
 import { getSettings } from './settings-service'
 import { getLLMProvider } from './rag/provider-factory'
@@ -13,6 +13,9 @@ import log from './logger'
 const execFileAsync = promisify(execFile)
 
 const MAX_DIFF_CHARS_FOR_SUGGESTION = 12000
+
+const DISCARD_DIALOG_CANCEL_INDEX = 0
+const DISCARD_DIALOG_CONFIRM_INDEX = 1
 
 async function runGit(cwd: string, args: string[]): Promise<string> {
   const { stdout } = await execFileAsync('git', args, { cwd, maxBuffer: 1024 * 1024 })
@@ -101,6 +104,64 @@ export function registerGitIpcHandlers(): void {
   gitHandler('git:unstageAll', async (payload: { cwd: string }) => {
     await runGit(payload.cwd, ['reset', 'HEAD'])
   })
+
+  ipcMain.handle(
+    'git:discard',
+    async (event, payload: { cwd: string; filePath: string; untracked: boolean }) => {
+      const win = BrowserWindow.fromWebContents(event.sender)
+      if (!win) return false
+      const { response } = await dialog.showMessageBox(win, {
+        type: 'warning',
+        title: 'Discard Changes',
+        message: `Discard changes to ${payload.filePath}?`,
+        detail: payload.untracked
+          ? 'The untracked file will be permanently deleted. This cannot be undone.'
+          : 'Unstaged changes will be reverted to the index version. This cannot be undone.',
+        buttons: ['Cancel', 'Discard Changes'],
+        defaultId: DISCARD_DIALOG_CANCEL_INDEX,
+        cancelId: DISCARD_DIALOG_CANCEL_INDEX
+      })
+      if (response !== DISCARD_DIALOG_CONFIRM_INDEX) return false
+      try {
+        if (payload.untracked) {
+          await rm(path.join(payload.cwd, payload.filePath), { recursive: true, force: true })
+        } else {
+          await runGit(payload.cwd, ['checkout', '--', payload.filePath])
+        }
+        return true
+      } catch (e) {
+        log.error('git:discard failed:', e)
+        throw e
+      }
+    }
+  )
+
+  ipcMain.handle(
+    'git:discardAll',
+    async (event, payload: { cwd: string; count: number }) => {
+      const win = BrowserWindow.fromWebContents(event.sender)
+      if (!win) return false
+      const { response } = await dialog.showMessageBox(win, {
+        type: 'warning',
+        title: 'Discard All Changes',
+        message: `Discard all ${payload.count} unstaged change${payload.count === 1 ? '' : 's'}?`,
+        detail:
+          'Tracked files will be reverted to the index version and untracked files will be deleted. This cannot be undone.',
+        buttons: ['Cancel', 'Discard All'],
+        defaultId: DISCARD_DIALOG_CANCEL_INDEX,
+        cancelId: DISCARD_DIALOG_CANCEL_INDEX
+      })
+      if (response !== DISCARD_DIALOG_CONFIRM_INDEX) return false
+      try {
+        await runGit(payload.cwd, ['checkout', '--', '.'])
+        await runGit(payload.cwd, ['clean', '-fd'])
+        return true
+      } catch (e) {
+        log.error('git:discardAll failed:', e)
+        throw e
+      }
+    }
+  )
 
   gitHandler('git:commit', async (payload: { cwd: string; message: string }) => {
     await runGit(payload.cwd, ['commit', '-m', payload.message])

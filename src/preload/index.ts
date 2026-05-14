@@ -126,6 +126,7 @@ export interface AxonizeAPI {
     pickParentDir: () => Promise<string | null>
     createNew: (parentDir: string, name: string) => Promise<string>
     readFiles: (vaultPath: string) => Promise<unknown[]>
+    listAllFiles: (vaultPath: string) => Promise<string[]>
     getRecent: () => Promise<RecentVault[]>
     addRecent: (path: string, name: string) => Promise<void>
     removeRecent: (path: string) => Promise<void>
@@ -194,6 +195,8 @@ export interface AxonizeAPI {
     unstageAll: (cwd: string) => Promise<void>
     commit: (cwd: string, message: string) => Promise<void>
     suggestCommitMessage: (cwd: string) => Promise<string>
+    discard: (cwd: string, filePath: string, untracked: boolean) => Promise<boolean>
+    discardAll: (cwd: string, count: number) => Promise<boolean>
   }
   generatedDocs: {
     save: (vaultPath: string, title: string, query: string, answer: string, sources: GeneratedDocSource[]) => Promise<GeneratedDocMeta>
@@ -228,6 +231,7 @@ const api: AxonizeAPI = {
     createNew: (parentDir: string, name: string) =>
       ipcRenderer.invoke('vault:createNew', parentDir, name),
     readFiles: (vaultPath: string) => ipcRenderer.invoke('vault:readFiles', vaultPath),
+    listAllFiles: (vaultPath: string) => ipcRenderer.invoke('vault:listAllFiles', vaultPath),
     getRecent: () => ipcRenderer.invoke('vault:getRecent'),
     addRecent: (path: string, name: string) => ipcRenderer.invoke('vault:addRecent', path, name),
     removeRecent: (path: string) => ipcRenderer.invoke('vault:removeRecent', path),
@@ -339,7 +343,11 @@ const api: AxonizeAPI = {
     stageAll: (cwd: string) => ipcRenderer.invoke('git:stageAll', { cwd }),
     unstageAll: (cwd: string) => ipcRenderer.invoke('git:unstageAll', { cwd }),
     commit: (cwd: string, message: string) => ipcRenderer.invoke('git:commit', { cwd, message }),
-    suggestCommitMessage: (cwd: string) => ipcRenderer.invoke('git:suggestCommitMessage', { cwd })
+    suggestCommitMessage: (cwd: string) => ipcRenderer.invoke('git:suggestCommitMessage', { cwd }),
+    discard: (cwd: string, filePath: string, untracked: boolean) =>
+      ipcRenderer.invoke('git:discard', { cwd, filePath, untracked }),
+    discardAll: (cwd: string, count: number) =>
+      ipcRenderer.invoke('git:discardAll', { cwd, count })
   },
   generatedDocs: {
     save: (vaultPath: string, title: string, query: string, answer: string, sources: GeneratedDocSource[]) =>

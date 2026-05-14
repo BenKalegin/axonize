@@ -2883,6 +2883,12 @@
   font-weight: 600;
 }
 
+.git-section-actions {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
 .git-section-action {
   width: 20px;
   height: 20px;
@@ -2899,6 +2905,10 @@
 .git-section-action:hover {
   background: var(--bg-overlay);
   color: var(--text-primary);
+}
+
+.git-section-action--discard:hover {
+  color: var(--git-deleted, #e06c75);
 }
 
 .git-file-list {
@@ -2966,6 +2976,10 @@
 .git-file-action:hover {
   background: var(--bg-overlay);
   color: var(--text-primary);
+}
+
+.git-file-action--discard:hover {
+  color: var(--git-deleted, #e06c75);
 }
 
 .git-empty {

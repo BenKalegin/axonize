@@ -179,6 +179,8 @@ export const TEST_IDS = {
   GIT_COMMIT_INPUT: 'git-commit-input',
   GIT_COMMIT_BTN: 'git-commit-btn',
   GIT_SUGGEST_BTN: 'git-suggest-btn',
+  GIT_DISCARD_BTN: 'git-discard-btn',
+  GIT_DISCARD_ALL_BTN: 'git-discard-all-btn',
 
   // Lint Panel
   LINT_PANEL: 'lint-panel',
