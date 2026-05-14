@@ -4,26 +4,23 @@ import { lintMarkdown } from '@core/markdown/lint/linter'
 import type { LintIssue } from '@core/markdown/lint/types'
 import { collectLinkedMarkdownTargets } from '@core/markdown/link-targets'
 import { relativePathFromVault } from '@core/markdown/lint/utils'
-import { useVaultStore, type FileEntry } from './vault-store'
+import { useVaultStore } from './vault-store'
 import { useEditorStore, selectedFilePath } from './editor-store'
 
 const DEBOUNCE_MS = 400
 
-const vaultFilesCache = new WeakMap<FileEntry[], Set<string>>()
+let allFilesCache: { vaultPath: string; files: Set<string> } | null = null
 
-function flattenVaultFiles(entries: FileEntry[]): Set<string> {
-  const cached = vaultFilesCache.get(entries)
-  if (cached) return cached
-  const paths = new Set<string>()
-  function walk(items: FileEntry[]): void {
-    for (const item of items) {
-      if (!item.isDirectory) paths.add(item.relativePath)
-      if (item.children) walk(item.children)
-    }
-  }
-  walk(entries)
-  vaultFilesCache.set(entries, paths)
-  return paths
+async function loadAllVaultFiles(vaultPath: string): Promise<Set<string>> {
+  if (allFilesCache && allFilesCache.vaultPath === vaultPath) return allFilesCache.files
+  const list = await window.axonize.vault.listAllFiles(vaultPath)
+  const files = new Set(list)
+  allFilesCache = { vaultPath, files }
+  return files
+}
+
+function invalidateAllFilesCache(): void {
+  allFilesCache = null
 }
 
 // cyrb53 — fast non-crypto 64-bit string hash; collision rate is negligible
@@ -78,7 +75,7 @@ export const useLintStore = create<LintState>((set, get) => ({
 
     debounceTimer = setTimeout(async () => {
       debounceTimer = null
-      const { vaultPath, fileTree } = useVaultStore.getState()
+      const { vaultPath } = useVaultStore.getState()
       if (!vaultPath) {
         set({ running: false })
         return
@@ -91,7 +88,7 @@ export const useLintStore = create<LintState>((set, get) => ({
           return
         }
 
-        const vaultFiles = flattenVaultFiles(fileTree as FileEntry[])
+        const vaultFiles = await loadAllVaultFiles(vaultPath)
         const currentRelPath = relativePathFromVault(filePath, vaultPath)
         const targets = collectLinkedMarkdownTargets(content, currentRelPath, vaultFiles)
         const fileContents = await prefetchTargets(targets, vaultPath)
@@ -135,6 +132,7 @@ export function useLintBootstrap(): void {
     })
 
     const unsubVault = window.axonize.vault.onFilesChanged(() => {
+      invalidateAllFilesCache()
       const filePath = selectedFilePath(useEditorStore.getState().selection)
       if (filePath) useLintStore.getState().lintFile(filePath)
     })

@@ -25,6 +25,30 @@ export async function readVaultFiles(vaultPath: string): Promise<FileEntry[]> {
   return scanDirectory(vaultPath, vaultPath)
 }
 
+export async function listAllFiles(vaultPath: string): Promise<string[]> {
+  const result: string[] = []
+  await collectAllFiles(vaultPath, vaultPath, result)
+  return result
+}
+
+async function collectAllFiles(
+  dirPath: string,
+  rootPath: string,
+  out: string[]
+): Promise<void> {
+  const entries = await readdir(dirPath, { withFileTypes: true })
+  for (const entry of entries) {
+    if (entry.name.startsWith('.')) continue
+    if (entry.isDirectory() && IGNORED_DIRS.has(entry.name)) continue
+    const fullPath = join(dirPath, entry.name)
+    if (entry.isDirectory()) {
+      await collectAllFiles(fullPath, rootPath, out)
+    } else {
+      out.push(relative(rootPath, fullPath))
+    }
+  }
+}
+
 async function scanDirectory(dirPath: string, rootPath: string): Promise<FileEntry[]> {
   const entries = await readdir(dirPath, { withFileTypes: true })
   const result: FileEntry[] = []
