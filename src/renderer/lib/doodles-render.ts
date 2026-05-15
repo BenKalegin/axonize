@@ -2,7 +2,7 @@ import {
   type Diagram,
   ElementType,
   defaultDiagramDisplay,
-  importMermaidFlowchartDiagram,
+  importMermaidFlowchartWithLayout,
   renderSvg,
   type ThemeTokens,
   defaultLightTheme,
@@ -35,7 +35,7 @@ export async function renderMermaidWithDoodles(
     type: ElementType.FlowchartDiagram,
     display: defaultDiagramDisplay,
   }
-  const diagram = await importMermaidFlowchartDiagram(base, source)
+  const diagram = await importMermaidFlowchartWithLayout(base, source)
   const theme: ThemeTokens = options.dark ? defaultDarkTheme : defaultLightTheme
   return renderSvg(diagram as never, { theme })
 }
