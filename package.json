@@ -21,7 +21,7 @@
   "dependencies": {
     "@anthropic-ai/claude-agent-sdk": "^0.2.81",
     "@benkalegin/clouddiagram-editor": "^0.2.3",
-    "@benkalegin/doodles-api": "^0.3.3",
+    "@benkalegin/doodles-api": "^0.3.4",
     "@benkalegin/ui26": "^0.1.4",
     "@mermaid-js/layout-elk": "^0.2.0",
     "@openai/codex-sdk": "^0.116.0",
