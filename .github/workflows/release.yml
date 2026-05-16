@@ -36,7 +36,10 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
         env:
-          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # GITHUB_TOKEN can only read packages from this repo. The
+          # @benkalegin/* deps live under a different repo, so we need a PAT
+          # with read:packages scope. Configured as repo secret.
+          NODE_AUTH_TOKEN: ${{ secrets.GH_PACKAGES_PAT }}
 
       - name: Build application
         run: pnpm build:${{ matrix.os == 'windows-latest' && 'win' || 'mac' }}
