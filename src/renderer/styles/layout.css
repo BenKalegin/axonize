@@ -857,6 +857,26 @@
 .section-editor-toolbar {
   display: flex;
   gap: 6px;
+  align-items: center;
+}
+
+.section-editor-renderer {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: 4px;
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+.section-editor-renderer-select {
+  padding: 2px 6px;
+  font-size: 12px;
+  color: var(--text-primary);
+  background: var(--bg-base);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  outline: none;
 }
 
 .section-editor-textarea {

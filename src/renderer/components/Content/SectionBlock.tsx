@@ -4,11 +4,17 @@ import { TEST_IDS } from '@/lib/testids'
 import { renderMarkdown } from '@/lib/markdown-renderer'
 import {
   extractMermaidCodeFence,
+  getMermaidRendererFromMarkdown,
   isMermaidRenderSource,
   prepareMermaidSourceForRender,
+  setMermaidRendererInMarkdown,
   stripMermaidFrontmatter
 } from '@/lib/mermaid-render-source'
 import { canRenderWithDoodles, renderMermaidWithDoodles } from '@/lib/doodles-render'
+import {
+  MermaidRenderer,
+  getMermaidRenderer
+} from '@core/markdown/mermaid-renderer-flag'
 import type { MarkdownSection } from '@/lib/section-splitter'
 import { DiagramVisualEditorModal } from './DiagramVisualEditorModal'
 
@@ -200,6 +206,14 @@ export const SectionBlock = React.memo(function SectionBlock({
     [handleLlmSubmit]
   )
 
+  const handleRendererChange = useCallback(
+    (event: React.ChangeEvent<HTMLSelectElement>) => {
+      const value = event.target.value as MermaidRenderer
+      setDraft((current) => setMermaidRendererInMarkdown(current, value))
+    },
+    []
+  )
+
   const handleCopy = useCallback(async () => {
     const source = extractMermaidCodeFence(draft) ?? draft
     try {
@@ -271,6 +285,20 @@ export const SectionBlock = React.memo(function SectionBlock({
               <button className="toolbar-btn" onClick={handleCopy}>
                 {copied ? 'Copied!' : 'Copy'}
               </button>
+            )}
+            {isMermaidSection && (
+              <label className="section-editor-renderer">
+                Renderer:
+                <select
+                  className="section-editor-renderer-select"
+                  data-testid={TEST_IDS.SECTION_RENDERER_SELECT}
+                  value={getMermaidRendererFromMarkdown(draft)}
+                  onChange={handleRendererChange}
+                >
+                  <option value={MermaidRenderer.Doodles}>doodles</option>
+                  <option value={MermaidRenderer.Legacy}>legacy</option>
+                </select>
+              </label>
             )}
           </div>
           <textarea
@@ -396,12 +424,13 @@ async function replaceMermaidBlocks(container: HTMLElement): Promise<void> {
     if (!raw.trim()) continue
     if (!isMermaidRenderSource(raw, codeEl.getAttribute('class') ?? '')) continue
 
+    const renderer = getMermaidRenderer(raw)
     const prepared = prepareMermaidSourceForRender(raw)
     const source = normalizeMermaidSource(prepared)
     const fallbackSource = normalizeMermaidSource(stripMermaidFrontmatter(prepared))
 
     try {
-      const svg = await renderMermaidPreparedSource(source, fallbackSource)
+      const svg = await renderMermaidPreparedSource(source, fallbackSource, renderer)
       const wrapper = document.createElement('div')
       wrapper.className = 'mermaid-diagram'
       wrapper.innerHTML = svg
@@ -415,10 +444,11 @@ async function replaceMermaidBlocks(container: HTMLElement): Promise<void> {
 }
 
 async function renderMermaidSource(rawSource: string): Promise<string> {
+  const renderer = getMermaidRenderer(rawSource)
   const prepared = prepareMermaidSourceForRender(rawSource)
   const source = normalizeMermaidSource(prepared)
   const fallbackSource = normalizeMermaidSource(stripMermaidFrontmatter(prepared))
-  const svg = await renderMermaidPreparedSource(source, fallbackSource)
+  const svg = await renderMermaidPreparedSource(source, fallbackSource, renderer)
   const wrapper = document.createElement('div')
   wrapper.innerHTML = svg
   lockSvgToIntrinsicSize(wrapper)
@@ -456,12 +486,17 @@ function applyMermaidClickLinks(wrapper: HTMLElement, source: string): void {
   }
 }
 
-function renderMermaidPreparedSource(source: string, fallbackSource: string): Promise<string> {
-  // Try doodles first for kinds it knows how to render (flowchart/graph/
-  // classDiagram/C4). Doodles renders deterministically from a string —
-  // no DOM, no global state, no serialization queue. Falls through to the
-  // mermaid lib for unsupported kinds or any error.
-  if (canRenderWithDoodles(source)) {
+function renderMermaidPreparedSource(
+  source: string,
+  fallbackSource: string,
+  renderer: MermaidRenderer
+): Promise<string> {
+  // Per-diagram `renderer: legacy` opts out of doodles entirely — used when
+  // the new doodles/filigree path produces an ugly layout for a specific
+  // diagram. Default (`doodles`) tries doodles first for kinds it knows how
+  // to render (flowchart/graph/classDiagram/C4), and falls back to the
+  // mermaid library on error or for unsupported kinds.
+  if (renderer === MermaidRenderer.Doodles && canRenderWithDoodles(source)) {
     return renderMermaidWithDoodles(source).catch(() =>
       renderMermaidViaLibrary(source, fallbackSource)
     )

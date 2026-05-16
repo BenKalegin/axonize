@@ -2,6 +2,11 @@ import {
   stripMermaidFrontmatter,
   splitMermaidFrontmatter
 } from '@core/markdown/mermaid-frontmatter'
+import {
+  type MermaidRenderer,
+  getMermaidRenderer,
+  setMermaidRenderer
+} from '@core/markdown/mermaid-renderer-flag'
 
 export { stripMermaidFrontmatter }
 
@@ -18,8 +23,11 @@ export function prepareMermaidSourceForRender(source: string): string {
   if (!parts) return normalized
 
   const frontmatter = removeTopLevelYamlBlock(
-    removeTopLevelYamlBlock(parts.frontmatter, 'x-axonize'),
-    'config'
+    removeTopLevelYamlBlock(
+      removeTopLevelYamlBlock(parts.frontmatter, 'x-axonize'),
+      'config'
+    ),
+    'renderer'
   ).trim()
   if (!frontmatter) return parts.body.trimStart()
 
@@ -29,6 +37,30 @@ export function prepareMermaidSourceForRender(source: string): string {
 export function extractMermaidCodeFence(markdown: string): string | null {
   const match = markdown.match(/^\s*```mermaid[^\n]*\n([\s\S]*?)\n```\s*$/i)
   return match?.[1] ?? null
+}
+
+interface MermaidFenceParts {
+  before: string
+  source: string
+  after: string
+}
+
+function splitMermaidFence(markdown: string): MermaidFenceParts | null {
+  const match = markdown.match(/^(\s*```mermaid[^\n]*\n)([\s\S]*?)(\n```\s*)$/i)
+  if (!match) return null
+  return { before: match[1], source: match[2], after: match[3] }
+}
+
+export function getMermaidRendererFromMarkdown(markdown: string): MermaidRenderer {
+  const fence = splitMermaidFence(markdown)
+  return getMermaidRenderer(fence?.source ?? markdown)
+}
+
+export function setMermaidRendererInMarkdown(markdown: string, renderer: MermaidRenderer): string {
+  const fence = splitMermaidFence(markdown)
+  if (!fence) return setMermaidRenderer(markdown, renderer)
+  const nextSource = setMermaidRenderer(fence.source, renderer)
+  return `${fence.before}${nextSource}${fence.after}`
 }
 
 function removeTopLevelYamlBlock(frontmatter: string, key: string): string {
