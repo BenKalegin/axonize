@@ -655,6 +655,8 @@
 .mermaid-diagram svg {
   display: block;
   color: var(--text-primary);
+  /* Halo color for edge labels — masks the edge line behind text in doodles renders. */
+  --doodles-label-halo: var(--bg-surface);
 }
 
 .mermaid-diagram svg text,
