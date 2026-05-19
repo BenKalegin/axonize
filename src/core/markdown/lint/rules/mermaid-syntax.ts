@@ -19,7 +19,7 @@ const SYNTAX_CHECKS: SyntaxCheck[] = [
     // Unquoted node labels containing parentheses after a word (LLM often forgets quotes)
     // e.g.  graph["something(no label)"] — this is valid; but graph[something(no label)] is not
     // Detecting: bare word immediately followed by ( inside a bracket node without quotes
-    pattern: /^\s*\w[\w\s]*\[(?!["'])([^\]]*\([^)]*\))/gm,
+    pattern: /^\s*\w[\w\s]*\[(?!["'(])([^\]]*\([^)]*\))/gm,
     message: (m) =>
       `Mermaid node label with parentheses may need quoting: ${m[0].trim().slice(0, 60)}`
   }

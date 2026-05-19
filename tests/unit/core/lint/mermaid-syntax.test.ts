@@ -29,4 +29,16 @@ describe('checkMermaidSyntax', () => {
   it('ignores non-mermaid code blocks', () => {
     expect(checkMermaidSyntax(ctx('```text\ngraph["test<br/>test"]\n```'))).toHaveLength(0)
   })
+
+  it('does not flag cylinder shape with parens-as-shape-syntax', () => {
+    const diagram = 'flowchart LR\n  TDB[(Tenant Postgres\\nSQLAlchemy + pgvector)]'
+    expect(checkMermaidSyntax(ctx(mermaid(diagram)))).toHaveLength(0)
+  })
+
+  it('still flags unquoted parenthesized label in rectangle node', () => {
+    const diagram = 'flowchart LR\n  A[label with (parens) here]'
+    const issues = checkMermaidSyntax(ctx(mermaid(diagram)))
+    expect(issues).toHaveLength(1)
+    expect(issues[0].message).toMatch(/may need quoting/)
+  })
 })
