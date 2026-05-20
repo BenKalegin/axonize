@@ -12,16 +12,6 @@ import {
 import { ThemeGroup } from '@core/themes'
 import { getActiveTheme } from '@/lib/theme-applier'
 import { TEST_IDS } from '@/lib/testids'
-import {
-  DEFAULT_NODE_HEIGHT,
-  DEFAULT_NODE_WIDTH,
-  GRID_START_X,
-  GRID_START_Y,
-  isMermaidSafeIdentifier,
-  MermaidVisualNode,
-  parseMermaidVisualModel,
-  updateMermaidLayout
-} from '@/lib/mermaid-visual-layout'
 import { extractMermaidCodeFence } from '@/lib/mermaid-render-source'
 import { MermaidNodePosition } from '@/lib/mermaid-svg-layout'
 
@@ -79,16 +69,6 @@ export function DiagramVisualEditorModal({
   onApply,
   onClose
 }: DiagramVisualEditorModalProps) {
-  const mermaidModel = useMemo(() => parseMermaidVisualModel(markdown), [markdown])
-  const fallbackNodeLookup = useMemo(() => {
-    const lookup = new Map<string, string>()
-    for (const node of mermaidModel.nodes) {
-      lookup.set(normalizeNodeKey(node.id), node.id)
-      lookup.set(normalizeNodeKey(node.label), node.id)
-    }
-    return lookup
-  }, [mermaidModel.nodes])
-
   const initialDoc = useMemo<CloudDiagramDocument>(() => {
     const source = extractMermaidCodeFence(markdown) ?? markdown
     const baseDiagram = createBaseCloudDiagram() as unknown as Parameters<typeof importMermaidDiagram>[0]
@@ -105,7 +85,6 @@ export function DiagramVisualEditorModal({
     )
   }, [markdown, renderedSvg])
 
-  const [currentDoc, setCurrentDoc] = useState<CloudDiagramDocument>(initialDoc)
   const [isFullscreen, setIsFullscreen] = useState(false)
   const diagramTheme = useMemo(() => buildDiagramTheme(), [])
   const initialLayout = useMemo(() => ({ ...defaultAppLayout, propsPaneOpen: false }), [])
@@ -147,7 +126,6 @@ export function DiagramVisualEditorModal({
           theme={diagramTheme}
           value={initialDoc}
           valueVersion={markdown.length}
-          onChange={setCurrentDoc}
           persistenceMode={PersistenceMode.Host}
           recoverOnMount={false}
           showPropertiesPane={true}
@@ -295,52 +273,3 @@ function applyMermaidLayoutToImported(
   }
 }
 
-function extractMermaidVisualNodesFromCloudDoc(
-  document: CloudDiagramDocument,
-  fallbackNodeLookup: Map<string, string>
-): MermaidVisualNode[] {
-  const diagramNodes = (document.diagram?.nodes ?? {}) as Record<string, { bounds?: {
-    x?: number
-    y?: number
-    width?: number
-    height?: number
-  } }>
-  const nodes: MermaidVisualNode[] = []
-  const usedIds = new Set<string>()
-
-  for (const [nodeId, nodeData] of Object.entries(diagramNodes)) {
-    const element = document.elements?.[nodeId] ?? {}
-    const rawLabel = typeof element.text === 'string' ? element.text : nodeId
-    const label = rawLabel.trim()
-    if (!label) continue
-
-    const preferredId =
-      fallbackNodeLookup.get(normalizeNodeKey(label)) ??
-      fallbackNodeLookup.get(normalizeNodeKey(nodeId)) ??
-      (isMermaidSafeIdentifier(label) ? label : null)
-    if (!preferredId || usedIds.has(preferredId)) {
-      continue
-    }
-
-    const bounds = nodeData?.bounds ?? {}
-    const width = Number(bounds.width ?? DEFAULT_NODE_WIDTH)
-    const height = Number(bounds.height ?? DEFAULT_NODE_HEIGHT)
-    const x = Number(bounds.x ?? GRID_START_X)
-    const y = Number(bounds.y ?? GRID_START_Y)
-    if (!Number.isFinite(width) || !Number.isFinite(height) || !Number.isFinite(x) || !Number.isFinite(y)) {
-      continue
-    }
-
-    usedIds.add(preferredId)
-    nodes.push({
-      id: preferredId,
-      label,
-      x,
-      y,
-      width,
-      height
-    })
-  }
-
-  return nodes
-}
