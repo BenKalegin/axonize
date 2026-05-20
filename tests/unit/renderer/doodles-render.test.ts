@@ -83,8 +83,9 @@ Alice->>Bob: After the note
 
     expect(svg).toContain('Watch this')
     expect(svg).toContain('After the note')
-    // Note rect uses the doodles-note CSS variable for its fill.
-    expect(svg).toContain('--doodles-note-fill')
+    // Sticky-note rect uses the literal soft-cream fill (no CSS vars — Electron
+    // SVG fill doesn't honor them consistently).
+    expect(svg).toContain('#fef8d8')
   })
 
   it('renders notes spanning two participants', async () => {
@@ -174,6 +175,24 @@ end
     expect(svg).toContain('outer')
     expect(svg).toContain('inner')
     expect(svg).toContain('hi')
+  })
+
+  it('renders self-messages as a U-shape polyline', async () => {
+    const source = `
+sequenceDiagram
+participant Alice
+Alice->>Alice: think
+`.trim()
+
+    const svg = await renderMermaidWithDoodles(source)
+
+    expect(svg).toContain('think')
+    // Pick out the polyline whose y of the first point repeats — that's the
+    // U-shape (last point should be at the same y as second-to-last in the
+    // arrow head, but the body polyline is the one with 4 distinct vertices).
+    const polylines = Array.from(svg.matchAll(/<polyline points="([^"]+)"/g)).map(m => m[1])
+    const uShape = polylines.find(p => p.split(' ').length >= 4)
+    expect(uShape).toBeDefined()
   })
 
   it('renders class diagram members in doodles mode', async () => {

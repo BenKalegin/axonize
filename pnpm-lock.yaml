@@ -292,7 +292,7 @@ packages:
       react-dom: '>=19'
 
   '@benkalegin/doodles-api@file:tmp-pack/benkalegin-doodles-api-0.3.11.tgz':
-    resolution: {integrity: sha512-Ec4WI6eqZzqf4ctZeOU1+HK060R3+/xVb41krtJTn5rKJCCMmpYkrY0Q7UcNIOUSmE1qMWkff5aqRNli+jKTXg==, tarball: file:tmp-pack/benkalegin-doodles-api-0.3.11.tgz}
+    resolution: {integrity: sha512-rDZQZpFp97vLM7/gvnz7roqpZ8Z6pwv7Mu44MpPIkk5SNUrumP/PRR5K3+YOOa3FUYYVS7oUybCFbMaoaVA/tg==, tarball: file:tmp-pack/benkalegin-doodles-api-0.3.11.tgz}
     version: 0.3.11
 
   '@benkalegin/doodles-core@file:tmp-pack/benkalegin-doodles-core-0.3.11.tgz':
@@ -300,15 +300,15 @@ packages:
     version: 0.3.11
 
   '@benkalegin/doodles-layout@file:tmp-pack/benkalegin-doodles-layout-0.3.11.tgz':
-    resolution: {integrity: sha512-X6Max+bj6IoUo0mBSKmkBZEZeeLqOHtzmHHnk2CJeZ721o42av+5nHoE9Quk5d1ICeQMT6TppuI8o60zwkb9pQ==, tarball: file:tmp-pack/benkalegin-doodles-layout-0.3.11.tgz}
+    resolution: {integrity: sha512-buSoB4R30K7z5r4QN76qr3UctDyIYstYSLzbEOwyTOuewhGABDug7DEVPH8Vhobyk+4x/anP3BAEPsiJSgvEFw==, tarball: file:tmp-pack/benkalegin-doodles-layout-0.3.11.tgz}
     version: 0.3.11
 
   '@benkalegin/doodles-mermaid@file:tmp-pack/benkalegin-doodles-mermaid-0.3.11.tgz':
-    resolution: {integrity: sha512-3fnBe7K7W1vl0niP6ak7vLjqLsn3crB3dcrVubFku37g4KhdWNmBtIwnXL6atPY/TY8b6umHOjOxQh7lg+nJsA==, tarball: file:tmp-pack/benkalegin-doodles-mermaid-0.3.11.tgz}
+    resolution: {integrity: sha512-WR7V55be5pk0XHwYm/a7QCi+yqSlajkanwJ28w6rWvK17hb8aXIR8ovDJLhfxKm60V+QzUyGeI384ZvjTnwG3g==, tarball: file:tmp-pack/benkalegin-doodles-mermaid-0.3.11.tgz}
     version: 0.3.11
 
   '@benkalegin/doodles-svg@file:tmp-pack/benkalegin-doodles-svg-0.3.11.tgz':
-    resolution: {integrity: sha512-FI7y5xfwtvkAuFdHmXeSr4kYXIv/8BfJdOaJL+ZOU/xXDW5d62nARHHi09T1KzqiboKHAXog2L2JA6e5bKQF6Q==, tarball: file:tmp-pack/benkalegin-doodles-svg-0.3.11.tgz}
+    resolution: {integrity: sha512-iSByXly/rhHUx7Q/O/RHT4zGxOPM5lDNI/sVu4+cQaUYy47Fsrh3Bktr82SnHW80aP6U7Sby/MpkX6P2yPZaDw==, tarball: file:tmp-pack/benkalegin-doodles-svg-0.3.11.tgz}
     version: 0.3.11
 
   '@benkalegin/filigree-alg-force@0.1.3':
