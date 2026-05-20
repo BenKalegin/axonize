@@ -4,6 +4,8 @@ import {
   defaultDiagramDisplay,
   importMermaidStructureDiagram,
   importMermaidFlowchartWithLayout,
+  importMermaidSequenceWithLayout,
+  renderSequenceSvg,
   renderSvg,
   routeEdges,
   type EdgeRoute,
@@ -11,6 +13,7 @@ import {
   defaultLightTheme,
   defaultDarkTheme,
 } from '@benkalegin/doodles-api'
+import { getActiveTheme } from '@/lib/theme-applier'
 import {
   classNodeHeaderTextInsets,
   classNodeMemberFontSize,
@@ -19,8 +22,9 @@ import {
   classNodeSectionsLayout,
 } from '@benkalegin/doodles-core'
 
-const FLOWCHART_LIKE = /^\s*(?:---\s*\n[\s\S]*?\n---\s*\n)?(?:flowchart|graph|classDiagram|c4context|c4container|c4component|c4dynamic|c4deployment)\b/i
+const FLOWCHART_LIKE = /^\s*(?:---\s*\n[\s\S]*?\n---\s*\n)?(?:flowchart|graph|classDiagram|c4context|c4container|c4component|c4dynamic|c4deployment|sequenceDiagram)\b/i
 const CLASS_DIAGRAM = /^\s*(?:---\s*\n[\s\S]*?\n---\s*\n)?classDiagram\b/i
+const SEQUENCE_DIAGRAM = /^\s*(?:---\s*\n[\s\S]*?\n---\s*\n)?sequenceDiagram\b/i
 
 const SVG_PADDING = 24
 const MIN_VIEWBOX_WIDTH = 1
@@ -94,25 +98,28 @@ type StructureDiagram = Diagram & {
 }
 
 /**
- * True for Mermaid sources doodles 0.3.0 knows how to parse + render
- * end-to-end (flowchart / graph / classDiagram / C4 variants). Other kinds
- * (sequence, gantt, er, pie, state, mindmap, …) still go through the
- * `mermaid` library for now.
+ * True for Mermaid sources doodles knows how to parse + render end-to-end:
+ * flowchart / graph / classDiagram / C4 variants / sequenceDiagram. Other
+ * kinds (gantt, er, pie, state, mindmap, …) still go through the `mermaid`
+ * library.
  */
 export function canRenderWithDoodles(source: string): boolean {
   return FLOWCHART_LIKE.test(source)
 }
 
 /**
- * Parse + layout + render a flowchart-shaped Mermaid source as SVG via
- * `@benkalegin/doodles-api`. Returns the SVG string. Throws if the source
- * is malformed or doodles' importer rejects it.
+ * Parse + layout + render a Mermaid source as SVG via `@benkalegin/doodles-api`.
+ * Returns the SVG string. Throws if the source is malformed or doodles' importer
+ * rejects it — the caller falls back to the mermaid library on throw.
  */
 export async function renderMermaidWithDoodles(
   source: string,
   options: { dark?: boolean } = {}
 ): Promise<string> {
   const theme: ThemeTokens = options.dark ? defaultDarkTheme : defaultLightTheme
+  if (SEQUENCE_DIAGRAM.test(source)) {
+    return renderSequenceDiagramWithDoodles(source, theme)
+  }
   if (CLASS_DIAGRAM.test(source)) {
     return renderClassDiagramWithDoodles(source, theme)
   }
@@ -124,6 +131,47 @@ export async function renderMermaidWithDoodles(
   }
   const diagram = await importMermaidFlowchartWithLayout(base, source)
   return renderSvg(diagram as never, { theme })
+}
+
+function renderSequenceDiagramWithDoodles(source: string, theme: ThemeTokens): string {
+  const base: Diagram = {
+    id: 'ax-doodle-sequence',
+    type: ElementType.SequenceDiagram,
+    display: defaultDiagramDisplay,
+  }
+  const diagram = importMermaidSequenceWithLayout(base, source)
+  return renderSequenceSvg(diagram, { theme: themeWithAccent(theme) })
+}
+
+// Pulls accent + surface from the active axonize theme so lifeline heads and
+// activation bars match the host palette — gives sequence diagrams the same
+// "outlined header on a tinted fill" look the legacy mermaid renderer ships
+// with. Falls back to the neutral doodles defaults when the active theme is
+// unreadable for some reason.
+function themeWithAccent(base: ThemeTokens): ThemeTokens {
+  const active = safeActiveTheme()
+  if (!active) return base
+  // accentFill stays unset so the doodles renderer falls through to its
+  // "tint the accent stroke at low opacity" path — that reads cleanly on both
+  // light and dark canvases. Passing bgSurface here produced opaque dark
+  // boxes on light themes (where bgSurface is a distinct dark surface color
+  // rather than a near-canvas tint).
+  return {
+    ...base,
+    colors: {
+      ...base.colors,
+      accentStroke: active.colors.accent,
+      accentText: active.colors.textPrimary,
+    },
+  }
+}
+
+function safeActiveTheme(): ReturnType<typeof getActiveTheme> | null {
+  try {
+    return getActiveTheme()
+  } catch {
+    return null
+  }
 }
 
 async function renderClassDiagramWithDoodles(source: string, theme: ThemeTokens): Promise<string> {
