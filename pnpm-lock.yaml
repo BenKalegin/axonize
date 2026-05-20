@@ -292,23 +292,23 @@ packages:
       react-dom: '>=19'
 
   '@benkalegin/doodles-api@file:tmp-pack/benkalegin-doodles-api-0.3.11.tgz':
-    resolution: {integrity: sha512-Wg7U1SRkhVs5oJbBW0mUx33DyO6x8pETCWUp49aa2+c25MLYO8ZSuK/2ceoWaJYwedBrgIPwCr2gjnixasKsUA==, tarball: file:tmp-pack/benkalegin-doodles-api-0.3.11.tgz}
+    resolution: {integrity: sha512-Ec4WI6eqZzqf4ctZeOU1+HK060R3+/xVb41krtJTn5rKJCCMmpYkrY0Q7UcNIOUSmE1qMWkff5aqRNli+jKTXg==, tarball: file:tmp-pack/benkalegin-doodles-api-0.3.11.tgz}
     version: 0.3.11
 
   '@benkalegin/doodles-core@file:tmp-pack/benkalegin-doodles-core-0.3.11.tgz':
-    resolution: {integrity: sha512-c3JTe0/2iDBj5fR/vLgFVleHMq9IL8BK6ex/chvaWZ7hUatgahC9dJLAVKwIObG8358YIpbLEaKc/70kb3jf8g==, tarball: file:tmp-pack/benkalegin-doodles-core-0.3.11.tgz}
+    resolution: {integrity: sha512-iRXuBcgqjJEyS8BjoUyn2WEjxHYPb7XwUYFC6ZsSkG0O8+gkPcSdQb5R0tbtTkP17rpxYhqPivUba/yBgPkQTA==, tarball: file:tmp-pack/benkalegin-doodles-core-0.3.11.tgz}
     version: 0.3.11
 
   '@benkalegin/doodles-layout@file:tmp-pack/benkalegin-doodles-layout-0.3.11.tgz':
-    resolution: {integrity: sha512-PDnj6AB92vLV38xtX6ZhZcHpDSrNXnVb+XgNlzIEWRjO9kJi0kpXyi5na7U01tqzP61zNB4G6T7My4C5TDuQSg==, tarball: file:tmp-pack/benkalegin-doodles-layout-0.3.11.tgz}
+    resolution: {integrity: sha512-X6Max+bj6IoUo0mBSKmkBZEZeeLqOHtzmHHnk2CJeZ721o42av+5nHoE9Quk5d1ICeQMT6TppuI8o60zwkb9pQ==, tarball: file:tmp-pack/benkalegin-doodles-layout-0.3.11.tgz}
     version: 0.3.11
 
   '@benkalegin/doodles-mermaid@file:tmp-pack/benkalegin-doodles-mermaid-0.3.11.tgz':
-    resolution: {integrity: sha512-ZPAmfZ9AjGK8I05eNUgjTY73f+ubY0e9oRABQUJK2X94k/UhfD6tXOcoeb1zIqgWfSv3Qgh3swMgAw8HMoRWLQ==, tarball: file:tmp-pack/benkalegin-doodles-mermaid-0.3.11.tgz}
+    resolution: {integrity: sha512-3fnBe7K7W1vl0niP6ak7vLjqLsn3crB3dcrVubFku37g4KhdWNmBtIwnXL6atPY/TY8b6umHOjOxQh7lg+nJsA==, tarball: file:tmp-pack/benkalegin-doodles-mermaid-0.3.11.tgz}
     version: 0.3.11
 
   '@benkalegin/doodles-svg@file:tmp-pack/benkalegin-doodles-svg-0.3.11.tgz':
-    resolution: {integrity: sha512-vcScUs0m1H9YJhchTcVVDknLwULKiClhSJd641u836UsuzeBIo/0j2scmzPJG4DGZAECYNfwJaqc1gUKldxiag==, tarball: file:tmp-pack/benkalegin-doodles-svg-0.3.11.tgz}
+    resolution: {integrity: sha512-FI7y5xfwtvkAuFdHmXeSr4kYXIv/8BfJdOaJL+ZOU/xXDW5d62nARHHi09T1KzqiboKHAXog2L2JA6e5bKQF6Q==, tarball: file:tmp-pack/benkalegin-doodles-svg-0.3.11.tgz}
     version: 0.3.11
 
   '@benkalegin/filigree-alg-force@0.1.3':
