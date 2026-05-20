@@ -5,7 +5,7 @@ import type { Root, Content } from 'mdast'
 
 export interface MarkdownSection {
   id: string
-  kind: 'preamble' | 'heading' | 'mermaid'
+  kind: 'preamble' | 'heading' | 'mermaid' | 'table'
   depth: number
   title: string
   startLine: number
@@ -16,13 +16,19 @@ export interface MarkdownSection {
 const parser = unified().use(remarkParse).use(remarkGfm)
 
 const MERMAID_LANG = 'mermaid'
+const TABLE_SECTION_TITLE = 'Table'
 
 interface RawGroup {
-  kind: 'preamble' | 'heading' | 'mermaid'
+  kind: 'preamble' | 'heading' | 'mermaid' | 'table'
   depth: number
   title: string
   startLine: number
   endLine: number
+}
+
+// Atomic groups represent a single AST node and never absorb following siblings.
+function isAtomicKind(kind: RawGroup['kind']): boolean {
+  return kind === 'mermaid' || kind === 'table'
 }
 
 function nodeStartLine(node: Content): number {
@@ -35,6 +41,10 @@ function nodeEndLine(node: Content): number {
 
 function isMermaidCodeBlock(node: Content): boolean {
   return node.type === 'code' && (node as { lang?: string }).lang === MERMAID_LANG
+}
+
+function isTableNode(node: Content): boolean {
+  return node.type === 'table'
 }
 
 function headingText(node: Content): string {
@@ -54,6 +64,18 @@ function groupAstNodes(children: Content[]): RawGroup[] {
         kind: 'mermaid',
         depth: 0,
         title: 'Diagram',
+        startLine: nodeStartLine(node),
+        endLine: nodeEndLine(node)
+      })
+      current = null
+      continue
+    }
+
+    if (isTableNode(node)) {
+      groups.push({
+        kind: 'table',
+        depth: 0,
+        title: TABLE_SECTION_TITLE,
         startLine: nodeStartLine(node),
         endLine: nodeEndLine(node)
       })
@@ -82,7 +104,7 @@ function groupAstNodes(children: Content[]): RawGroup[] {
         endLine: nodeEndLine(node)
       }
       groups.push(current)
-    } else if (current.kind !== 'mermaid') {
+    } else if (!isAtomicKind(current.kind)) {
       current.endLine = nodeEndLine(node)
     }
   }

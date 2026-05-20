@@ -17,6 +17,7 @@ import {
 } from '@core/markdown/mermaid-renderer-flag'
 import type { MarkdownSection } from '@/lib/section-splitter'
 import { DiagramVisualEditorModal } from './DiagramVisualEditorModal'
+import { TableVisualEditorModal } from './TableVisualEditorModal'
 
 let mermaidCounter = 0
 let mermaidRenderQueue: Promise<unknown> = Promise.resolve()
@@ -48,11 +49,13 @@ export const SectionBlock = React.memo(function SectionBlock({
   const [llmLoading, setLlmLoading] = useState(false)
   const [llmError, setLlmError] = useState('')
   const [visualOpen, setVisualOpen] = useState(false)
+  const [tableVisualOpen, setTableVisualOpen] = useState(false)
   const [mermaidSvg, setMermaidSvg] = useState('')
   const [mermaidError, setMermaidError] = useState('')
   const viewRef = useRef<HTMLDivElement>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const isMermaidSection = section.kind === 'mermaid'
+  const isTableSection = section.kind === 'table'
 
   useEffect(() => {
     if (isMermaidSection) {
@@ -113,6 +116,7 @@ export const SectionBlock = React.memo(function SectionBlock({
     setLlmError('')
     setLlmInstruction('')
     setVisualOpen(false)
+    setTableVisualOpen(false)
   }, [section.rawMarkdown])
 
   const handleCancel = useCallback(() => {
@@ -120,6 +124,7 @@ export const SectionBlock = React.memo(function SectionBlock({
     setLlmOpen(false)
     setLlmError('')
     setVisualOpen(false)
+    setTableVisualOpen(false)
   }, [])
 
   const handleSave = useCallback(() => {
@@ -129,6 +134,7 @@ export const SectionBlock = React.memo(function SectionBlock({
     setEditing(false)
     setLlmOpen(false)
     setVisualOpen(false)
+    setTableVisualOpen(false)
   }, [onSave, section.id, draft])
 
   const moveCursorToLineBoundary = useCallback(
@@ -281,6 +287,15 @@ export const SectionBlock = React.memo(function SectionBlock({
                 Visual edit
               </button>
             )}
+            {isTableSection && (
+              <button
+                className="toolbar-btn"
+                data-testid={TEST_IDS.SECTION_TABLE_VISUAL_EDIT_BTN}
+                onClick={() => setTableVisualOpen(true)}
+              >
+                Visual edit
+              </button>
+            )}
             {isMermaidSection && (
               <button className="toolbar-btn" onClick={handleCopy}>
                 {copied ? 'Copied!' : 'Copy'}
@@ -333,6 +348,16 @@ export const SectionBlock = React.memo(function SectionBlock({
                 setVisualOpen(false)
               }}
               onClose={() => setVisualOpen(false)}
+            />
+          )}
+          {tableVisualOpen && (
+            <TableVisualEditorModal
+              markdown={draft}
+              onApply={(nextMarkdown) => {
+                setDraft(nextMarkdown)
+                setTableVisualOpen(false)
+              }}
+              onClose={() => setTableVisualOpen(false)}
             />
           )}
         </div>

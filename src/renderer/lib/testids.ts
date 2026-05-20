@@ -159,6 +159,7 @@ export const TEST_IDS = {
   SECTION_CANCEL_BTN: 'section-cancel-btn',
   SECTION_AI_BTN: 'section-ai-btn',
   SECTION_VISUAL_EDIT_BTN: 'section-visual-edit-btn',
+  SECTION_TABLE_VISUAL_EDIT_BTN: 'section-table-visual-edit-btn',
   SECTION_RENDERER_SELECT: 'section-renderer-select',
   MERMAID_VISUAL_EDITOR: 'mermaid-visual-editor',
   SECTION_LLM_INPUT: 'section-llm-input',
