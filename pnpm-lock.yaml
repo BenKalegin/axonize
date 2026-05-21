@@ -292,7 +292,7 @@ packages:
       react-dom: '>=19'
 
   '@benkalegin/doodles-api@file:tmp-pack/benkalegin-doodles-api-0.3.11.tgz':
-    resolution: {integrity: sha512-rDZQZpFp97vLM7/gvnz7roqpZ8Z6pwv7Mu44MpPIkk5SNUrumP/PRR5K3+YOOa3FUYYVS7oUybCFbMaoaVA/tg==, tarball: file:tmp-pack/benkalegin-doodles-api-0.3.11.tgz}
+    resolution: {integrity: sha512-HfyzHKzWFulAG2TEWpMZjyMfGtqe7/UCq7+SVEaGx3b0ZS7trM+3kbRbs2/MsakTNd6josDBdvjefkaQDfNKVA==, tarball: file:tmp-pack/benkalegin-doodles-api-0.3.11.tgz}
     version: 0.3.11
 
   '@benkalegin/doodles-core@file:tmp-pack/benkalegin-doodles-core-0.3.11.tgz':
@@ -304,11 +304,11 @@ packages:
     version: 0.3.11
 
   '@benkalegin/doodles-mermaid@file:tmp-pack/benkalegin-doodles-mermaid-0.3.11.tgz':
-    resolution: {integrity: sha512-WR7V55be5pk0XHwYm/a7QCi+yqSlajkanwJ28w6rWvK17hb8aXIR8ovDJLhfxKm60V+QzUyGeI384ZvjTnwG3g==, tarball: file:tmp-pack/benkalegin-doodles-mermaid-0.3.11.tgz}
+    resolution: {integrity: sha512-z+V3iN8fdHkzJxtVP8rKXHUfx74BU2xS2lHBjHLZau30clpTWpNaDlWaUyfnI9BXkxbau3DtR3qjkhVANKnpNQ==, tarball: file:tmp-pack/benkalegin-doodles-mermaid-0.3.11.tgz}
     version: 0.3.11
 
   '@benkalegin/doodles-svg@file:tmp-pack/benkalegin-doodles-svg-0.3.11.tgz':
-    resolution: {integrity: sha512-iSByXly/rhHUx7Q/O/RHT4zGxOPM5lDNI/sVu4+cQaUYy47Fsrh3Bktr82SnHW80aP6U7Sby/MpkX6P2yPZaDw==, tarball: file:tmp-pack/benkalegin-doodles-svg-0.3.11.tgz}
+    resolution: {integrity: sha512-fisef2LMbMmZCPwU7C/LcFAMrT+zIpiakSXf3KafbTIIedeEZgs5XGm4Y1XvmciLJsN4QOcPGtTbuUHxWTcd4Q==, tarball: file:tmp-pack/benkalegin-doodles-svg-0.3.11.tgz}
     version: 0.3.11
 
   '@benkalegin/filigree-alg-force@0.1.3':

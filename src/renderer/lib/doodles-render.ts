@@ -195,7 +195,7 @@ function renderClassDiagramSvg(diagram: StructureDiagram, theme: ThemeTokens): s
   const background = renderBackground(width, height, theme)
   const arrowMarker = renderArrowMarker(theme)
 
-  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="${viewBox}" width="${width + SVG_PADDING * 2}" height="${height + SVG_PADDING * 2}">${background}${arrowMarker}${clusterLayer}${nodeLayer}${edgeLayer}</svg>`
+  return `<svg xmlns="http://www.w3.org/2000/svg" class="doodles-svg doodles-svg-class" viewBox="${viewBox}" width="${width + SVG_PADDING * 2}" height="${height + SVG_PADDING * 2}">${background}${arrowMarker}${clusterLayer}${nodeLayer}${edgeLayer}</svg>`
 }
 
 function renderBackground(width: number, height: number, theme: ThemeTokens): string {

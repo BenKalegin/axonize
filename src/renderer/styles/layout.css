@@ -649,7 +649,10 @@
 
 .mermaid-diagram {
   margin: 12px 0;
+  max-width: 100%;
   overflow-x: auto;
+  overflow-y: hidden;
+  overscroll-behavior-x: contain;
 }
 
 .mermaid-diagram svg {
@@ -659,10 +662,14 @@
   --doodles-label-halo: var(--bg-surface);
 }
 
-.mermaid-diagram svg text,
-.mermaid-diagram svg .nodeLabel,
-.mermaid-diagram svg .classTitle,
-.mermaid-diagram svg .classText {
+/* These overrides exist to make the legacy mermaid renderer pick up the
+ * active theme colors. The doodles renderer paints its own theme-aware
+ * colors (and uses explicit hex for sticky notes), so exempt anything inside
+ * .doodles-svg from the override. */
+.mermaid-diagram svg:not(.doodles-svg) text,
+.mermaid-diagram svg:not(.doodles-svg) .nodeLabel,
+.mermaid-diagram svg:not(.doodles-svg) .classTitle,
+.mermaid-diagram svg:not(.doodles-svg) .classText {
   fill: var(--text-primary) !important;
   color: var(--text-primary) !important;
 }
@@ -676,10 +683,10 @@
   stroke: var(--accent) !important;
 }
 
-.mermaid-diagram svg .relation,
-.mermaid-diagram svg .edgePath path,
-.mermaid-diagram svg path.path,
-.mermaid-diagram svg line {
+.mermaid-diagram svg:not(.doodles-svg) .relation,
+.mermaid-diagram svg:not(.doodles-svg) .edgePath path,
+.mermaid-diagram svg:not(.doodles-svg) path.path,
+.mermaid-diagram svg:not(.doodles-svg) line {
   stroke: var(--text-secondary) !important;
 }
 
