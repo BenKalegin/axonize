@@ -5,6 +5,8 @@ import {
   importMermaidStructureDiagram,
   importMermaidFlowchartWithLayout,
   importMermaidSequenceWithLayout,
+  importMermaidXyChartDiagram,
+  renderChartSvg,
   renderSequenceSvg,
   renderSvg,
   routeEdges,
@@ -22,9 +24,15 @@ import {
   classNodeSectionsLayout,
 } from '@benkalegin/doodles-core'
 
-const FLOWCHART_LIKE = /^\s*(?:---\s*\n[\s\S]*?\n---\s*\n)?(?:flowchart|graph|classDiagram|c4context|c4container|c4component|c4dynamic|c4deployment|sequenceDiagram)\b/i
-const CLASS_DIAGRAM = /^\s*(?:---\s*\n[\s\S]*?\n---\s*\n)?classDiagram\b/i
-const SEQUENCE_DIAGRAM = /^\s*(?:---\s*\n[\s\S]*?\n---\s*\n)?sequenceDiagram\b/i
+// `(?:%%[^\n]*\n\s*)*` skips zero or more leading mermaid directive/comment
+// lines (`%%{init: …}%%`, `%% comment`) between any frontmatter and the
+// diagram type. Without this, an `%%{init: …}%%` line in a chart source
+// causes canRenderWithDoodles to return false and the renderer dropdown
+// becomes a no-op.
+const FLOWCHART_LIKE = /^\s*(?:---\s*\n[\s\S]*?\n---\s*\n)?(?:%%[^\n]*\n\s*)*(?:flowchart|graph|classDiagram|c4context|c4container|c4component|c4dynamic|c4deployment|sequenceDiagram|xychart(?:-beta)?)\b/i
+const CLASS_DIAGRAM = /^\s*(?:---\s*\n[\s\S]*?\n---\s*\n)?(?:%%[^\n]*\n\s*)*classDiagram\b/i
+const SEQUENCE_DIAGRAM = /^\s*(?:---\s*\n[\s\S]*?\n---\s*\n)?(?:%%[^\n]*\n\s*)*sequenceDiagram\b/i
+const XY_CHART = /^\s*(?:---\s*\n[\s\S]*?\n---\s*\n)?(?:%%[^\n]*\n\s*)*xychart(?:-beta)?\b/i
 
 const SVG_PADDING = 24
 const MIN_VIEWBOX_WIDTH = 1
@@ -117,6 +125,9 @@ export async function renderMermaidWithDoodles(
   options: { dark?: boolean } = {}
 ): Promise<string> {
   const theme: ThemeTokens = options.dark ? defaultDarkTheme : defaultLightTheme
+  if (XY_CHART.test(source)) {
+    return renderXyChartWithDoodles(source, theme)
+  }
   if (SEQUENCE_DIAGRAM.test(source)) {
     return renderSequenceDiagramWithDoodles(source, theme)
   }
@@ -131,6 +142,11 @@ export async function renderMermaidWithDoodles(
   }
   const diagram = await importMermaidFlowchartWithLayout(base, source)
   return renderSvg(diagram as never, { theme })
+}
+
+function renderXyChartWithDoodles(source: string, theme: ThemeTokens): string {
+  const spec = importMermaidXyChartDiagram(source)
+  return renderChartSvg(spec, { theme: themeWithAccent(theme) })
 }
 
 function renderSequenceDiagramWithDoodles(source: string, theme: ThemeTokens): string {

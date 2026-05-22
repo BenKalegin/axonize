@@ -195,6 +195,60 @@ Alice->>Alice: think
     expect(uShape).toBeDefined()
   })
 
+  it('claims xychart-beta for the doodles path', () => {
+    expect(canRenderWithDoodles('xychart-beta\n    bar [1,2,3]')).toBe(true)
+    expect(canRenderWithDoodles('xychart\n    bar [1,2,3]')).toBe(true)
+  })
+
+  it('still claims a chart when an %%{init: …}%% directive precedes the diagram type', () => {
+    const source = `%%{init: {"themeVariables": {"xyChart": {"plotColorPalette": "#3b82f6, #22c55e"}}}}%%
+xychart-beta
+    bar [1, 2, 3]`
+    expect(canRenderWithDoodles(source)).toBe(true)
+  })
+
+  it('still claims a sequence diagram when preceded by an init directive', () => {
+    const source = `%%{init: {"theme": "dark"}}%%
+sequenceDiagram
+Alice->>Bob: hi`
+    expect(canRenderWithDoodles(source)).toBe(true)
+  })
+
+  it('renders an xychart-beta bar chart with title and axis labels', async () => {
+    const source = `
+xychart-beta
+    title "Sales Data"
+    x-axis [Q1, Q2, Q3, Q4]
+    y-axis "Revenue" 0 --> 100
+    bar [23, 45, 35, 67]
+`.trim()
+
+    const svg = await renderMermaidWithDoodles(source)
+
+    expect(svg.startsWith('<svg')).toBe(true)
+    expect(svg).toContain('Sales Data')
+    expect(svg).toContain('Revenue')
+    expect(svg).toContain('>Q1<')
+    expect(svg).toContain('>Q4<')
+    // Four bars, one per quarter.
+    expect((svg.match(/<rect\b/g) ?? []).length).toBe(4)
+  })
+
+  it('renders mixed bar + line series in a single xychart', async () => {
+    const source = `
+xychart-beta
+    x-axis [Jan, Feb, Mar]
+    y-axis 0 --> 50
+    bar [20, 30, 25]
+    line [15, 28, 35]
+`.trim()
+
+    const svg = await renderMermaidWithDoodles(source)
+
+    expect((svg.match(/<rect\b/g) ?? []).length).toBe(3)
+    expect((svg.match(/<path\b/g) ?? []).length).toBe(1)
+  })
+
   it('renders class diagram members in doodles mode', async () => {
     const source = `
 classDiagram
