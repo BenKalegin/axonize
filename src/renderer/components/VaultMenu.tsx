@@ -215,31 +215,43 @@ export function VaultMenu() {
               <div className="vault-menu-section">
                 <div className="vault-menu-section-label">Open Vaults</div>
                 {openVaults.map((w) => (
-                  <button
+                  <div
                     key={w.windowId}
                     data-testid={TEST_IDS.VAULT_MENU_OPEN_WINDOW}
                     className="vault-dropdown-item vault-menu-row"
-                    disabled={w.isCurrent}
-                    onClick={() => {
-                      close()
-                      if (!w.isCurrent) {
-                        window.axonize.window.focus(w.windowId).catch(() => {})
-                      }
-                    }}
                   >
                     <VaultIcon
                       vaultPath={w.vaultPath}
                       vaultName={w.vaultName ?? '··'}
                       size={ICON_THUMB_SIZE_PX}
                     />
-                    <div className="vault-dropdown-item-info">
+                    <div
+                      className="vault-dropdown-item-info"
+                      onClick={() => {
+                        if (w.isCurrent) return
+                        close()
+                        window.axonize.window.focus(w.windowId).catch(() => {})
+                      }}
+                      style={w.isCurrent ? { cursor: 'default' } : { cursor: 'pointer' }}
+                    >
                       <span className="vault-dropdown-item-name">{w.vaultName}</span>
                       <span className="vault-dropdown-item-path">
                         {tildify(w.vaultPath!, window.axonize.homeDir)}
                       </span>
                     </div>
                     {w.isCurrent && <span className="vault-menu-current-tag">current</span>}
-                  </button>
+                    <button
+                      className="vault-dropdown-newwin"
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        openVaultInNewWindow(w.vaultPath!).catch(() => {})
+                        close()
+                      }}
+                      title={w.isCurrent ? 'Open another copy in new window' : 'Open in new window'}
+                    >
+                      <NewWindowIcon />
+                    </button>
+                  </div>
                 ))}
               </div>
             </>
