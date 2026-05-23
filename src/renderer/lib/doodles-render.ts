@@ -29,10 +29,37 @@ import {
 // diagram type. Without this, an `%%{init: …}%%` line in a chart source
 // causes canRenderWithDoodles to return false and the renderer dropdown
 // becomes a no-op.
-const FLOWCHART_LIKE = /^\s*(?:---\s*\n[\s\S]*?\n---\s*\n)?(?:%%[^\n]*\n\s*)*(?:flowchart|graph|classDiagram|c4context|c4container|c4component|c4dynamic|c4deployment|sequenceDiagram|xychart(?:-beta)?)\b/i
-const CLASS_DIAGRAM = /^\s*(?:---\s*\n[\s\S]*?\n---\s*\n)?(?:%%[^\n]*\n\s*)*classDiagram\b/i
-const SEQUENCE_DIAGRAM = /^\s*(?:---\s*\n[\s\S]*?\n---\s*\n)?(?:%%[^\n]*\n\s*)*sequenceDiagram\b/i
-const XY_CHART = /^\s*(?:---\s*\n[\s\S]*?\n---\s*\n)?(?:%%[^\n]*\n\s*)*xychart(?:-beta)?\b/i
+const DIAGRAM_TYPE_RE = /^\s*(?:---\s*\n[\s\S]*?\n---\s*\n)?(?:%%[^\n]*\n\s*)*(flowchart|graph|classDiagram|c4context|c4container|c4component|c4dynamic|c4deployment|sequenceDiagram|xychart(?:-beta)?)\b/i
+
+const DiagramType = {
+  Class: 'class',
+  Sequence: 'sequence',
+  XyChart: 'xychart',
+  Flowchart: 'flowchart',
+} as const
+type DiagramType = (typeof DiagramType)[keyof typeof DiagramType]
+
+// Maps the lowercased token captured by DIAGRAM_TYPE_RE to its semantic type.
+// Both `xychart` and `xychart-beta` map to XyChart; everything else is exact.
+const TOKEN_TO_DIAGRAM_TYPE: Record<string, DiagramType> = {
+  flowchart: DiagramType.Flowchart,
+  graph: DiagramType.Flowchart,
+  classdiagram: DiagramType.Class,
+  sequencediagram: DiagramType.Sequence,
+  xychart: DiagramType.XyChart,
+  'xychart-beta': DiagramType.XyChart,
+  c4context: DiagramType.Flowchart,
+  c4container: DiagramType.Flowchart,
+  c4component: DiagramType.Flowchart,
+  c4dynamic: DiagramType.Flowchart,
+  c4deployment: DiagramType.Flowchart,
+}
+
+function detectDiagramType(source: string): DiagramType | undefined {
+  const match = DIAGRAM_TYPE_RE.exec(source)
+  if (!match) return undefined
+  return TOKEN_TO_DIAGRAM_TYPE[match[1]!.toLowerCase()]
+}
 
 const SVG_PADDING = 24
 const MIN_VIEWBOX_WIDTH = 1
@@ -107,12 +134,12 @@ type StructureDiagram = Diagram & {
 
 /**
  * True for Mermaid sources doodles knows how to parse + render end-to-end:
- * flowchart / graph / classDiagram / C4 variants / sequenceDiagram. Other
- * kinds (gantt, er, pie, state, mindmap, …) still go through the `mermaid`
- * library.
+ * flowchart / graph / classDiagram / C4 variants / sequenceDiagram / xychart.
+ * Other kinds (gantt, er, pie, state, mindmap, …) still go through the
+ * `mermaid` library.
  */
 export function canRenderWithDoodles(source: string): boolean {
-  return FLOWCHART_LIKE.test(source)
+  return detectDiagramType(source) !== undefined
 }
 
 /**
@@ -125,16 +152,19 @@ export async function renderMermaidWithDoodles(
   options: { dark?: boolean } = {}
 ): Promise<string> {
   const theme: ThemeTokens = options.dark ? defaultDarkTheme : defaultLightTheme
-  if (XY_CHART.test(source)) {
-    return renderXyChartWithDoodles(source, theme)
+  switch (detectDiagramType(source)) {
+    case DiagramType.XyChart:
+      return renderXyChartWithDoodles(source, theme)
+    case DiagramType.Sequence:
+      return renderSequenceDiagramWithDoodles(source, theme)
+    case DiagramType.Class:
+      return renderClassDiagramWithDoodles(source, theme)
+    default:
+      return renderFlowchartWithDoodles(source, theme)
   }
-  if (SEQUENCE_DIAGRAM.test(source)) {
-    return renderSequenceDiagramWithDoodles(source, theme)
-  }
-  if (CLASS_DIAGRAM.test(source)) {
-    return renderClassDiagramWithDoodles(source, theme)
-  }
+}
 
+async function renderFlowchartWithDoodles(source: string, theme: ThemeTokens): Promise<string> {
   const base: Diagram = {
     id: 'ax-doodle',
     type: ElementType.FlowchartDiagram,
