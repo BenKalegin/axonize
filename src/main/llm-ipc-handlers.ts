@@ -3,6 +3,7 @@ import { getSettings } from './settings-service'
 import { getLLMProvider } from './rag/provider-factory'
 import type { LLMMessage } from '../core/rag/types'
 import log from './logger'
+import { DIAGRAM_BLOCKS_INSTRUCTION } from './prompts/diagram-prompts'
 
 const SESSION_TITLE_MODEL = 'claude-haiku-4-5-20251001'
 const SESSION_TITLE_MAX_TOKENS = 60
@@ -60,7 +61,8 @@ export function registerLLMIpcHandlers(): void {
           content:
             'You are a markdown editor assistant. ' +
             'Rewrite the given markdown section according to the user instruction. ' +
-            'Return ONLY the rewritten markdown. No explanation, no wrapping.'
+            'Return ONLY the rewritten markdown. No explanation, no wrapping.\n\n' +
+            DIAGRAM_BLOCKS_INSTRUCTION
         },
         {
           role: 'user',

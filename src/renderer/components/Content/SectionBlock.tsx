@@ -11,6 +11,7 @@ import {
   stripMermaidFrontmatter
 } from '@/lib/mermaid-render-source'
 import { canRenderWithDoodles, renderMermaidWithDoodles } from '@/lib/doodles-render'
+import { looksLikeBpmnXml, renderBpmnXmlAsSvg } from '@/lib/bpmn-render'
 import {
   MermaidRenderer,
   getMermaidRenderer
@@ -52,13 +53,16 @@ export const SectionBlock = React.memo(function SectionBlock({
   const [tableVisualOpen, setTableVisualOpen] = useState(false)
   const [mermaidSvg, setMermaidSvg] = useState('')
   const [mermaidError, setMermaidError] = useState('')
+  const [bpmnSvg, setBpmnSvg] = useState('')
+  const [bpmnError, setBpmnError] = useState('')
   const viewRef = useRef<HTMLDivElement>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const isMermaidSection = section.kind === 'mermaid'
   const isTableSection = section.kind === 'table'
+  const isBpmnSection = section.kind === 'bpmn'
 
   useEffect(() => {
-    if (isMermaidSection) {
+    if (isMermaidSection || isBpmnSection) {
       setHtml('')
       return
     }
@@ -73,7 +77,29 @@ export const SectionBlock = React.memo(function SectionBlock({
     return () => {
       cancelled = true
     }
-  }, [isMermaidSection, section.rawMarkdown, fileDir])
+  }, [isMermaidSection, isBpmnSection, section.rawMarkdown, fileDir])
+
+  useEffect(() => {
+    if (!isBpmnSection || editing) return
+    const xml = extractBpmnCodeFence(section.rawMarkdown) ?? section.rawMarkdown
+    if (!looksLikeBpmnXml(xml)) {
+      setBpmnSvg('')
+      setBpmnError('Block does not look like BPMN 2.0 XML (expected <bpmn:definitions>).')
+      setSaving(false)
+      return
+    }
+    try {
+      const svg = renderBpmnXmlAsSvg(xml)
+      setBpmnSvg(svg)
+      setBpmnError('')
+      setSaving(false)
+    } catch (err) {
+      console.error('[bpmn] render failed:', err)
+      setBpmnSvg('')
+      setBpmnError(err instanceof Error ? err.message : 'BPMN render failed')
+      setSaving(false)
+    }
+  }, [editing, isBpmnSection, renderKey, section.rawMarkdown])
 
   useEffect(() => {
     if (!isMermaidSection || editing) return
@@ -391,6 +417,18 @@ export const SectionBlock = React.memo(function SectionBlock({
             <pre className="mermaid-render-error"><code>{section.rawMarkdown}</code></pre>
           )}
         </div>
+      ) : isBpmnSection ? (
+        <div className="section-view" onClick={onLinkClick}>
+          {bpmnSvg && (
+            <div
+              className="bpmn-diagram"
+              dangerouslySetInnerHTML={{ __html: bpmnSvg }}
+            />
+          )}
+          {bpmnError && (
+            <pre className="bpmn-render-error"><code>{section.rawMarkdown}</code></pre>
+          )}
+        </div>
       ) : (
         <div
           ref={viewRef}
@@ -402,6 +440,14 @@ export const SectionBlock = React.memo(function SectionBlock({
     </div>
   )
 })
+
+const BPMN_FENCE_RE = /```(?:bpmn)\s*\n([\s\S]*?)```/
+
+/** Strip the ```bpmn``` fence from a section's raw markdown, leaving the inner XML. */
+function extractBpmnCodeFence(rawMarkdown: string): string | undefined {
+  const match = BPMN_FENCE_RE.exec(rawMarkdown)
+  return match ? match[1]!.trimEnd() : undefined
+}
 
 const SHAPE_WRAPPERS: [string, string][] = [
   ['((', '))'], ['(', ')'],

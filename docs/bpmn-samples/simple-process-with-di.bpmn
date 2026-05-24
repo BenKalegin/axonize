@@ -1,0 +1,64 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL"
+                  xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI"
+                  xmlns:dc="http://www.omg.org/spec/DD/20100524/DC"
+                  xmlns:di="http://www.omg.org/spec/DD/20100524/DI"
+                  id="Definitions_Simple" targetNamespace="http://example.com/bpmn">
+  <bpmn:process id="Process_Simple" isExecutable="true">
+    <bpmn:startEvent id="Start" name="Request received"/>
+    <bpmn:userTask id="Review" name="Review request"/>
+    <bpmn:exclusiveGateway id="Decide" name="Approved?"/>
+    <bpmn:serviceTask id="Fulfill" name="Fulfill request"/>
+    <bpmn:endEvent id="Done" name="Done"/>
+    <bpmn:endEvent id="Rejected" name="Rejected"/>
+    <bpmn:sequenceFlow id="F1" sourceRef="Start" targetRef="Review"/>
+    <bpmn:sequenceFlow id="F2" sourceRef="Review" targetRef="Decide"/>
+    <bpmn:sequenceFlow id="F3" sourceRef="Decide" targetRef="Fulfill" name="yes"/>
+    <bpmn:sequenceFlow id="F4" sourceRef="Fulfill" targetRef="Done"/>
+    <bpmn:sequenceFlow id="F5" sourceRef="Decide" targetRef="Rejected" name="no"/>
+  </bpmn:process>
+  <bpmndi:BPMNDiagram id="Diagram_Simple">
+    <bpmndi:BPMNPlane id="Plane_Simple" bpmnElement="Process_Simple">
+      <bpmndi:BPMNShape id="Start_di" bpmnElement="Start">
+        <dc:Bounds x="100" y="160" width="36" height="36"/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Review_di" bpmnElement="Review">
+        <dc:Bounds x="200" y="138" width="100" height="80"/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Decide_di" bpmnElement="Decide">
+        <dc:Bounds x="360" y="153" width="50" height="50"/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Fulfill_di" bpmnElement="Fulfill">
+        <dc:Bounds x="470" y="60" width="100" height="80"/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Done_di" bpmnElement="Done">
+        <dc:Bounds x="630" y="82" width="36" height="36"/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Rejected_di" bpmnElement="Rejected">
+        <dc:Bounds x="630" y="260" width="36" height="36"/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="F1_di" bpmnElement="F1">
+        <di:waypoint x="136" y="178"/>
+        <di:waypoint x="200" y="178"/>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="F2_di" bpmnElement="F2">
+        <di:waypoint x="300" y="178"/>
+        <di:waypoint x="360" y="178"/>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="F3_di" bpmnElement="F3">
+        <di:waypoint x="385" y="153"/>
+        <di:waypoint x="385" y="100"/>
+        <di:waypoint x="470" y="100"/>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="F4_di" bpmnElement="F4">
+        <di:waypoint x="570" y="100"/>
+        <di:waypoint x="630" y="100"/>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="F5_di" bpmnElement="F5">
+        <di:waypoint x="385" y="203"/>
+        <di:waypoint x="385" y="278"/>
+        <di:waypoint x="630" y="278"/>
+      </bpmndi:BPMNEdge>
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+</bpmn:definitions>

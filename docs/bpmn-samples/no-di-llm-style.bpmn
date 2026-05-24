@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" id="Definitions_NoDi">
+  <bpmn:process id="Process_LoanApproval" isExecutable="true" name="Loan Approval">
+    <bpmn:startEvent id="Submitted" name="Application submitted">
+      <bpmn:messageEventDefinition/>
+    </bpmn:startEvent>
+    <bpmn:userTask id="VerifyDocs" name="Verify documents"/>
+    <bpmn:exclusiveGateway id="DocsOk" name="Docs OK?"/>
+    <bpmn:serviceTask id="CreditCheck" name="Credit check"/>
+    <bpmn:userTask id="UnderwriterReview" name="Underwriter review"/>
+    <bpmn:exclusiveGateway id="Approved" name="Approved?"/>
+    <bpmn:serviceTask id="FundLoan" name="Fund loan"/>
+    <bpmn:endEvent id="Funded" name="Loan funded"/>
+    <bpmn:endEvent id="Denied" name="Application denied"/>
+    <bpmn:sequenceFlow id="F1" sourceRef="Submitted" targetRef="VerifyDocs"/>
+    <bpmn:sequenceFlow id="F2" sourceRef="VerifyDocs" targetRef="DocsOk"/>
+    <bpmn:sequenceFlow id="F3" sourceRef="DocsOk" targetRef="CreditCheck" name="yes"/>
+    <bpmn:sequenceFlow id="F4" sourceRef="DocsOk" targetRef="Denied" name="no"/>
+    <bpmn:sequenceFlow id="F5" sourceRef="CreditCheck" targetRef="UnderwriterReview"/>
+    <bpmn:sequenceFlow id="F6" sourceRef="UnderwriterReview" targetRef="Approved"/>
+    <bpmn:sequenceFlow id="F7" sourceRef="Approved" targetRef="FundLoan" name="yes"/>
+    <bpmn:sequenceFlow id="F8" sourceRef="FundLoan" targetRef="Funded"/>
+    <bpmn:sequenceFlow id="F9" sourceRef="Approved" targetRef="Denied" name="no"/>
+  </bpmn:process>
+</bpmn:definitions>

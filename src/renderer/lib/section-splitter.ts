@@ -5,7 +5,7 @@ import type { Root, Content } from 'mdast'
 
 export interface MarkdownSection {
   id: string
-  kind: 'preamble' | 'heading' | 'mermaid' | 'table'
+  kind: 'preamble' | 'heading' | 'mermaid' | 'table' | 'bpmn'
   depth: number
   title: string
   startLine: number
@@ -16,10 +16,12 @@ export interface MarkdownSection {
 const parser = unified().use(remarkParse).use(remarkGfm)
 
 const MERMAID_LANG = 'mermaid'
+const BPMN_LANG = 'bpmn'
 const TABLE_SECTION_TITLE = 'Table'
+const BPMN_SECTION_TITLE = 'BPMN'
 
 interface RawGroup {
-  kind: 'preamble' | 'heading' | 'mermaid' | 'table'
+  kind: 'preamble' | 'heading' | 'mermaid' | 'table' | 'bpmn'
   depth: number
   title: string
   startLine: number
@@ -28,7 +30,7 @@ interface RawGroup {
 
 // Atomic groups represent a single AST node and never absorb following siblings.
 function isAtomicKind(kind: RawGroup['kind']): boolean {
-  return kind === 'mermaid' || kind === 'table'
+  return kind === 'mermaid' || kind === 'table' || kind === 'bpmn'
 }
 
 function nodeStartLine(node: Content): number {
@@ -41,6 +43,10 @@ function nodeEndLine(node: Content): number {
 
 function isMermaidCodeBlock(node: Content): boolean {
   return node.type === 'code' && (node as { lang?: string }).lang === MERMAID_LANG
+}
+
+function isBpmnCodeBlock(node: Content): boolean {
+  return node.type === 'code' && (node as { lang?: string }).lang === BPMN_LANG
 }
 
 function isTableNode(node: Content): boolean {
@@ -64,6 +70,18 @@ function groupAstNodes(children: Content[]): RawGroup[] {
         kind: 'mermaid',
         depth: 0,
         title: 'Diagram',
+        startLine: nodeStartLine(node),
+        endLine: nodeEndLine(node)
+      })
+      current = null
+      continue
+    }
+
+    if (isBpmnCodeBlock(node)) {
+      groups.push({
+        kind: 'bpmn',
+        depth: 0,
+        title: BPMN_SECTION_TITLE,
         startLine: nodeStartLine(node),
         endLine: nodeEndLine(node)
       })
