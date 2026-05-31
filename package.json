@@ -1,6 +1,6 @@
 {
   "name": "axonize",
-  "version": "0.3.1",
+  "version": "0.3.2",
   "productName": "Axonize",
   "description": "Semantic Document Operating System",
   "main": "./out/main/index.js",
@@ -55,6 +55,7 @@
     "productName": "Axonize",
     "files": [
       "out/**/*",
+      "resources/**/*",
       "package.json"
     ],
     "directories": {
@@ -65,7 +66,7 @@
         "nsis",
         "portable"
       ],
-      "icon": null
+      "icon": "resources/icon.ico"
     },
     "mac": {
       "target": [
@@ -73,7 +74,7 @@
         "zip"
       ],
       "category": "public.app-category.productivity",
-      "icon": null
+      "icon": "resources/icon.icns"
     }
   },
   "pnpm": {
