@@ -4199,3 +4199,259 @@
 .git-file-name--clickable:hover {
   text-decoration: underline;
 }
+
+/* ===== Data file viewers (csv / json / jsonl) ===== */
+
+.data-file-view {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+}
+
+.data-file-header {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  padding: 6px 12px;
+  border-bottom: 1px solid var(--border);
+  color: var(--text-secondary);
+  font-size: 12px;
+  flex-shrink: 0;
+}
+
+.data-file-kind {
+  text-transform: uppercase;
+  font-weight: 600;
+  color: var(--accent);
+}
+
+.data-file-error {
+  margin: 16px;
+  padding: 12px;
+  color: var(--red);
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  white-space: pre-wrap;
+}
+
+.data-file-status {
+  padding: 16px;
+  color: var(--text-muted);
+}
+
+.data-search-bar {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  padding: 6px 12px;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+
+.data-search-input {
+  flex: 0 1 320px;
+  padding: 4px 8px;
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  color: var(--text-primary);
+  font: inherit;
+  font-size: 12px;
+}
+
+.data-search-input:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+.data-search-count {
+  color: var(--text-secondary);
+  font-size: 12px;
+}
+
+.data-grid {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+}
+
+.data-grid-scroll {
+  flex: 1;
+  overflow: auto;
+  min-height: 0;
+  position: relative;
+}
+
+.data-grid-header {
+  display: grid;
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: var(--bg-surface);
+  border-bottom: 1px solid var(--border);
+  min-width: max-content;
+}
+
+.data-grid-body {
+  position: relative;
+  min-width: max-content;
+}
+
+.data-grid-row {
+  display: grid;
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 28px;
+  border-bottom: 1px solid var(--border);
+  cursor: default;
+  min-width: max-content;
+}
+
+.data-grid-row:hover {
+  background: var(--bg-overlay);
+}
+
+.data-grid-row-match {
+  background: color-mix(in srgb, var(--yellow) 18%, transparent);
+}
+
+.data-grid-row-selected {
+  background: color-mix(in srgb, var(--accent) 18%, transparent);
+}
+
+.data-grid-cell {
+  padding: 4px 10px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12px;
+  line-height: 20px;
+}
+
+.data-grid-colname {
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
+.data-grid-index {
+  color: var(--text-muted);
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.data-grid-loading {
+  color: var(--text-muted);
+}
+
+.data-grid-error {
+  color: var(--red);
+}
+
+.data-grid-detail {
+  flex-shrink: 0;
+  max-height: 40%;
+  overflow: auto;
+  border-top: 1px solid var(--border);
+  background: var(--bg-surface);
+}
+
+.data-grid-detail-bar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 4px 12px;
+  color: var(--text-secondary);
+  font-size: 12px;
+  border-bottom: 1px solid var(--border);
+}
+
+.data-grid-detail pre {
+  padding: 10px 12px;
+  font-size: 12px;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.json-tree {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+}
+
+.json-tree-scroll {
+  flex: 1;
+  overflow: auto;
+  min-height: 0;
+}
+
+.json-tree-body {
+  position: relative;
+}
+
+.json-tree-row {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 26px;
+  font-size: 12px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  white-space: nowrap;
+  cursor: default;
+}
+
+.json-tree-row:hover {
+  background: var(--bg-overlay);
+}
+
+.json-tree-row-match {
+  background: color-mix(in srgb, var(--yellow) 18%, transparent);
+}
+
+.json-tree-row-note {
+  color: var(--text-muted);
+  font-style: italic;
+}
+
+.json-tree-arrow {
+  display: inline-block;
+  width: 14px;
+  color: var(--text-muted);
+  text-align: center;
+  flex-shrink: 0;
+}
+
+.json-tree-key {
+  color: var(--accent);
+}
+
+.json-tree-meta {
+  color: var(--text-muted);
+}
+
+.json-tree-value {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.json-tree-string {
+  color: var(--green);
+}
+
+.json-tree-number {
+  color: var(--yellow);
+}
+
+.json-tree-boolean,
+.json-tree-null {
+  color: var(--red);
+}

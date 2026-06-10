@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
+import { useState, useEffect, useRef, useCallback, useMemo, type ComponentType } from 'react'
 import { TEST_IDS } from '@/lib/testids'
 import {
   useEditorStore,
@@ -11,6 +11,7 @@ import { useRagStore } from '@/store/rag-store'
 import { useGeneratedDocsStore } from '@/store/generated-docs-store'
 import { MarkdownView } from './MarkdownView'
 import { BpmnFileView } from './BpmnFileView'
+import { DataFileView } from './data/DataFileView'
 import { RAGAnswerView } from './RAGAnswerView'
 import { GeneratedDocHeader } from './GeneratedDocHeader'
 import { SourcesList } from './SourcesList'
@@ -22,6 +23,20 @@ import { AgentTurnHeader } from './AgentTurnHeader'
 import { DiffView } from './DiffView'
 
 const ZOOM_STEPS = [50, 67, 80, 90, 100, 110, 125, 150, 175, 200]
+
+/** Dedicated viewers by file extension; everything else renders as markdown. */
+const EXTENSION_VIEWERS: Record<string, ComponentType> = {
+  '.bpmn': BpmnFileView,
+  '.csv': DataFileView,
+  '.json': DataFileView,
+  '.jsonl': DataFileView
+}
+
+function viewerForFile(filePath: string): ComponentType | null {
+  const dot = filePath.lastIndexOf('.')
+  if (dot === -1) return null
+  return EXTENSION_VIEWERS[filePath.slice(dot).toLowerCase()] ?? null
+}
 
 export function ContentView() {
   const viewMode = useEditorStore((s) => s.viewMode)
@@ -136,6 +151,11 @@ export function ContentView() {
     }
   }, [presentationMode, presentationNext, presentationPrev])
 
+  const FileViewer = useMemo(
+    () => (selectedFile && !isAgentTurn ? viewerForFile(selectedFile) : null),
+    [selectedFile, isAgentTurn]
+  )
+
   const generatedDoc = useMemo(
     () => (selectedFile && !isAgentTurn) ? docs.find((d) => d.filePath === selectedFile) ?? null : null,
     [selectedFile, docs, isAgentTurn]
@@ -174,8 +194,8 @@ export function ContentView() {
             <MarkdownView />
           </>
         ) : selectedFile ? (
-          selectedFile.endsWith('.bpmn') ? (
-            <BpmnFileView />
+          FileViewer ? (
+            <FileViewer />
           ) : (
             <>
               {generatedDoc && (
