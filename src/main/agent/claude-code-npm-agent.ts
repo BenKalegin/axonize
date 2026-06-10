@@ -1,6 +1,7 @@
 import type { Agent, AgentEvent, AgentStartParams } from './agent'
 import { AgentEventType } from './agent'
 import { createInProcessRagMcpServer, RAG_MCP_SERVER_NAME } from './rag-mcp-server'
+import { createInProcessDataMcpServer, DATA_MCP_SERVER_NAME } from './data-mcp-server'
 import { allowedTools, defaultSystemPrompt, disallowedTools } from './claude-tool-config'
 import { extractSessionId, translateSdkMessage } from './sdk-message-translator'
 import log from '../logger'
@@ -15,6 +16,7 @@ export class ClaudeCodeNpmAgent implements Agent {
   async *run(params: AgentStartParams): AsyncIterable<AgentEvent> {
     const { query } = await import('@anthropic-ai/claude-agent-sdk')
     const ragServer = await createInProcessRagMcpServer(params.vaultPath)
+    const dataServer = await createInProcessDataMcpServer(params.vaultPath)
     const abortController = toAbortController(params.abortSignal)
 
     let lastSessionId: string | null = null
@@ -28,7 +30,7 @@ export class ClaudeCodeNpmAgent implements Agent {
           resume: params.claudeSessionId,
           systemPrompt: params.systemPrompt ?? defaultSystemPrompt(),
           includePartialMessages: true,
-          mcpServers: { [RAG_MCP_SERVER_NAME]: ragServer },
+          mcpServers: { [RAG_MCP_SERVER_NAME]: ragServer, [DATA_MCP_SERVER_NAME]: dataServer },
           allowedTools: allowedTools(params.allowEdits),
           disallowedTools: disallowedTools(params.allowEdits),
           abortController
