@@ -47,6 +47,22 @@ Build a queryable knowledge graph over Axonize's KB so agents search structure-f
 
 ---
 
+### 3. [Prose Lint & Refactor](./prose-lint-and-refactor.md)
+**Status:** Proposal
+**Inspired by:** Claude Code's `/simplify` — refactor-after-append to hold quality flat as content grows
+
+**Core idea:**
+Documents accumulate structural entropy the same way code does — appended sections drift, duplicate, and go stale. Apply the `/simplify` idea to prose: a two-tier pass that keeps a markdown doc (or the whole vault) internally consistent and de-duplicated.
+
+**How it works:**
+1. **Tier 1 — deterministic lints** (local, no LLM): dead links, broken anchors, heading structure, lexical repetition, glossary collisions
+2. **Tier 2 — LLM refactor pass** (Claude, on demand): de-duplicate, consolidate, tighten, tone-match — always as a reviewable diff, lossless on facts
+3. Findings surface in a panel like the existing semantic errors; vault-wide lints reuse the knowledge-graph link index
+
+**Aligns with:** Focused-islands vision — a cross-cutting quality layer over the shared markdown substrate (not a new island type)
+
+---
+
 ## Ideas at a Glance
 
 ### From HTML & Interactive Islands
@@ -62,6 +78,13 @@ Build a queryable knowledge graph over Axonize's KB so agents search structure-f
 3. ✅ **Agent PreSearch hook** — Read graph before blind file search
 4. ✅ **Graph island UI** — Minimap (read mode) + interactive viz (focus mode)
 5. ✅ **Incremental updates** — SHA256 cache, only re-extract changed files
+
+### From Prose Lint & Refactor
+1. ✅ **Deterministic lints** — dead links, broken anchors, heading structure, lexical repetition (local, no LLM)
+2. ✅ **LLM refactor pass** — de-duplicate, consolidate, tighten, tone-match as a reviewable diff
+3. ✅ **Lossless-on-facts invariant** — refactor trims words, never drops content
+4. ✅ **Entropy-based trigger** — nudge a refactor when a doc drifts after incremental edits
+5. ✅ **Vault-wide consistency** — cross-doc dead-link / glossary checks via the knowledge-graph link index
 
 ---
 
