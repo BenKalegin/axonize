@@ -123,7 +123,7 @@ export interface LLMMessage {
 }
 
 export interface LLMResponse {
-  content: string
+  content: LLMContent
   model: string
   usage?: { inputTokens: number; outputTokens: number }
 }

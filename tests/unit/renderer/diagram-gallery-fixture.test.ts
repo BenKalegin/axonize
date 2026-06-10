@@ -12,7 +12,7 @@ const GALLERY_PATHS = [
   'tests/e2e/fixtures/test-vault/diagram-gallery.md'
 ] as const
 
-const EXPECTED_MERMAID_BLOCKS = 15
+const EXPECTED_MERMAID_BLOCKS = 16
 const MERMAID_FENCE_RE = /```mermaid[^\n]*\n([\s\S]*?)\n```/gi
 const ER_DIAGRAM_RE = /^\s*erDiagram\b/i
 const ER_ENTITY_OPEN_RE = /^\s+[A-Z_]+\s+\{\s*$/gm
@@ -32,7 +32,8 @@ const REQUIRED_MERMAID_STARTS = [
   'quadrantChart',
   'requirementDiagram',
   'block-beta',
-  'xychart-beta'
+  'xychart-beta',
+  'flowchart'
 ] as const
 
 describe('diagram gallery fixtures', () => {

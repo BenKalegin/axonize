@@ -4,7 +4,7 @@ import { join } from 'path'
 import { getSettings } from './settings-service'
 import { getLLMProvider } from './rag/provider-factory'
 import { vaultNameFromPath } from '../core/vault/name'
-import type { LLMMessage } from '../core/rag/types'
+import { llmContentToString, type LLMMessage } from '../core/rag/types'
 import log from './logger'
 
 const ICON_DIR_NAME = '.axonize'
@@ -105,7 +105,7 @@ export function registerVaultIconIpcHandlers(): void {
       })
       try {
         const response = await llm.complete(buildIconMessages(vaultNameFromPath(vaultPath), userPrompt))
-        const svg = sanitizeGeneratedSvg(response.content)
+        const svg = sanitizeGeneratedSvg(llmContentToString(response.content))
         await saveIcon(vaultPath, svg)
         return svg
       } catch (e) {

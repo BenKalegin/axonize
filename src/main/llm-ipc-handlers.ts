@@ -1,7 +1,7 @@
 import { ipcMain } from 'electron'
 import { getSettings } from './settings-service'
 import { getLLMProvider } from './rag/provider-factory'
-import type { LLMMessage } from '../core/rag/types'
+import { llmContentToString, type LLMMessage } from '../core/rag/types'
 import log from './logger'
 import { DIAGRAM_BLOCKS_INSTRUCTION } from './prompts/diagram-prompts'
 
@@ -92,7 +92,7 @@ export function registerLLMIpcHandlers(): void {
       })
 
       const response = await llm.complete(buildSessionTitleMessages(payload))
-      return clipTitle(response.content)
+      return clipTitle(llmContentToString(response.content))
     }
   )
 }

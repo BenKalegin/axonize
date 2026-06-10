@@ -12,6 +12,18 @@ export async function ensureRagDir(vaultPath: string): Promise<string> {
   return dir
 }
 
+/** Write-then-rename for atomicity; on rename failure, clean up and fall back to a direct write. */
+async function writeFileAtomic(filePath: string, data: string | Buffer): Promise<void> {
+  const tempPath = `${filePath}.tmp`
+  try {
+    await writeFile(tempPath, data)
+    await rename(tempPath, filePath)
+  } catch {
+    await unlink(tempPath).catch(() => {})
+    await writeFile(filePath, data)
+  }
+}
+
 export async function loadIndexState(vaultPath: string): Promise<RagIndexState | null> {
   try {
     const raw = await readFile(join(ragDir(vaultPath), 'index-state.json'), 'utf-8')
@@ -23,21 +35,7 @@ export async function loadIndexState(vaultPath: string): Promise<RagIndexState |
 
 export async function saveIndexState(vaultPath: string, state: RagIndexState): Promise<void> {
   const dir = await ensureRagDir(vaultPath)
-  const filePath = join(dir, 'index-state.json')
-  const tempPath = `${filePath}.tmp`
-
-  try {
-    await writeFile(tempPath, JSON.stringify(state, null, 2) + '\n', 'utf-8')
-    await rename(tempPath, filePath)
-  } catch (error) {
-    // If rename fails, try to clean up temp file and retry with direct write
-    try {
-      await unlink(tempPath).catch(() => {})
-    } catch {}
-
-    // Fallback: direct write without atomic rename
-    await writeFile(filePath, JSON.stringify(state, null, 2) + '\n', 'utf-8')
-  }
+  await writeFileAtomic(join(dir, 'index-state.json'), JSON.stringify(state, null, 2) + '\n')
 }
 
 export async function loadMetadata(vaultPath: string): Promise<ChunkMeta[]> {
@@ -51,21 +49,7 @@ export async function loadMetadata(vaultPath: string): Promise<ChunkMeta[]> {
 
 export async function saveMetadata(vaultPath: string, metadata: ChunkMeta[]): Promise<void> {
   const dir = await ensureRagDir(vaultPath)
-  const filePath = join(dir, 'metadata.json')
-  const tempPath = `${filePath}.tmp`
-
-  try {
-    await writeFile(tempPath, JSON.stringify(metadata, null, 2) + '\n', 'utf-8')
-    await rename(tempPath, filePath)
-  } catch (error) {
-    // If rename fails, try to clean up temp file and retry with direct write
-    try {
-      await unlink(tempPath).catch(() => {})
-    } catch {}
-
-    // Fallback: direct write without atomic rename
-    await writeFile(filePath, JSON.stringify(metadata, null, 2) + '\n', 'utf-8')
-  }
+  await writeFileAtomic(join(dir, 'metadata.json'), JSON.stringify(metadata, null, 2) + '\n')
 }
 
 export async function loadVectors(vaultPath: string): Promise<Float32Array> {
@@ -79,19 +63,8 @@ export async function loadVectors(vaultPath: string): Promise<Float32Array> {
 
 export async function saveVectors(vaultPath: string, vectors: Float32Array): Promise<void> {
   const dir = await ensureRagDir(vaultPath)
-  const filePath = join(dir, 'vectors.bin')
-  const tempPath = `${filePath}.tmp`
-
-  try {
-    await writeFile(tempPath, Buffer.from(vectors.buffer, vectors.byteOffset, vectors.byteLength))
-    await rename(tempPath, filePath)
-  } catch (error) {
-    // If rename fails, try to clean up temp file and retry with direct write
-    try {
-      await unlink(tempPath).catch(() => {})
-    } catch {}
-
-    // Fallback: direct write without atomic rename
-    await writeFile(filePath, Buffer.from(vectors.buffer, vectors.byteOffset, vectors.byteLength))
-  }
+  await writeFileAtomic(
+    join(dir, 'vectors.bin'),
+    Buffer.from(vectors.buffer, vectors.byteOffset, vectors.byteLength)
+  )
 }

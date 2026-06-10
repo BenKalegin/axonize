@@ -1,4 +1,4 @@
-import { LLMProvider } from './llm-provider'
+import { LLMProvider, type ToolDefinition } from './llm-provider'
 import { llmContentToString, type LLMConfig, type LLMMessage, type LLMResponse } from './types'
 
 export class OllamaProvider extends LLMProvider {
@@ -16,7 +16,7 @@ export class OllamaProvider extends LLMProvider {
     return false
   }
 
-  async complete(messages: LLMMessage[], _tools?: any): Promise<LLMResponse> {
+  async complete(messages: LLMMessage[], _tools?: ToolDefinition[]): Promise<LLMResponse> {
     const body = {
       model: this.config.model,
       messages: messages.map((m) => ({ role: m.role, content: llmContentToString(m.content) })),

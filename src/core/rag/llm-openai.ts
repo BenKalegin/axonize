@@ -1,4 +1,4 @@
-import { LLMProvider } from './llm-provider'
+import { LLMProvider, type ToolDefinition } from './llm-provider'
 import { llmContentToString, type LLMConfig, type LLMMessage, type LLMResponse } from './types'
 
 export class OpenAIProvider extends LLMProvider {
@@ -14,7 +14,7 @@ export class OpenAIProvider extends LLMProvider {
     return false
   }
 
-  async complete(messages: LLMMessage[], _tools?: any): Promise<LLMResponse> {
+  async complete(messages: LLMMessage[], _tools?: ToolDefinition[]): Promise<LLMResponse> {
     if (!this.config.apiKey) {
       throw new Error('OpenAI API key is required. Set llm.apiKey in settings.json')
     }

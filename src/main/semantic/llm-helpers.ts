@@ -1,6 +1,6 @@
 import { getSettings } from '../settings-service'
 import { createLLMProvider } from '../../core/rag/llm-factory'
-import type { LLMMessage } from '../../core/rag/types'
+import { llmContentToString, type LLMMessage } from '../../core/rag/types'
 import log from '../logger'
 
 const SEMANTIC_MAX_TOKENS = 4096
@@ -24,7 +24,7 @@ export async function llmCompleteWithRetry(messages: LLMMessage[]): Promise<stri
   for (let attempt = 0; attempt <= RETRY_DELAYS.length; attempt++) {
     try {
       const response = await llm.complete(messages)
-      return response.content
+      return llmContentToString(response.content)
     } catch (err) {
       const isRateLimit = String(err).includes('429') || String(err).includes('rate_limit')
       if (!isRateLimit || attempt >= RETRY_DELAYS.length) throw err
@@ -44,7 +44,7 @@ export async function llmCompleteWithRetryAndStats(messages: LLMMessage[]): Prom
     try {
       const response = await llm.complete(messages)
       return {
-        content: response.content,
+        content: llmContentToString(response.content),
         usage: {
           inputTokens: response.usage?.inputTokens || 0,
           outputTokens: response.usage?.outputTokens || 0,

@@ -5,7 +5,7 @@ import { readFile, rm } from 'fs/promises'
 import path from 'path'
 import { getSettings } from './settings-service'
 import { getLLMProvider } from './rag/provider-factory'
-import type { LLMMessage } from '../core/rag/types'
+import { llmContentToString, type LLMMessage } from '../core/rag/types'
 import { GitStatus } from '../core/git/types'
 import type { GitFileStatus } from '../core/git/types'
 import log from './logger'
@@ -197,7 +197,7 @@ export function registerGitIpcHandlers(): void {
     ]
 
     const response = await llm.complete(messages)
-    return response.content.trim()
+    return llmContentToString(response.content).trim()
   })
 
   gitHandler('git:isRepo', async (payload: { cwd: string }) => {

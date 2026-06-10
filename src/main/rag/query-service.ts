@@ -5,7 +5,7 @@ import { buildRAGPrompt } from '../../core/rag/prompt-builder'
 import { getEmbeddingProvider, getLLMProvider } from './provider-factory'
 import { topKSimilar } from '../../core/rag/vector-math'
 import { loadIndexState, loadMetadata, loadVectors } from './embedding-store'
-import type { RAGQueryResult, SearchResult } from '../../core/rag/types'
+import { llmContentToString, type RAGQueryResult, type SearchResult } from '../../core/rag/types'
 
 export async function executeQuery(
   vaultPath: string,
@@ -61,7 +61,7 @@ export async function executeQuery(
   const llm = getLLMProvider(settings.llm)
   const response = await llm.complete(messages)
 
-  const { title, body } = extractTitle(response.content, question)
+  const { title, body } = extractTitle(llmContentToString(response.content), question)
 
   return {
     answer: body,

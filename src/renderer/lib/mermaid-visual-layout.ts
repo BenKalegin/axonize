@@ -231,7 +231,7 @@ function mergeAxonizeLayoutNodes(frontmatter: string, nodes: MermaidVisualNode[]
   }
 
   const xEnd = findNextTopLevelLine(lines, xIndex + 1)
-  const layoutIndex = findLineInRange(lines, xIndex + 1, xEnd, /^  layout:\s*$/)
+  const layoutIndex = findLineInRange(lines, xIndex + 1, xEnd, /^ {2}layout:\s*$/)
 
   if (layoutIndex < 0) {
     const next = [...lines]
@@ -240,7 +240,7 @@ function mergeAxonizeLayoutNodes(frontmatter: string, nodes: MermaidVisualNode[]
   }
 
   const layoutEnd = findNextLineAtIndentOrLess(lines, layoutIndex + 1, 2)
-  const nodesIndex = findLineInRange(lines, layoutIndex + 1, layoutEnd, /^    nodes:\s*$/)
+  const nodesIndex = findLineInRange(lines, layoutIndex + 1, layoutEnd, /^ {4}nodes:\s*$/)
 
   const next = [...lines]
   if (nodesIndex < 0) {
