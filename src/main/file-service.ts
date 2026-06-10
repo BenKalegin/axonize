@@ -1,5 +1,7 @@
-import { readdir } from 'fs/promises'
+import { readdir, stat } from 'fs/promises'
 import { join, relative } from 'path'
+
+const RECENTLY_MODIFIED_MAX = 10
 
 const IGNORED_DIRS = new Set([
   '.axonize',
@@ -29,6 +31,34 @@ export async function listAllFiles(vaultPath: string): Promise<string[]> {
   const result: string[] = []
   await collectAllFiles(vaultPath, vaultPath, result)
   return result
+}
+
+export interface ModifiedFile {
+  path: string
+  modifiedAt: number
+}
+
+export async function listRecentlyModifiedFiles(vaultPath: string): Promise<ModifiedFile[]> {
+  const files: ModifiedFile[] = []
+  await collectModifiedFiles(vaultPath, files)
+  return files
+    .sort((a, b) => b.modifiedAt - a.modifiedAt)
+    .slice(0, RECENTLY_MODIFIED_MAX)
+}
+
+async function collectModifiedFiles(dirPath: string, out: ModifiedFile[]): Promise<void> {
+  const entries = await readdir(dirPath, { withFileTypes: true })
+  for (const entry of entries) {
+    if (entry.name.startsWith('.')) continue
+    if (entry.isDirectory() && IGNORED_DIRS.has(entry.name)) continue
+    const fullPath = join(dirPath, entry.name)
+    if (entry.isDirectory()) {
+      await collectModifiedFiles(fullPath, out)
+    } else if (entry.name.endsWith('.md')) {
+      const stats = await stat(fullPath)
+      out.push({ path: fullPath, modifiedAt: stats.mtimeMs })
+    }
+  }
 }
 
 async function collectAllFiles(

@@ -1,5 +1,5 @@
 import {BrowserWindow, dialog, ipcMain} from 'electron'
-import {readVaultFiles, listAllFiles} from './file-service'
+import {readVaultFiles, listAllFiles, listRecentlyModifiedFiles} from './file-service'
 import {mkdir, readFile, writeFile, rename, unlink} from 'fs/promises'
 import {join} from 'path'
 import {addRecentVault, getRecentVaults, removeRecentVault} from './recent-vaults-service'
@@ -85,6 +85,15 @@ export function registerIpcHandlers(): void {
       return listAllFiles(vaultPath)
     } catch (e) {
       log.error('vault:listAllFiles failed:', e)
+      throw e
+    }
+  })
+
+  ipcMain.handle('vault:getRecentlyModifiedFiles', async (_event, vaultPath: string) => {
+    try {
+      return listRecentlyModifiedFiles(vaultPath)
+    } catch (e) {
+      log.error('vault:getRecentlyModifiedFiles failed:', e)
       throw e
     }
   })

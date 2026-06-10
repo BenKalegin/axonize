@@ -143,6 +143,7 @@ export interface AxonizeAPI {
     delete: (filePath: string) => Promise<void>
     getRecent: (vaultPath: string) => Promise<Array<{ path: string; openedAt: number }>>
     addRecent: (vaultPath: string, filePath: string) => Promise<void>
+    getRecentlyModified: (vaultPath: string) => Promise<Array<{ path: string; modifiedAt: number }>>
   }
   rag: {
     indexVault: (vaultPath: string) => Promise<{ chunkCount: number }>
@@ -253,7 +254,8 @@ const api: AxonizeAPI = {
     rename: (oldPath: string, newPath: string) => ipcRenderer.invoke('file:rename', oldPath, newPath),
     delete: (filePath: string) => ipcRenderer.invoke('file:delete', filePath),
     getRecent: (vaultPath: string) => ipcRenderer.invoke('vault:getRecentFiles', vaultPath),
-    addRecent: (vaultPath: string, filePath: string) => ipcRenderer.invoke('vault:addRecentFile', vaultPath, filePath)
+    addRecent: (vaultPath: string, filePath: string) => ipcRenderer.invoke('vault:addRecentFile', vaultPath, filePath),
+    getRecentlyModified: (vaultPath: string) => ipcRenderer.invoke('vault:getRecentlyModifiedFiles', vaultPath)
   },
   rag: {
     indexVault: (vaultPath: string) => ipcRenderer.invoke('rag:indexVault', { vaultPath }),

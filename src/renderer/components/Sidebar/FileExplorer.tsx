@@ -133,6 +133,47 @@ interface RecentFile {
   openedAt: number
 }
 
+interface ModifiedFile {
+  path: string
+  modifiedAt: number
+}
+
+function basenameLabel(path: string): string {
+  const name = path.split('/').pop() ?? path
+  return name.endsWith('.md') ? name.slice(0, -3) : name
+}
+
+interface FilePathDropdownProps {
+  paths: string[]
+  selectedFile: string | null
+  emptyLabel: string
+  onSelect: (path: string) => void
+}
+
+function FilePathDropdown({ paths, selectedFile, emptyLabel, onSelect }: FilePathDropdownProps) {
+  if (paths.length === 0) {
+    return (
+      <div className="recent-files-dropdown">
+        <div className="recent-files-empty">{emptyLabel}</div>
+      </div>
+    )
+  }
+  return (
+    <div className="recent-files-dropdown">
+      {paths.map((path) => (
+        <button
+          key={path}
+          className={`recent-files-item${path === selectedFile ? ' recent-files-item--active' : ''}`}
+          onClick={() => onSelect(path)}
+          title={path}
+        >
+          {basenameLabel(path)}
+        </button>
+      ))}
+    </div>
+  )
+}
+
 const NAVIGATION_KEYS = new Set(['ArrowDown', 'ArrowUp', 'ArrowLeft', 'ArrowRight', 'Enter'])
 
 export function FileExplorer() {
@@ -149,8 +190,11 @@ export function FileExplorer() {
   const [focusedPath, setFocusedPath] = useState<string | null>(null)
   const [recentFiles, setRecentFiles] = useState<RecentFile[]>([])
   const [recentOpen, setRecentOpen] = useState(false)
+  const [modifiedFiles, setModifiedFiles] = useState<ModifiedFile[]>([])
+  const [modifiedOpen, setModifiedOpen] = useState(false)
   const treeRef = useRef<HTMLDivElement>(null)
   const recentRef = useRef<HTMLDivElement>(null)
+  const modifiedRef = useRef<HTMLDivElement>(null)
 
   // Collapse all folders by default, expand only ancestors of the selected file
   const treeInitRef = useRef<string | null>(null)
@@ -217,6 +261,37 @@ export function FileExplorer() {
     document.addEventListener('mousedown', handleClickOutside)
     return () => document.removeEventListener('mousedown', handleClickOutside)
   }, [recentOpen])
+
+  const handleModifiedToggle = useCallback(async () => {
+    if (modifiedOpen) {
+      setModifiedOpen(false)
+      return
+    }
+    if (!vaultPath) return
+    try {
+      const files = await window.axonize.file.getRecentlyModified(vaultPath)
+      setModifiedFiles(files)
+    } catch {
+      setModifiedFiles([])
+    }
+    setModifiedOpen(true)
+  }, [modifiedOpen, vaultPath])
+
+  const handleModifiedSelect = useCallback((path: string) => {
+    selectFile(path)
+    setModifiedOpen(false)
+  }, [selectFile])
+
+  useEffect(() => {
+    if (!modifiedOpen) return
+    const handleClickOutside = (e: MouseEvent) => {
+      if (modifiedRef.current && !modifiedRef.current.contains(e.target as Node)) {
+        setModifiedOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [modifiedOpen])
 
   const { visible, excluded } = useMemo(() => {
     const excludedSet = new Set(excludedFolders)
@@ -379,35 +454,40 @@ export function FileExplorer() {
                 <button
                   className="toolbar-btn nav-btn"
                   onClick={handleRecentToggle}
-                  title="Recent files"
+                  title="Recently opened files"
                 >
                   <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
                     <circle cx="6" cy="6" r="5" stroke="currentColor" strokeWidth="1.2"/>
                     <path d="M6 3V6L8 7.5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"/>
                   </svg>
                 </button>
-                {recentOpen && recentFiles.length > 0 && (
-                  <div className="recent-files-dropdown">
-                    {recentFiles.map((rf) => {
-                      const name = rf.path.split('/').pop() ?? rf.path
-                      const displayName = name.endsWith('.md') ? name.slice(0, -3) : name
-                      return (
-                        <button
-                          key={rf.path}
-                          className={`recent-files-item${rf.path === selectedFile ? ' recent-files-item--active' : ''}`}
-                          onClick={() => handleRecentSelect(rf.path)}
-                          title={rf.path}
-                        >
-                          {displayName}
-                        </button>
-                      )
-                    })}
-                  </div>
+                {recentOpen && (
+                  <FilePathDropdown
+                    paths={recentFiles.map((rf) => rf.path)}
+                    selectedFile={selectedFile}
+                    emptyLabel="No recent files"
+                    onSelect={handleRecentSelect}
+                  />
                 )}
-                {recentOpen && recentFiles.length === 0 && (
-                  <div className="recent-files-dropdown">
-                    <div className="recent-files-empty">No recent files</div>
-                  </div>
+              </div>
+              <div ref={modifiedRef} className="recent-files-wrapper">
+                <button
+                  className="toolbar-btn nav-btn"
+                  onClick={handleModifiedToggle}
+                  title="Recently created or updated files"
+                >
+                  <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+                    <path d="M2 8.5V10H3.5L9 4.5L7.5 3L2 8.5Z" stroke="currentColor" strokeWidth="1.2" strokeLinejoin="round"/>
+                    <path d="M6.5 4L8 5.5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round"/>
+                  </svg>
+                </button>
+                {modifiedOpen && (
+                  <FilePathDropdown
+                    paths={modifiedFiles.map((mf) => mf.path)}
+                    selectedFile={selectedFile}
+                    emptyLabel="No files yet"
+                    onSelect={handleModifiedSelect}
+                  />
                 )}
               </div>
               <button
