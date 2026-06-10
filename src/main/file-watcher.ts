@@ -1,6 +1,7 @@
 import { watch, type FSWatcher } from 'fs'
-import { basename, extname } from 'path'
+import { basename } from 'path'
 import type { BrowserWindow } from 'electron'
+import { isVaultVisibleFile } from '../core/vault/data-file-types'
 import log from './logger'
 
 const DEBOUNCE_MS = 1000
@@ -18,8 +19,8 @@ function isIgnored(filename: string): boolean {
   return parts.some((part) => IGNORED_DIRS.has(part))
 }
 
-function isMarkdown(filename: string): boolean {
-  return extname(basename(filename)) === '.md'
+function isWatchedFile(filename: string): boolean {
+  return isVaultVisibleFile(basename(filename))
 }
 
 export function startWatching(vaultPath: string, win: BrowserWindow): void {
@@ -31,7 +32,7 @@ export function startWatching(vaultPath: string, win: BrowserWindow): void {
     entry.watcher = watch(vaultPath, { recursive: true }, (_eventType, filename) => {
       if (!filename) return
       if (isIgnored(filename)) return
-      if (!isMarkdown(filename)) return
+      if (!isWatchedFile(filename)) return
 
       if (entry.timer) clearTimeout(entry.timer)
       entry.timer = setTimeout(() => {

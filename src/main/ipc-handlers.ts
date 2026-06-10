@@ -12,6 +12,7 @@ import {registerAgentHistoryIpcHandlers} from './agent-history-ipc-handlers'
 import {registerGitIpcHandlers} from './git-ipc-handlers'
 import {registerVaultIconIpcHandlers} from './vault-icon-ipc-handlers'
 import {registerClipboardIpcHandlers} from './clipboard-ipc-handlers'
+import {registerDataIpcHandlers} from './data/data-ipc-handlers'
 import {startWatching, stopWatching} from './file-watcher'
 import {vaultNameFromPath} from '../core/vault/name'
 import log from './logger'
@@ -203,4 +204,5 @@ export function registerIpcHandlers(): void {
   registerGitIpcHandlers()
   registerVaultIconIpcHandlers()
   registerClipboardIpcHandlers()
+  registerDataIpcHandlers()
 }

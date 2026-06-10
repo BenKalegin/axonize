@@ -1,5 +1,6 @@
 import { readdir, stat } from 'fs/promises'
 import { join, relative } from 'path'
+import { isVaultVisibleFile } from '../core/vault/data-file-types'
 
 const RECENTLY_MODIFIED_MAX = 10
 
@@ -54,7 +55,7 @@ async function collectModifiedFiles(dirPath: string, out: ModifiedFile[]): Promi
     const fullPath = join(dirPath, entry.name)
     if (entry.isDirectory()) {
       await collectModifiedFiles(fullPath, out)
-    } else if (entry.name.endsWith('.md')) {
+    } else if (isVaultVisibleFile(entry.name)) {
       const stats = await stat(fullPath)
       out.push({ path: fullPath, modifiedAt: stats.mtimeMs })
     }
@@ -108,7 +109,7 @@ async function scanDirectory(dirPath: string, rootPath: string): Promise<FileEnt
         isDirectory: true,
         children
       })
-    } else if (entry.name.endsWith('.md')) {
+    } else if (isVaultVisibleFile(entry.name)) {
       result.push({
         name: entry.name,
         path: fullPath,

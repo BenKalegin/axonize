@@ -2,6 +2,13 @@ import { contextBridge, ipcRenderer } from 'electron'
 import { homedir } from 'os'
 import type { CardKind, StalenessInfo } from '../core/semantic/types'
 import type {
+  DataRowResult,
+  DataSearchResult,
+  DataSessionInfo,
+  JsonNodeSummary
+} from '../core/data/types'
+import type { FieldFilter } from '../core/data/row-query'
+import type {
   AgentTurnMeta,
   SaveAgentTurnPayload
 } from '../core/agent/history-types'
@@ -145,6 +152,14 @@ export interface AxonizeAPI {
     addRecent: (vaultPath: string, filePath: string) => Promise<void>
     getRecentlyModified: (vaultPath: string) => Promise<Array<{ path: string; modifiedAt: number }>>
   }
+  data: {
+    open: (filePath: string) => Promise<DataSessionInfo>
+    rows: (filePath: string, offset: number, limit: number) => Promise<DataRowResult[]>
+    node: (filePath: string, path: Array<string | number>, offset: number, limit: number) => Promise<JsonNodeSummary[]>
+    search: (filePath: string, text: string) => Promise<DataSearchResult>
+    query: (filePath: string, filters: FieldFilter[], select: string[] | undefined, offset: number, limit: number) => Promise<{ rows: DataRowResult[]; totalMatches: number }>
+    close: (filePath: string) => Promise<void>
+  }
   rag: {
     indexVault: (vaultPath: string) => Promise<{ chunkCount: number }>
     fullReindex: (vaultPath: string) => Promise<{ chunkCount: number }>
@@ -256,6 +271,17 @@ const api: AxonizeAPI = {
     getRecent: (vaultPath: string) => ipcRenderer.invoke('vault:getRecentFiles', vaultPath),
     addRecent: (vaultPath: string, filePath: string) => ipcRenderer.invoke('vault:addRecentFile', vaultPath, filePath),
     getRecentlyModified: (vaultPath: string) => ipcRenderer.invoke('vault:getRecentlyModifiedFiles', vaultPath)
+  },
+  data: {
+    open: (filePath: string) => ipcRenderer.invoke('data:open', filePath),
+    rows: (filePath: string, offset: number, limit: number) =>
+      ipcRenderer.invoke('data:rows', filePath, offset, limit),
+    node: (filePath: string, path: Array<string | number>, offset: number, limit: number) =>
+      ipcRenderer.invoke('data:node', filePath, path, offset, limit),
+    search: (filePath: string, text: string) => ipcRenderer.invoke('data:search', filePath, text),
+    query: (filePath: string, filters: FieldFilter[], select: string[] | undefined, offset: number, limit: number) =>
+      ipcRenderer.invoke('data:query', filePath, filters, select, offset, limit),
+    close: (filePath: string) => ipcRenderer.invoke('data:close', filePath)
   },
   rag: {
     indexVault: (vaultPath: string) => ipcRenderer.invoke('rag:indexVault', { vaultPath }),
