@@ -4292,12 +4292,10 @@
   z-index: 1;
   background: var(--bg-surface);
   border-bottom: 1px solid var(--border);
-  min-width: max-content;
 }
 
 .data-grid-body {
   position: relative;
-  min-width: max-content;
 }
 
 .data-grid-row {
@@ -4309,7 +4307,6 @@
   height: 28px;
   border-bottom: 1px solid var(--border);
   cursor: default;
-  min-width: max-content;
 }
 
 .data-grid-row:hover {
@@ -4336,6 +4333,22 @@
 .data-grid-colname {
   font-weight: 600;
   color: var(--text-secondary);
+  position: relative;
+}
+
+.data-grid-resize-handle {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  right: -3px;
+  width: 6px;
+  cursor: col-resize;
+  z-index: 2;
+}
+
+.data-grid-resize-handle:hover {
+  background: var(--accent);
+  opacity: 0.5;
 }
 
 .data-grid-index {
@@ -4370,9 +4383,44 @@
   border-bottom: 1px solid var(--border);
 }
 
-.data-grid-detail pre {
+.data-grid-detail-error {
   padding: 10px 12px;
   font-size: 12px;
+  color: var(--red);
+  white-space: pre-wrap;
+}
+
+.data-grid-detail-fields {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 8px 16px;
+  padding: 12px 14px;
+  align-items: start;
+}
+
+.data-grid-detail-key {
+  color: var(--accent);
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 12px;
+  font-weight: 600;
+  padding-top: 1px;
+  position: sticky;
+  top: 0;
+}
+
+.data-grid-detail-text {
+  font-size: 13px;
+  line-height: 1.55;
+  white-space: pre-wrap;
+  word-break: break-word;
+  color: var(--text-primary);
+  max-width: 110ch;
+}
+
+.data-grid-detail-json {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 12px;
+  line-height: 1.5;
   white-space: pre-wrap;
   word-break: break-word;
 }
@@ -4455,3 +4503,14 @@
 .json-tree-null {
   color: var(--red);
 }
+
+.data-grid-detail-md {
+  max-width: 110ch;
+  font-size: 13px;
+}
+
+.data-grid-detail-md h1 { font-size: 17px; margin: 12px 0 6px; }
+.data-grid-detail-md h2 { font-size: 15px; margin: 10px 0 5px; }
+.data-grid-detail-md h3 { font-size: 14px; margin: 8px 0 4px; }
+.data-grid-detail-md p { margin: 6px 0; }
+.data-grid-detail-md > *:first-child { margin-top: 0; }
