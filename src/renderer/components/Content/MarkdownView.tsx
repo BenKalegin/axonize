@@ -5,6 +5,7 @@ import { TEST_IDS } from '@/lib/testids'
 import { useEditorStore, ViewMode, selectedFilePath } from '@/store/editor-store'
 import { useVaultStore } from '@/store/vault-store'
 import { splitSections, type MarkdownSection } from '@/lib/section-splitter'
+import { isDocLink, resolveDocLink } from '@/lib/doc-link'
 import { SectionBlock } from './SectionBlock'
 import { SectionInsert } from './SectionInsert'
 import { ConflictDialog } from './ConflictDialog'
@@ -296,6 +297,15 @@ export const MarkdownView = React.memo(function MarkdownView() {
       // Persist the visible section to history before navigating so back returns there
       const headingId = findNearestHeadingId()
       if (headingId) useEditorStore.getState().updateCurrentHash(headingId)
+
+      if (isDocLink(href)) {
+        if (vaultPath) {
+          void resolveDocLink(href, vaultPath).then((path) => {
+            if (path) selectFile(path)
+          })
+        }
+        return
+      }
 
       if (href.startsWith('#')) {
         if (selectedFile) selectFile(`${selectedFile}${href}`)

@@ -3,6 +3,9 @@ import { useVirtualizer } from '@tanstack/react-virtual'
 import type { DataRowResult, DataSearchResult, DataSessionInfo } from '@core/data/types'
 import { IpcRowSource } from '@/lib/data-source'
 import { highlightJson } from '@/lib/json-highlight'
+import { isDocLink, resolveDocLink } from '@/lib/doc-link'
+import { useEditorStore } from '@/store/editor-store'
+import { useVaultStore } from '@/store/vault-store'
 import { MarkdownContent } from '../MarkdownContent'
 import { DataSearchBar } from './DataSearchBar'
 
@@ -153,8 +156,30 @@ function useColumnWidths(columnCount: number) {
 }
 
 function RowDetail({ row, onClose }: { row: DataRowResult; onClose: () => void }) {
+  const vaultPath = useVaultStore((s) => s.vaultPath)
+  const selectFile = useEditorStore((s) => s.selectFile)
+
+  // Detail markdown lives outside MarkdownView's link interceptor, so corpus
+  // doc:// links (and external http links) need their own handling here.
+  const handleClick = useCallback(
+    (e: React.MouseEvent) => {
+      const anchor = (e.target as HTMLElement).closest('a')
+      if (!anchor) return
+      const href = anchor.getAttribute('href')
+      if (!href) return
+      if (href.startsWith('http://') || href.startsWith('https://')) return
+      e.preventDefault()
+      if (isDocLink(href) && vaultPath) {
+        void resolveDocLink(href, vaultPath).then((path) => {
+          if (path) selectFile(path)
+        })
+      }
+    },
+    [vaultPath, selectFile]
+  )
+
   return (
-    <div className="data-grid-detail">
+    <div className="data-grid-detail" onClick={handleClick}>
       <div className="data-grid-detail-bar">
         <span>row {row.index}</span>
         <button className="toolbar-btn" onClick={onClose}>

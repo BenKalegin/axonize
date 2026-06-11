@@ -12,6 +12,12 @@ import rehypeStringify from 'rehype-stringify'
 
 const schema = {
   ...defaultSchema,
+  protocols: {
+    ...defaultSchema.protocols,
+    // Allow corpus-document links (doc://...) through sanitization; clicks are
+    // intercepted and resolved to vault files (see lib/doc-link.ts).
+    href: [...(defaultSchema.protocols?.href ?? []), 'doc']
+  },
   tagNames: [
     ...(defaultSchema.tagNames ?? []),
     'sub',
