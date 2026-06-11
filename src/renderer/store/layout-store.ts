@@ -78,7 +78,8 @@ export const useLayoutStore = create<LayoutState>((set, get) => ({
       }
       if (settings?.ui) {
         set({
-          activePanelId: (settings.ui.activePanelId as SidePanelId | null) ?? SidePanelId.Files,
+          // activePanelId is intentionally not restored: every session and
+          // vault switch starts on the file explorer (see activateVaultInWindow).
           activeRightPanelId: null, // Always start with properties panel collapsed
           sidePanelWidth: Math.min(
             maxPanelWidth(),

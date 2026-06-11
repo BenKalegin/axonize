@@ -6,6 +6,7 @@ import { useGeneratedDocsStore } from './generated-docs-store'
 import { useRagStore } from './rag-store'
 import { useGraphStore } from './graph-store'
 import { useEditorStore } from './editor-store'
+import { SidePanelId, useLayoutStore } from './layout-store'
 
 // Per-window vault persistence. sessionStorage is per-renderer-process in Electron,
 // so it survives webContents.reload() (cmd+R) but not full app restart — exactly
@@ -95,6 +96,8 @@ async function activateVaultInWindow(
   options: { addRecent: boolean }
 ): Promise<void> {
   useEditorStore.getState().clear()
+  // A freshly activated vault always starts on the file explorer panel.
+  useLayoutStore.setState({ activePanelId: SidePanelId.Files })
   const name = vaultNameFromPath(path)
   setCurrentVaultInSession(path)
   set({ vaultPath: path, vaultName: name })
