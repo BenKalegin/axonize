@@ -3,7 +3,7 @@ import { useVirtualizer } from '@tanstack/react-virtual'
 import type { DataRowResult, DataSearchResult, DataSessionInfo } from '@core/data/types'
 import { IpcRowSource } from '@/lib/data-source'
 import { highlightJson } from '@/lib/json-highlight'
-import { isDocLink, resolveDocLink } from '@/lib/doc-link'
+import { handleCodeFileReferenceClick, isDocLink, resolveDocLink } from '@/lib/doc-link'
 import { useEditorStore } from '@/store/editor-store'
 import { useVaultStore } from '@/store/vault-store'
 import { MarkdownContent } from '../MarkdownContent'
@@ -164,7 +164,10 @@ function RowDetail({ row, onClose }: { row: DataRowResult; onClose: () => void }
   const handleClick = useCallback(
     (e: React.MouseEvent) => {
       const anchor = (e.target as HTMLElement).closest('a')
-      if (!anchor) return
+      if (!anchor) {
+        handleCodeFileReferenceClick(e, vaultPath, selectFile)
+        return
+      }
       const href = anchor.getAttribute('href')
       if (!href) return
       if (href.startsWith('http://') || href.startsWith('https://')) return

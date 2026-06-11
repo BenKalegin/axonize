@@ -9,6 +9,7 @@ import rehypeKatex from 'rehype-katex'
 import rehypeSlug from 'rehype-slug'
 import rehypeHighlight from 'rehype-highlight'
 import rehypeStringify from 'rehype-stringify'
+import { CODE_FILE_REF_CLASS, looksLikeVaultFileReference } from './doc-link'
 
 const schema = {
   ...defaultSchema,
@@ -92,8 +93,19 @@ function resolveImageSrcs(html: string, fileDir: string): string {
   })
 }
 
+/**
+ * Tag path-shaped inline code (vault file citations) with a class so CSS can
+ * give them link affordance; clicks are handled by handleCodeFileReferenceClick.
+ * Fenced code blocks are unaffected: their <code> carries a language class.
+ */
+function markFileReferenceCode(html: string): string {
+  return html.replace(/<code>([^<]+)<\/code>/g, (match, text: string) =>
+    looksLikeVaultFileReference(text) ? `<code class="${CODE_FILE_REF_CLASS}">${text}</code>` : match
+  )
+}
+
 export async function renderMarkdown(markdown: string, fileDir?: string): Promise<string> {
   const result = await processor.process(markdown)
-  const html = String(result)
+  const html = markFileReferenceCode(String(result))
   return fileDir ? resolveImageSrcs(html, fileDir) : html
 }

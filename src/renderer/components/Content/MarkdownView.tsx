@@ -5,12 +5,7 @@ import { TEST_IDS } from '@/lib/testids'
 import { useEditorStore, ViewMode, selectedFilePath } from '@/store/editor-store'
 import { useVaultStore } from '@/store/vault-store'
 import { splitSections, type MarkdownSection } from '@/lib/section-splitter'
-import {
-  isDocLink,
-  looksLikeVaultFileReference,
-  resolveDocLink,
-  resolveVaultFileReference
-} from '@/lib/doc-link'
+import { handleCodeFileReferenceClick, isDocLink, resolveDocLink } from '@/lib/doc-link'
 import { SectionBlock } from './SectionBlock'
 import { SectionInsert } from './SectionInsert'
 import { ConflictDialog } from './ConflictDialog'
@@ -80,23 +75,6 @@ const FRONTMATTER_RE = /^---\n[\s\S]*?\n---\n/
 
 /** When picking the nearest heading above the viewport, allow this many px of slack below scrollTop */
 const NEAREST_HEADING_TOLERANCE_PX = 100
-
-// Agent answers (and prose) often cite vault files as inline code rather than
-// links — make `path/to/file.md`-shaped code spans navigate too.
-function handleFileReferenceClick(
-  e: React.MouseEvent,
-  vault: string | null,
-  select: (location: string) => void
-): void {
-  const code = (e.target as HTMLElement).closest('code')
-  if (!code || !vault) return
-  const text = code.textContent?.trim()
-  if (!text || !looksLikeVaultFileReference(text)) return
-  e.preventDefault()
-  void resolveVaultFileReference(text, vault).then((path) => {
-    if (path) select(path)
-  })
-}
 
 function findNearestHeadingId(): string | null {
   const scrollContainer = document.querySelector('.content-scroll')
@@ -306,7 +284,8 @@ export const MarkdownView = React.memo(function MarkdownView() {
     (e: React.MouseEvent) => {
       const anchor = (e.target as HTMLElement).closest('a')
       if (!anchor) {
-        handleFileReferenceClick(e, vaultPath, selectFile)
+        // Vault files cited as inline code navigate too (common in agent answers)
+        handleCodeFileReferenceClick(e, vaultPath, selectFile)
         return
       }
 

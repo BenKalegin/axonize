@@ -71,6 +71,34 @@ export async function resolveVaultFileReference(
   return match ? `${vaultPath}/${match}` : null
 }
 
+/** Class added to path-shaped inline code during markdown rendering (link affordance + click target). */
+export const CODE_FILE_REF_CLASS = 'code-file-ref'
+
+interface ClickLikeEvent {
+  target: EventTarget | null
+  preventDefault(): void
+}
+
+/**
+ * Shared click handler for vault file citations rendered as inline code.
+ * Returns true when the click was recognized (and navigation kicked off).
+ */
+export function handleCodeFileReferenceClick(
+  e: ClickLikeEvent,
+  vaultPath: string | null,
+  select: (location: string) => void
+): boolean {
+  const code = (e.target as HTMLElement).closest('code')
+  if (!code || !vaultPath) return false
+  const text = code.textContent?.trim()
+  if (!text || !looksLikeVaultFileReference(text)) return false
+  e.preventDefault()
+  void resolveVaultFileReference(text, vaultPath).then((path) => {
+    if (path) select(path)
+  })
+  return true
+}
+
 /** Exact relative path first, then unique-enough suffix match (`/` boundary), case-insensitive fallback. */
 export function matchVaultFileReference(text: string, relativePaths: string[]): string | null {
   const ref = text.trim().replace(/^\.?\//, '')

@@ -4514,3 +4514,13 @@
 .data-grid-detail-md h3 { font-size: 14px; margin: 8px 0 4px; }
 .data-grid-detail-md p { margin: 6px 0; }
 .data-grid-detail-md > *:first-child { margin-top: 0; }
+
+/* Vault file citations in inline code — link affordance (clicks navigate) */
+code.code-file-ref {
+  cursor: pointer;
+  color: var(--accent);
+}
+
+code.code-file-ref:hover {
+  text-decoration: underline;
+}
