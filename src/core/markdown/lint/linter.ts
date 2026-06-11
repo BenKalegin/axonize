@@ -8,6 +8,9 @@ import { rule as mermaidColors } from './rules/mermaid-colors'
 import { rule as mermaidSyntax } from './rules/mermaid-syntax'
 import { rule as brokenImages } from './rules/broken-images'
 import { rule as brokenLinks } from './rules/broken-links'
+import { rule as headingStructure } from './rules/heading-structure'
+import { rule as lexicalRepetition } from './rules/lexical-repetition'
+import { rule as codeFenceHygiene } from './rules/code-fence-hygiene'
 
 export const RULES: LintRule[] = [
   duplicateHeadings,
@@ -17,7 +20,10 @@ export const RULES: LintRule[] = [
   mermaidColors,
   mermaidSyntax,
   brokenImages,
-  brokenLinks
+  brokenLinks,
+  headingStructure,
+  lexicalRepetition,
+  codeFenceHygiene
 ]
 
 export function lintMarkdown(input: Omit<LintContext, 'tree'>): LintIssue[] {
