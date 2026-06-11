@@ -54,6 +54,39 @@ export function matchDocTarget(target: string, relativePaths: string[]): string 
   return best?.path ?? null
 }
 
+/** Vault-file-looking text (e.g. `eval/15robots/run.md`) cited as plain text or inline code. */
+const FILE_REFERENCE_RE = /^[\w./ -]+\.(md|markdown|txt|csv|json|jsonl|bpmn)$/i
+
+export function looksLikeVaultFileReference(text: string): boolean {
+  return FILE_REFERENCE_RE.test(text)
+}
+
+/** Resolve a textual vault file reference to an absolute path, or null. */
+export async function resolveVaultFileReference(
+  text: string,
+  vaultPath: string
+): Promise<string | null> {
+  const relativePaths = await window.axonize.vault.listAllFiles(vaultPath)
+  const match = matchVaultFileReference(text, relativePaths)
+  return match ? `${vaultPath}/${match}` : null
+}
+
+/** Exact relative path first, then unique-enough suffix match (`/` boundary), case-insensitive fallback. */
+export function matchVaultFileReference(text: string, relativePaths: string[]): string | null {
+  const ref = text.trim().replace(/^\.?\//, '')
+  const exact = relativePaths.find((p) => p === ref)
+  if (exact) return exact
+
+  const bySuffix = relativePaths.find((p) => p.endsWith(`/${ref}`))
+  if (bySuffix) return bySuffix
+
+  const lower = ref.toLowerCase()
+  return (
+    relativePaths.find((p) => p.toLowerCase() === lower || p.toLowerCase().endsWith(`/${lower}`)) ??
+    null
+  )
+}
+
 function basenameWithoutExtension(path: string): string {
   const name = path.slice(path.lastIndexOf('/') + 1)
   const dot = name.lastIndexOf('.')

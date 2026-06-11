@@ -1,5 +1,10 @@
 import { describe, it, expect } from 'vitest'
-import { isDocLink, matchDocTarget } from '../../../src/renderer/lib/doc-link'
+import {
+  isDocLink,
+  looksLikeVaultFileReference,
+  matchDocTarget,
+  matchVaultFileReference
+} from '../../../src/renderer/lib/doc-link'
 
 const CORPUS = [
   'corpus/idm/Techpubs_GenAI_Document-303469-1-LATEST_m3udi_latest_en-us_m3beud_busctrlhs_cas950.txt',
@@ -49,5 +54,43 @@ describe('doc-link', () => {
   it('prefers the longest (most specific) contained basename', () => {
     const files = ['corpus/Doc-100.md', 'corpus/Doc-100-1-LATEST_full_name.md']
     expect(matchDocTarget('TechDoc-Doc-100-1-LATEST_full_name-1-ACTIVE', files)).toBe(files[1])
+  })
+
+  describe('vault file references (inline code citations)', () => {
+    const FILES = [
+      'eval/15robots/simple_14_questions_robot_eval.md',
+      'eval/15robots/test_queries_standard.md',
+      'rag_evaluation_plan.md',
+      'notes/rag_evaluation_plan.md'
+    ]
+
+    it('detects path-shaped text', () => {
+      expect(looksLikeVaultFileReference('eval/15robots/test_queries_standard.md')).toBe(true)
+      expect(looksLikeVaultFileReference('rag_evaluation_plan.md')).toBe(true)
+      expect(looksLikeVaultFileReference('plain words')).toBe(false)
+      expect(looksLikeVaultFileReference('const x = 1')).toBe(false)
+    })
+
+    it('matches exact relative paths, tolerating ./ prefix', () => {
+      expect(matchVaultFileReference('eval/15robots/test_queries_standard.md', FILES)).toBe(FILES[1])
+      expect(matchVaultFileReference('./rag_evaluation_plan.md', FILES)).toBe(FILES[2])
+    })
+
+    it('prefers root-level exact match over deeper suffix match', () => {
+      expect(matchVaultFileReference('rag_evaluation_plan.md', FILES)).toBe('rag_evaluation_plan.md')
+    })
+
+    it('matches by path suffix at a / boundary', () => {
+      expect(matchVaultFileReference('simple_14_questions_robot_eval.md', FILES)).toBe(FILES[0])
+      expect(matchVaultFileReference('15robots/test_queries_standard.md', FILES)).toBe(FILES[1])
+    })
+
+    it('falls back to case-insensitive matching', () => {
+      expect(matchVaultFileReference('EVAL/15robots/Test_Queries_Standard.md', FILES)).toBe(FILES[1])
+    })
+
+    it('returns null for unknown references', () => {
+      expect(matchVaultFileReference('eval/missing.md', FILES)).toBeNull()
+    })
   })
 })
