@@ -1,7 +1,9 @@
 import { useState, useMemo } from 'react'
 import { TEST_IDS } from '@/lib/testids'
 import { useLintStore } from '@/store/lint-store'
+import { useProseStore, RefactorPhase } from '@/store/prose-store'
 import { useEditorStore, selectedFilePath } from '@/store/editor-store'
+import { RefactorReviewDialog } from './RefactorReviewDialog'
 import type { LintIssue, LintSeverity } from '@core/markdown/lint/types'
 import { RULES } from '@core/markdown/lint/linter'
 import {
@@ -187,6 +189,7 @@ function groupByRule(issues: LintIssue[]): Map<string, LintIssue[]> {
 
 export function LintPanel() {
   const { issues, running, lintFile } = useLintStore()
+  const { phase: refactorPhase, error: refactorError, startRefactor } = useProseStore()
   const selection = useEditorStore((s) => s.selection)
 
   const filePath = selectedFilePath(selection)
@@ -195,6 +198,7 @@ export function LintPanel() {
 
   const errorCount = fileIssues.filter((i) => i.severity === 'error').length
   const warnCount = fileIssues.filter((i) => i.severity === 'warning').length
+  const refactoring = refactorPhase !== RefactorPhase.idle
 
   function handleFixed() {
     if (filePath) lintFile(filePath)
@@ -210,7 +214,20 @@ export function LintPanel() {
             {warnCount > 0 && <span className="lint-count lint-count--warning">{warnCount}</span>}
           </span>
         )}
+        {filePath && (
+          <button
+            className="lint-fix-btn lint-fix-btn--llm lint-refactor-btn"
+            title="Refactor document with AI — de-duplicate, consolidate, tighten (shows a diff for review)"
+            disabled={refactoring}
+            onClick={() => startRefactor(filePath)}
+          >
+            {refactorPhase === RefactorPhase.running ? '…' : <SparkleIcon />}
+          </button>
+        )}
       </div>
+
+      {refactorError && <div className="lint-refactor-error">{refactorError}</div>}
+      <RefactorReviewDialog />
 
       <div className="lint-list">
         {!filePath ? (

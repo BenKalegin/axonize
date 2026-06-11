@@ -13,6 +13,7 @@ import {registerGitIpcHandlers} from './git-ipc-handlers'
 import {registerVaultIconIpcHandlers} from './vault-icon-ipc-handlers'
 import {registerClipboardIpcHandlers} from './clipboard-ipc-handlers'
 import {registerDataIpcHandlers} from './data/data-ipc-handlers'
+import {registerProseIpcHandlers} from './prose/prose-ipc-handlers'
 import {startWatching, stopWatching} from './file-watcher'
 import {vaultNameFromPath} from '../core/vault/name'
 import log from './logger'
@@ -205,4 +206,5 @@ export function registerIpcHandlers(): void {
   registerVaultIconIpcHandlers()
   registerClipboardIpcHandlers()
   registerDataIpcHandlers()
+  registerProseIpcHandlers()
 }

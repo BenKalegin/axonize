@@ -186,6 +186,9 @@ export interface AxonizeAPI {
     rewriteSection: (section: string, instruction: string) => Promise<string>
     summarizeSession: (payload: { prevTitle: string; userPrompt: string; assistantPreview: string }) => Promise<string>
   }
+  prose: {
+    refactor: (payload: { content: string; findingsSummary?: string }) => Promise<string>
+  }
   clipboard: {
     writeTextAndHtml: (text: string, html: string) => Promise<void>
   }
@@ -336,6 +339,10 @@ const api: AxonizeAPI = {
       ipcRenderer.invoke('llm:rewriteSection', { section, instruction }),
     summarizeSession: (payload: { prevTitle: string; userPrompt: string; assistantPreview: string }) =>
       ipcRenderer.invoke('llm:summarizeSession', payload)
+  },
+  prose: {
+    refactor: (payload: { content: string; findingsSummary?: string }) =>
+      ipcRenderer.invoke('prose:refactor', payload)
   },
   clipboard: {
     writeTextAndHtml: (text: string, html: string) =>
