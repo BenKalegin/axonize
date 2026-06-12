@@ -23,12 +23,17 @@ describe('checkCodeFenceHygiene', () => {
   it('flags an unknown language tag', () => {
     const issues = checkCodeFenceHygiene(ctx('```pyton\nprint(1)\n```'))
     expect(issues).toHaveLength(1)
-    expect(issues[0].severity).toBe('warning')
+    expect(issues[0].severity).toBe('info')
     expect(issues[0].message).toMatch(/"pyton"/)
   })
 
   it('accepts language aliases', () => {
     expect(checkCodeFenceHygiene(ctx('```ts\nconst a = 1\n```\n\n```sh\nls\n```'))).toHaveLength(0)
+  })
+
+  it('accepts full-registry languages beyond the common set', () => {
+    const content = '```http\nGET / HTTP/1.1\n```\n\n```nginx\nserver {}\n```\n\n```properties\na=b\n```'
+    expect(checkCodeFenceHygiene(ctx(content))).toHaveLength(0)
   })
 
   it('accepts app-special fences like mermaid and bpmn', () => {

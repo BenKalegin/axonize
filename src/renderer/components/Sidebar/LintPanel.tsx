@@ -5,6 +5,8 @@ import { useProseStore, RefactorPhase } from '@/store/prose-store'
 import { useEditorStore, selectedFilePath } from '@/store/editor-store'
 import { RefactorReviewDialog } from './RefactorReviewDialog'
 import type { LintIssue, LintSeverity } from '@core/markdown/lint/types'
+import type { VaultLintIssue } from '@core/markdown/lint/vault/types'
+import { useVaultStore } from '@/store/vault-store'
 import { RULES } from '@core/markdown/lint/linter'
 import {
   getDeterministicFixer,
@@ -187,6 +189,83 @@ function groupByRule(issues: LintIssue[]): Map<string, LintIssue[]> {
   return map
 }
 
+function groupByFile(issues: VaultLintIssue[]): Map<string, VaultLintIssue[]> {
+  const map = new Map<string, VaultLintIssue[]>()
+  for (const issue of issues) {
+    const group = map.get(issue.relativePath) ?? []
+    group.push(issue)
+    map.set(issue.relativePath, group)
+  }
+  return map
+}
+
+const VaultScanIcon = () => (
+  <svg width="13" height="13" viewBox="0 0 16 16" fill="none">
+    <rect x="2" y="2" width="12" height="12" rx="2" stroke="currentColor" strokeWidth="1.4"/>
+    <circle cx="7" cy="7" r="2.5" stroke="currentColor" strokeWidth="1.4"/>
+    <path d="M9 9l3 3" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round"/>
+  </svg>
+)
+
+function VaultLintSection() {
+  const { vaultIssues, vaultRunning, lintVault } = useLintStore()
+  const vaultPath = useVaultStore((s) => s.vaultPath)
+  const selectFile = useEditorStore((s) => s.selectFile)
+
+  if (!vaultPath) return null
+
+  const grouped = vaultIssues ? groupByFile(vaultIssues) : null
+
+  return (
+    <div className="lint-vault-section">
+      <div className="lint-rule-header lint-vault-header">
+        <span className="lint-rule-name">Whole vault</span>
+        {vaultIssues && <span className="lint-rule-count">{vaultIssues.length}</span>}
+        <span className="lint-rule-actions">
+          <button
+            className="lint-fix-btn"
+            title="Lint every markdown file in the vault, plus cross-document checks (orphaned images, glossary collisions)"
+            disabled={vaultRunning}
+            onClick={lintVault}
+          >
+            {vaultRunning ? '…' : <VaultScanIcon />}
+          </button>
+        </span>
+      </div>
+      {vaultRunning && <div className="lint-empty">Scanning vault…</div>}
+      {!vaultRunning && vaultIssues && vaultIssues.length === 0 && (
+        <div className="lint-empty lint-empty--ok">Vault is clean</div>
+      )}
+      {!vaultRunning && grouped && (
+        [...grouped.entries()].map(([relativePath, fileIssues]) => (
+          <div key={relativePath} className="lint-rule-group">
+            <div
+              className="lint-vault-file"
+              title={`Open ${relativePath}`}
+              onClick={() => selectFile(`${vaultPath}/${relativePath}`)}
+            >
+              {relativePath}
+              <span className="lint-rule-count">{fileIssues.length}</span>
+            </div>
+            {fileIssues.map((issue, i) => (
+              <div
+                key={`${issue.ruleId}-${issue.line}-${i}`}
+                className={`lint-issue-row lint-issue-row--${issue.severity} lint-issue-row--navigable`}
+                title={issue.line > 0 ? `${relativePath}:${issue.line}` : issue.message}
+                onClick={() => selectFile(`${vaultPath}/${relativePath}`)}
+              >
+                <span className="lint-issue-badge">{SEVERITY_LABEL[issue.severity]}</span>
+                <span className="lint-issue-message">{issue.message}</span>
+                {issue.line > 0 && <span className="lint-issue-line">:{issue.line}</span>}
+              </div>
+            ))}
+          </div>
+        ))
+      )}
+    </div>
+  )
+}
+
 export function LintPanel() {
   const { issues, running, lintFile } = useLintStore()
   const { phase: refactorPhase, error: refactorError, startRefactor } = useProseStore()
@@ -247,6 +326,7 @@ export function LintPanel() {
             />
           ))
         )}
+        <VaultLintSection />
       </div>
     </div>
   )

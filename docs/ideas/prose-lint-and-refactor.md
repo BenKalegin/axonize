@@ -175,5 +175,5 @@ The novel part for Axonize is **Tier 2** — an LLM refactor pass with a lossles
 
 ---
 
-**Status:** Proposal
-**Last updated:** 2026-06-04
+**Status:** Implemented — Tier 1 (deterministic rules in `src/core/markdown/lint/`) and Tier 2 (`prose:refactor` + diff-review dialog). Vault-wide lints in progress.
+**Last updated:** 2026-06-11

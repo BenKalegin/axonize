@@ -1,5 +1,7 @@
 import type { Code } from 'mdast'
-import hljs from 'highlight.js/lib/common'
+// Full registry — must stay in sync with the renderer, which highlights via
+// lowlight's `all` grammar set (the same complete highlight.js registry).
+import hljs from 'highlight.js'
 import { walkNodes } from '../utils'
 import { LintSeverity, type LintContext, type LintIssue, type LintRule } from '../types'
 
@@ -29,7 +31,7 @@ export function checkCodeFenceHygiene(ctx: LintContext): LintIssue[] {
     if (!isKnownLanguage(lang.toLowerCase())) {
       issues.push({
         ruleId: RULE_ID,
-        severity: LintSeverity.warning,
+        severity: LintSeverity.info,
         message: `Unknown code fence language "${lang}" — syntax highlighting will not apply`,
         line
       })

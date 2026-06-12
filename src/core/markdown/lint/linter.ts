@@ -27,7 +27,10 @@ export const RULES: LintRule[] = [
 ]
 
 export function lintMarkdown(input: Omit<LintContext, 'tree'>): LintIssue[] {
-  const ctx: LintContext = { ...input, tree: parseMarkdown(input.content) }
+  return lintParsedMarkdown({ ...input, tree: parseMarkdown(input.content) })
+}
+
+export function lintParsedMarkdown(ctx: LintContext): LintIssue[] {
   const all = RULES.flatMap((rule) => rule.check(ctx))
   return all.sort((a, b) => a.line - b.line)
 }

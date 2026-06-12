@@ -2,12 +2,16 @@ import { useEffect } from 'react'
 import { create } from 'zustand'
 import { lintMarkdown } from '@core/markdown/lint/linter'
 import type { LintIssue } from '@core/markdown/lint/types'
+import { buildVaultLintContext, lintVault } from '@core/markdown/lint/vault/vault-linter'
+import type { VaultLintIssue } from '@core/markdown/lint/vault/types'
 import { collectLinkedMarkdownTargets } from '@core/markdown/link-targets'
 import { relativePathFromVault } from '@core/markdown/lint/utils'
 import { useVaultStore } from './vault-store'
 import { useEditorStore, selectedFilePath } from './editor-store'
 
 const DEBOUNCE_MS = 400
+// Parallel file reads during a vault-wide scan.
+const VAULT_READ_CONCURRENCY = 24
 
 let allFilesCache: { vaultPath: string; files: Set<string> } | null = null
 
@@ -58,8 +62,36 @@ async function prefetchTargets(
 interface LintState {
   issues: Record<string, LintIssue[]>
   running: boolean
+  vaultIssues: VaultLintIssue[] | null
+  vaultRunning: boolean
   lintFile: (filePath: string) => Promise<void>
   clearFile: (filePath: string) => void
+  lintVault: () => Promise<void>
+  clearVault: () => void
+}
+
+function isExcluded(relativePath: string, excludedFolders: string[]): boolean {
+  return excludedFolders.some((folder) => relativePath.startsWith(folder + '/'))
+}
+
+async function readInBatches(
+  vaultPath: string,
+  relativePaths: string[]
+): Promise<Map<string, string>> {
+  const contents = new Map<string, string>()
+  for (let i = 0; i < relativePaths.length; i += VAULT_READ_CONCURRENCY) {
+    const batch = relativePaths.slice(i, i + VAULT_READ_CONCURRENCY)
+    await Promise.all(
+      batch.map(async (rel) => {
+        try {
+          contents.set(rel, await window.axonize.file.read(vaultPath + '/' + rel))
+        } catch {
+          // unreadable file — skip; per-file lints will not cover it
+        }
+      })
+    )
+  }
+  return contents
 }
 
 let debounceTimer: ReturnType<typeof setTimeout> | null = null
@@ -68,6 +100,8 @@ const lastHashes = new Map<string, string>()
 export const useLintStore = create<LintState>((set, get) => ({
   issues: {},
   running: false,
+  vaultIssues: null,
+  vaultRunning: false,
 
   lintFile: async (filePath: string) => {
     if (debounceTimer !== null) clearTimeout(debounceTimer)
@@ -116,6 +150,29 @@ export const useLintStore = create<LintState>((set, get) => ({
       delete next[filePath]
       return { issues: next }
     })
+  },
+
+  lintVault: async () => {
+    if (get().vaultRunning) return
+    const { vaultPath, excludedFolders } = useVaultStore.getState()
+    if (!vaultPath) return
+    set({ vaultRunning: true })
+    try {
+      invalidateAllFilesCache()
+      const vaultFiles = await loadAllVaultFiles(vaultPath)
+      const mdFiles = [...vaultFiles].filter(
+        (f) => f.endsWith('.md') && !isExcluded(f, excludedFolders)
+      )
+      const contents = await readInBatches(vaultPath, mdFiles)
+      const ctx = buildVaultLintContext(vaultPath, vaultFiles, contents)
+      set({ vaultIssues: lintVault(ctx), vaultRunning: false })
+    } catch {
+      set({ vaultRunning: false })
+    }
+  },
+
+  clearVault: () => {
+    set({ vaultIssues: null })
   }
 }))
 
@@ -137,9 +194,18 @@ export function useLintBootstrap(): void {
       if (filePath) useLintStore.getState().lintFile(filePath)
     })
 
+    let currentVaultPath = useVaultStore.getState().vaultPath
+    const unsubVaultSwitch = useVaultStore.subscribe((state) => {
+      if (state.vaultPath !== currentVaultPath) {
+        currentVaultPath = state.vaultPath
+        useLintStore.getState().clearVault()
+      }
+    })
+
     return () => {
       unsubEditor()
       unsubVault()
+      unsubVaultSwitch()
     }
   }, [])
 }

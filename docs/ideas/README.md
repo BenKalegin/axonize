@@ -48,7 +48,7 @@ Build a queryable knowledge graph over Axonize's KB so agents search structure-f
 ---
 
 ### 3. [Prose Lint & Refactor](./prose-lint-and-refactor.md)
-**Status:** Proposal
+**Status:** Implemented (Tier 1 + Tier 2; vault-wide lints in progress)
 **Inspired by:** Claude Code's `/simplify` — refactor-after-append to hold quality flat as content grows
 
 **Core idea:**

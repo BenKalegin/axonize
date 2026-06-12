@@ -8,6 +8,7 @@ import rehypeSanitize, { defaultSchema } from 'rehype-sanitize'
 import rehypeKatex from 'rehype-katex'
 import rehypeSlug from 'rehype-slug'
 import rehypeHighlight from 'rehype-highlight'
+import { all as allGrammars } from 'lowlight'
 import rehypeStringify from 'rehype-stringify'
 import { CODE_FILE_REF_CLASS, looksLikeVaultFileReference } from './doc-link'
 
@@ -70,7 +71,10 @@ const processor = unified()
   .use(rehypeSanitize, schema)
   .use(rehypeKatex)
   .use(rehypeSlug)
-  .use(rehypeHighlight, { detect: true })
+  // Full grammar registry (not lowlight's `common` default) so niche but valid
+  // fence tags (http, nginx, properties, …) highlight; code-fence-hygiene lint
+  // validates against the same full registry.
+  .use(rehypeHighlight, { detect: true, languages: allGrammars })
   .use(rehypeStringify)
 
 function resolveAbsolutePath(dir: string, relative: string): string {

@@ -1,8 +1,12 @@
 import { LintSeverity, type LintContext, type LintIssue, type LintRule } from '../types'
 import { lineOf } from '../utils'
 
-// Matches ~text~ (single tilde wrap) — not ~~text~~ (GFM strikethrough)
-const SINGLE_TILDE_RE = /(?<!~)~(?!~)([^~\n]+)~(?!~)/g
+// Matches subscript-shaped ~text~ wraps only: the opening tilde must attach
+// directly to a word (H~2~O, x~i~) and the content cannot contain whitespace.
+// This deliberately ignores approximation tildes (~90%, ~3s) — standalone and
+// extremely common in prose — which previously paired up into false spans.
+// Not ~~text~~ (GFM strikethrough).
+const SINGLE_TILDE_RE = /(?<=\w)(?<!~)~(?!~)([^~\s]+)~(?!~)/g
 
 // Strips fenced code blocks and inline code to avoid false positives
 function stripCode(content: string): string {
