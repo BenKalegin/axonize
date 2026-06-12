@@ -9,6 +9,7 @@ import { handleCodeFileReferenceClick, isDocLink, resolveDocLink } from '@/lib/d
 import { SectionBlock } from './SectionBlock'
 import { SectionInsert } from './SectionInsert'
 import { ConflictDialog } from './ConflictDialog'
+import { FindInFileBar } from './FindInFileBar'
 
 mermaid.registerLayoutLoaders(elkLayouts)
 mermaid.initialize({
@@ -136,6 +137,24 @@ export const MarkdownView = React.memo(function MarkdownView() {
   const [frontmatter, setFrontmatter] = useState('')
   const [fileHash, setFileHash] = useState('')
   const [conflict, setConflict] = useState<{ sectionId: string; newMarkdown: string } | null>(null)
+  const [findOpen, setFindOpen] = useState(false)
+  const contentRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent): void => {
+      if ((e.metaKey || e.ctrlKey) && e.key === 'f') {
+        e.preventDefault()
+        setFindOpen(true)
+      }
+    }
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [])
+
+  // Close (and clear highlights) when switching files
+  useEffect(() => {
+    setFindOpen(false)
+  }, [selectedFile])
 
   const rawContentRef = useRef(rawContent)
   rawContentRef.current = rawContent
@@ -364,7 +383,14 @@ export const MarkdownView = React.memo(function MarkdownView() {
   }
 
   return (
-    <div className="markdown-view" data-testid={TEST_IDS.MARKDOWN_VIEW}>
+    <div className="markdown-view" data-testid={TEST_IDS.MARKDOWN_VIEW} ref={contentRef}>
+      {findOpen && (
+        <FindInFileBar
+          container={contentRef.current}
+          contentVersion={rawContent}
+          onClose={() => setFindOpen(false)}
+        />
+      )}
       {sections.length === 0 && (
         <SectionInsert afterLine={0} onInsert={handleInsert} />
       )}
