@@ -62,6 +62,53 @@ The refactor pass **always produces a diff for review**, never an in-place silen
 
 ---
 
+## Backlog: Candidate Lints (Cognitive Linting for an LLM KB)
+
+The vault is not just human-read prose — it's retrieval fodder for RAG and agent context. That suggests a second framing: lint for *LLM comprehension and retrieval quality*, not only human readability. Candidates below are deduplicated against what's already shipped (heading structure, code-fence hygiene, broken links/images, orphaned images, glossary collisions, lexical repetition, duplicate headings, orphaned footnotes).
+
+### Tier 1 — deterministic (extend existing rule sets)
+
+| Lint | What it checks | Why it matters for LLMs |
+|------|----------------|--------------------------|
+| **Orphaned documents** | Vault-wide: `.md` files with zero incoming links/wikilinks — the document counterpart of `orphaned-image` | Unlinked docs are invisible to graph traversal and agent navigation |
+| **Unfinished markers** | `TODO` / `TBD` / `FIXME` / `???`, and headings with empty bodies | Retrieval can surface a stub as if it were an answer |
+| **Relative-time rot** | "currently", "recently", "as of last month", "the new X" without an absolute date nearby | Statements silently go stale; LLMs can't tell when "currently" was |
+| **Section-initial dangling pronouns** | Sections/paragraphs that open with "This", "It", "These" — antecedent lives in the previous section | RAG chunking severs the antecedent; the chunk becomes uninterpretable in isolation |
+| **Circular glossary definitions** | Term A defined via term B defined via term A (cycle over the existing glossary-entry extraction) | Circular definitions give an LLM no grounding for either term |
+| **Document length outliers** | Near-empty stubs and docs far past the effective chunking size | Both extremes degrade retrieval: stubs dilute, monsters fragment |
+
+### Tier 1.5 — embedding-based (local, no LLM call)
+
+The app already runs a local embedding model (`@xenova/transformers`) for RAG — these lints reuse that index, so they're free of token cost yet catch *semantic* issues Tier 1 can't:
+
+| Lint | What it checks |
+|------|----------------|
+| **Near-duplicate documents** | Cross-file semantic overlap — the vault-wide complement to in-file `lexical-repetition`. Flag pairs above a similarity threshold as merge candidates |
+| **Title–body mismatch** | Embed the title vs. the body; low similarity means vague titling that hurts both retrieval ranking and human scanning |
+| **Semantically isolated documents** | No neighbors above a similarity floor — a doc can be link-connected yet topically stranded (or vice versa); cross-check with the orphaned-documents lint |
+| **Terminology aliasing** | Two different terms whose definitions/usage contexts embed nearly identically — the inverse of glossary collisions (same concept, different names) |
+
+### Tier 2 — LLM-based (extend the refactor pass or run as a vault audit)
+
+| Lint | What it checks |
+|------|----------------|
+| **Contradictions** | Claims about the same entity that conflict across documents — the semantic-index cards already group statements by entity, which is the natural join key |
+| **Dangling concept references** | A doc leans on a concept the vault never defines anywhere — the cross-doc version of "missing context" |
+| **Coverage gaps** | Questions a document raises but no document answers |
+| **Low information density** | Filler/boilerplate sections that waste context window when pulled into RAG answers — feeds naturally into the Tier-2 "tighten" step |
+
+### Tier 3 — retrieval feedback (telemetry, not analysis)
+
+Close the loop with actual RAG usage rather than static inspection: documents that are *never retrieved* for any query, and documents that are retrieved but never end up cited in answers. Both signal content the index considers irrelevant or unusable. Requires logging retrieval hits in the rag pipeline first — cheap to add, but it's instrumentation rather than a rule.
+
+### Suggested next picks
+
+1. **Orphaned documents** — trivial (the link graph already exists), high signal, symmetric with `orphaned-image`.
+2. **Near-duplicate documents** — the embedding index exists; this directly targets the doc-drift problem this whole proposal started from.
+3. **Section-initial dangling pronouns** — cheap regex-over-AST, and uniquely valuable for a RAG vault since it's a *chunking* defect invisible to human readers.
+
+---
+
 ## Architecture for Axonize
 
 ### Where it lives
@@ -175,5 +222,5 @@ The novel part for Axonize is **Tier 2** — an LLM refactor pass with a lossles
 
 ---
 
-**Status:** Implemented — Tier 1 (deterministic rules in `src/core/markdown/lint/`) and Tier 2 (`prose:refactor` + diff-review dialog). Vault-wide lints in progress.
-**Last updated:** 2026-06-11
+**Status:** Implemented — Tier 1 (deterministic rules in `src/core/markdown/lint/`) and Tier 2 (`prose:refactor` + diff-review dialog). Vault-wide lints in progress. Candidate-lint backlog added (see above).
+**Last updated:** 2026-06-12
