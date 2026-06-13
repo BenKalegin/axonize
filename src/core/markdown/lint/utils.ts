@@ -52,6 +52,16 @@ export function fileExists(vaultFiles: Set<string>, normalizedPath: string): boo
   return vaultFiles.has(normalizedPath + '.md') || vaultFiles.has(normalizedPath)
 }
 
+export function resolveWikilinkPath(
+  vaultFiles: Set<string>,
+  basenames: Map<string, string>,
+  target: string
+): string | null {
+  if (fileExists(vaultFiles, target)) return target
+  const basename = target.split('/').pop() ?? target
+  return basenames.get(basename) ?? null
+}
+
 const basenameIndexCache = new WeakMap<Set<string>, Map<string, string>>()
 
 export function buildMdBasenameIndex(vaultFiles: Set<string>): Map<string, string> {

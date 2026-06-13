@@ -10,18 +10,9 @@ import {
   normalizeMdPath,
   relativePathFromVault,
   resolveRelative,
+  resolveWikilinkPath,
   walkNodes
 } from '../utils'
-
-function resolveWikilinkPath(
-  vaultFiles: Set<string>,
-  basenames: Map<string, string>,
-  target: string
-): string | null {
-  if (fileExists(vaultFiles, target)) return target
-  const basename = target.split('/').pop() ?? target
-  return basenames.get(basename) ?? null
-}
 
 type HasAnchor = (relativePathNoExt: string, anchor: string) => boolean | undefined
 

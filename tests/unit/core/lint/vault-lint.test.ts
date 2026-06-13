@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import { buildVaultLintContext, lintVault } from '@core/markdown/lint/vault/vault-linter'
 import { checkOrphanedImages } from '@core/markdown/lint/vault/orphaned-images'
+import { checkOrphanedDocuments } from '@core/markdown/lint/vault/orphaned-documents'
 import { checkGlossaryCollisions } from '@core/markdown/lint/vault/glossary-collisions'
 import type { VaultLintContext } from '@core/markdown/lint/vault/types'
 
@@ -43,6 +44,78 @@ describe('checkOrphanedImages', () => {
     const c = ctx({ 'doc.md': '![x](https://example.com/a.png)' }, ['a.png'])
     const issues = checkOrphanedImages(c)
     expect(issues).toHaveLength(1)
+  })
+})
+
+describe('checkOrphanedDocuments', () => {
+  const flagged = (c: VaultLintContext): string[] =>
+    checkOrphanedDocuments(c).map((i) => i.relativePath)
+
+  it('passes when a document has an incoming markdown link', () => {
+    const c = ctx({
+      'hub.md': 'See [the note](note.md).',
+      'note.md': '# Note'
+    })
+    expect(flagged(c)).not.toContain('note.md')
+  })
+
+  it('resolves incoming links relative to the linking document', () => {
+    const c = ctx({
+      'index.md': 'Read [deep](notes/deep.md).',
+      'notes/deep.md': '# Deep'
+    })
+    expect(flagged(c)).toHaveLength(0)
+  })
+
+  it('counts wikilinks as incoming references by basename', () => {
+    const c = ctx({
+      'hub.md': 'Linked: [[target]]',
+      'sub/target.md': '# Target'
+    })
+    expect(flagged(c)).not.toContain('sub/target.md')
+  })
+
+  it('flags a document nobody links to', () => {
+    const c = ctx({
+      'index.md': 'A hub with [one link](linked.md).',
+      'linked.md': '# Linked\n\n[back home](index.md)',
+      'lonely.md': '# Nobody links here'
+    })
+    const issues = checkOrphanedDocuments(c)
+    expect(issues).toHaveLength(1)
+    expect(issues[0].relativePath).toBe('lonely.md')
+    expect(issues[0].message).toMatch(/no incoming links/)
+    expect(issues[0].severity).toBe('info')
+  })
+
+  it('treats self-links as not rescuing a document', () => {
+    const c = ctx({ 'self.md': 'I link to [myself](self.md).' })
+    expect(flagged(c)).toContain('self.md')
+  })
+
+  it('exempts entry-point documents (index/readme/home) anywhere', () => {
+    const c = ctx({
+      'index.md': '# Home',
+      'README.md': '# Readme',
+      'docs/home.md': '# Section home'
+    })
+    expect(checkOrphanedDocuments(c)).toHaveLength(0)
+  })
+
+  it('ignores anchors when resolving link targets', () => {
+    const c = ctx({
+      'hub.md': 'Jump to [section](note.md#heading).',
+      'note.md': '# Heading'
+    })
+    expect(flagged(c)).not.toContain('note.md')
+  })
+
+  it('does not count external or in-page links as incoming references', () => {
+    const c = ctx({
+      'hub.md': '[ext](https://example.com) and [anchor](#top).',
+      'note.md': '# Note'
+    })
+    expect(flagged(c)).toContain('note.md')
   })
 })
 
@@ -153,12 +226,14 @@ describe('lintVault', () => {
   it('runs per-file rules across all documents and tags issues with paths', () => {
     const c = ctx({
       'clean.md': '# Fine\n\nNothing wrong here.',
-      'bad.md': '# A\n### Skipped'
+      'bad.md': '# A\n### Skipped\n\n[see](clean.md)'
     })
     const issues = lintVault(c)
-    const byFile = new Set(issues.map((i) => i.relativePath))
-    expect(byFile.has('bad.md')).toBe(true)
-    expect(byFile.has('clean.md')).toBe(false)
+    const perFile = new Set(
+      issues.filter((i) => i.ruleId !== 'orphaned-document').map((i) => i.relativePath)
+    )
+    expect(perFile.has('bad.md')).toBe(true)
+    expect(perFile.has('clean.md')).toBe(false)
     expect(issues.some((i) => i.ruleId === 'heading-structure')).toBe(true)
   })
 

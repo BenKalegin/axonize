@@ -2,9 +2,10 @@ import { parseMarkdown } from '../../parser'
 import { lintParsedMarkdown } from '../linter'
 import type { VaultDocument, VaultLintContext, VaultLintIssue, VaultLintRule } from './types'
 import { rule as orphanedImages } from './orphaned-images'
+import { rule as orphanedDocuments } from './orphaned-documents'
 import { rule as glossaryCollisions } from './glossary-collisions'
 
-export const VAULT_RULES: VaultLintRule[] = [orphanedImages, glossaryCollisions]
+export const VAULT_RULES: VaultLintRule[] = [orphanedImages, orphanedDocuments, glossaryCollisions]
 
 export function buildVaultLintContext(
   vaultPath: string,
