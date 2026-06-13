@@ -70,10 +70,10 @@ The vault is not just human-read prose — it's retrieval fodder for RAG and age
 
 | Lint | What it checks | Why it matters for LLMs |
 |------|----------------|--------------------------|
-| **Orphaned documents** | Vault-wide: `.md` files with zero incoming links/wikilinks — the document counterpart of `orphaned-image` | Unlinked docs are invisible to graph traversal and agent navigation |
+| ✅ **Orphaned documents** | Vault-wide: `.md` files with zero incoming links/wikilinks — the document counterpart of `orphaned-image` | Unlinked docs are invisible to graph traversal and agent navigation | *Shipped — `orphaned-document` rule (entry docs index/readme/home exempt).* |
 | **Unfinished markers** | `TODO` / `TBD` / `FIXME` / `???`, and headings with empty bodies | Retrieval can surface a stub as if it were an answer |
 | **Relative-time rot** | "currently", "recently", "as of last month", "the new X" without an absolute date nearby | Statements silently go stale; LLMs can't tell when "currently" was |
-| **Section-initial dangling pronouns** | Sections/paragraphs that open with "This", "It", "These" — antecedent lives in the previous section | RAG chunking severs the antecedent; the chunk becomes uninterpretable in isolation |
+| ✅ **Section-initial dangling pronouns** | Sections/paragraphs that open with "This", "It", "These" — antecedent lives in the previous section | RAG chunking severs the antecedent; the chunk becomes uninterpretable in isolation | *Shipped — `dangling-pronoun` rule (excludes expletive "It").* |
 | **Circular glossary definitions** | Term A defined via term B defined via term A (cycle over the existing glossary-entry extraction) | Circular definitions give an LLM no grounding for either term |
 | **Document length outliers** | Near-empty stubs and docs far past the effective chunking size | Both extremes degrade retrieval: stubs dilute, monsters fragment |
 
@@ -103,9 +103,9 @@ Close the loop with actual RAG usage rather than static inspection: documents th
 
 ### Suggested next picks
 
-1. **Orphaned documents** — trivial (the link graph already exists), high signal, symmetric with `orphaned-image`.
-2. **Near-duplicate documents** — the embedding index exists; this directly targets the doc-drift problem this whole proposal started from.
-3. **Section-initial dangling pronouns** — cheap regex-over-AST, and uniquely valuable for a RAG vault since it's a *chunking* defect invisible to human readers.
+1. ~~**Orphaned documents**~~ — ✅ shipped (`orphaned-document`).
+2. ~~**Section-initial dangling pronouns**~~ — ✅ shipped (`dangling-pronoun`).
+3. **Near-duplicate documents** — *next up.* The embedding index already exists; this directly targets the doc-drift problem this whole proposal started from. Bigger lift than the first two: it lives in the main process alongside the embedding provider (not a pure-`core` lint), comparing per-document summary embeddings and flagging pairs above a cosine-similarity threshold as merge candidates.
 
 ---
 
@@ -222,5 +222,5 @@ The novel part for Axonize is **Tier 2** — an LLM refactor pass with a lossles
 
 ---
 
-**Status:** Implemented — Tier 1 (deterministic rules in `src/core/markdown/lint/`) and Tier 2 (`prose:refactor` + diff-review dialog). Vault-wide lints in progress. Candidate-lint backlog added (see above).
-**Last updated:** 2026-06-12
+**Status:** Implemented — Tier 1 (deterministic rules in `src/core/markdown/lint/`) and Tier 2 (`prose:refactor` + diff-review dialog). Backlog rules shipped: `orphaned-document`, `dangling-pronoun`. Next up: near-duplicate documents (embedding-based, Tier 1.5).
+**Last updated:** 2026-06-13
