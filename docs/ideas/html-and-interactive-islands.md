@@ -370,7 +370,9 @@ Based on focused-islands-vision's [smart-pull heuristics](../focused-islands-vis
 - [x] Sandboxed HTML rendering in read mode — `html` fenced blocks become their own atomic section (`section-splitter`), rendered in a sandboxed iframe (`HtmlIsland.tsx`)
 - [x] Focus mode with split editor/preview — the `edit` button shows source + a live (debounced) sandboxed preview side by side
 - [x] Basic security (CSP, no external scripts) — iframe `sandbox` omits `allow-scripts`; CSP `default-src 'none'` blocks external loads, allowing only inline styles and data/blob images
-- [ ] Agent prompt: "Generate HTML for [use case]"
+- [x] Agent prompt: "Generate HTML for [use case]" — `HTML_ISLAND_INSTRUCTION` in the agent system prompt tells the model it can author ```html``` islands and that read mode is static (no scripts, no external loads)
+
+**Phase 1 complete.** Next: Phase 2 (contextual AI action bar, prose→SVG) or Phase 3 (interactive islands — needs a separate opt-in sandbox/consent model since it runs author JS).
 
 ### Phase 2: Enhanced AI Integration
 - [ ] Contextual AI action bar on hover/select

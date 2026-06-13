@@ -2,6 +2,7 @@ import { READ_ONLY_TOOLS, WRITE_TOOLS } from './agent'
 import { RAG_MCP_SERVER_NAME, RAG_MCP_TOOL_NAME } from './rag-mcp-server'
 import { DATA_MCP_SERVER_NAME, DATA_MCP_TOOL_NAMES } from './data-mcp-server'
 import { DIAGRAM_BLOCKS_INSTRUCTION } from '../prompts/diagram-prompts'
+import { HTML_ISLAND_INSTRUCTION } from '../prompts/html-island-prompts'
 
 const PRESET_TOOLS = ['Task', 'WebFetch', 'WebSearch', 'TodoWrite']
 export const RAG_TOOL_ID = `mcp__${RAG_MCP_SERVER_NAME}__${RAG_MCP_TOOL_NAME}`
@@ -27,5 +28,5 @@ export function defaultSystemPrompt(): string {
     'When asked to edit docs, use Write/Edit — but only if the user has explicitly granted edit permission (the session allows it). If an edit tool is unavailable, stop and ask the user to enable edits.',
     'Be concise and prefer doing the smallest change that satisfies the request. When referring to specific vault files, cite them as markdown links with the vault-relative path as both text and target, e.g. [eval/plan.md](eval/plan.md), so they are clickable.'
   ].join(' ')
-  return `${guidance}\n\n${DIAGRAM_BLOCKS_INSTRUCTION}`
+  return `${guidance}\n\n${DIAGRAM_BLOCKS_INSTRUCTION}\n\n${HTML_ISLAND_INSTRUCTION}`
 }
