@@ -367,9 +367,9 @@ Based on focused-islands-vision's [smart-pull heuristics](../focused-islands-vis
 ## Implementation Roadmap
 
 ### Phase 1: HTML Island MVP
-- [ ] Sandboxed HTML rendering in read mode (iframe or shadow DOM)
-- [ ] Focus mode with split editor/preview
-- [ ] Basic security (CSP, no external scripts)
+- [x] Sandboxed HTML rendering in read mode — `html` fenced blocks become their own atomic section (`section-splitter`), rendered in a sandboxed iframe (`HtmlIsland.tsx`)
+- [x] Focus mode with split editor/preview — the `edit` button shows source + a live (debounced) sandboxed preview side by side
+- [x] Basic security (CSP, no external scripts) — iframe `sandbox` omits `allow-scripts`; CSP `default-src 'none'` blocks external loads, allowing only inline styles and data/blob images
 - [ ] Agent prompt: "Generate HTML for [use case]"
 
 ### Phase 2: Enhanced AI Integration

@@ -908,6 +908,45 @@
   border-color: var(--accent);
 }
 
+/* HTML island */
+
+.html-island {
+  display: block;
+  width: 100%;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg-surface);
+  margin: 8px 0;
+}
+
+/* Focus-mode split: source on the left, live preview on the right. */
+.section-editor-split {
+  display: flex;
+  gap: 8px;
+  align-items: stretch;
+}
+
+.section-editor-split .section-editor-textarea {
+  flex: 1 1 50%;
+  min-width: 0;
+}
+
+.section-editor-preview {
+  flex: 1 1 50%;
+  min-width: 0;
+  overflow: auto;
+  padding: 8px;
+  background: var(--bg-base);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+}
+
+.section-editor-preview .html-island {
+  margin: 0;
+  border: none;
+  background: transparent;
+}
+
 .section-llm-input {
   display: flex;
   align-items: center;

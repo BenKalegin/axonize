@@ -3,9 +3,11 @@ import remarkParse from 'remark-parse'
 import remarkGfm from 'remark-gfm'
 import type { Root, Content } from 'mdast'
 
+export type SectionKind = 'preamble' | 'heading' | 'mermaid' | 'table' | 'bpmn' | 'html'
+
 export interface MarkdownSection {
   id: string
-  kind: 'preamble' | 'heading' | 'mermaid' | 'table' | 'bpmn'
+  kind: SectionKind
   depth: number
   title: string
   startLine: number
@@ -17,11 +19,13 @@ const parser = unified().use(remarkParse).use(remarkGfm)
 
 const MERMAID_LANG = 'mermaid'
 const BPMN_LANG = 'bpmn'
+const HTML_LANG = 'html'
 const TABLE_SECTION_TITLE = 'Table'
 const BPMN_SECTION_TITLE = 'BPMN'
+const HTML_SECTION_TITLE = 'HTML'
 
 interface RawGroup {
-  kind: 'preamble' | 'heading' | 'mermaid' | 'table' | 'bpmn'
+  kind: SectionKind
   depth: number
   title: string
   startLine: number
@@ -30,7 +34,7 @@ interface RawGroup {
 
 // Atomic groups represent a single AST node and never absorb following siblings.
 function isAtomicKind(kind: RawGroup['kind']): boolean {
-  return kind === 'mermaid' || kind === 'table' || kind === 'bpmn'
+  return kind === 'mermaid' || kind === 'table' || kind === 'bpmn' || kind === 'html'
 }
 
 function nodeStartLine(node: Content): number {
@@ -47,6 +51,10 @@ function isMermaidCodeBlock(node: Content): boolean {
 
 function isBpmnCodeBlock(node: Content): boolean {
   return node.type === 'code' && (node as { lang?: string }).lang === BPMN_LANG
+}
+
+function isHtmlCodeBlock(node: Content): boolean {
+  return node.type === 'code' && (node as { lang?: string }).lang === HTML_LANG
 }
 
 function isTableNode(node: Content): boolean {
@@ -82,6 +90,18 @@ function groupAstNodes(children: Content[]): RawGroup[] {
         kind: 'bpmn',
         depth: 0,
         title: BPMN_SECTION_TITLE,
+        startLine: nodeStartLine(node),
+        endLine: nodeEndLine(node)
+      })
+      current = null
+      continue
+    }
+
+    if (isHtmlCodeBlock(node)) {
+      groups.push({
+        kind: 'html',
+        depth: 0,
+        title: HTML_SECTION_TITLE,
         startLine: nodeStartLine(node),
         endLine: nodeEndLine(node)
       })

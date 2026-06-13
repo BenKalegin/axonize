@@ -19,12 +19,14 @@ import {
 import type { MarkdownSection } from '@/lib/section-splitter'
 import { DiagramVisualEditorModal } from './DiagramVisualEditorModal'
 import { TableVisualEditorModal } from './TableVisualEditorModal'
+import { HtmlIsland } from './HtmlIsland'
 
 let mermaidCounter = 0
 let mermaidRenderQueue: Promise<unknown> = Promise.resolve()
 
 const TEXTAREA_MIN_HEIGHT = 120
 const COPY_RESET_DELAY_MS = 2000
+const HTML_PREVIEW_DEBOUNCE_MS = 300
 
 interface SectionBlockProps {
   section: MarkdownSection
@@ -55,14 +57,16 @@ export const SectionBlock = React.memo(function SectionBlock({
   const [mermaidError, setMermaidError] = useState('')
   const [bpmnSvg, setBpmnSvg] = useState('')
   const [bpmnError, setBpmnError] = useState('')
+  const [previewHtml, setPreviewHtml] = useState('')
   const viewRef = useRef<HTMLDivElement>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const isMermaidSection = section.kind === 'mermaid'
   const isTableSection = section.kind === 'table'
   const isBpmnSection = section.kind === 'bpmn'
+  const isHtmlSection = section.kind === 'html'
 
   useEffect(() => {
-    if (isMermaidSection || isBpmnSection) {
+    if (isMermaidSection || isBpmnSection || isHtmlSection) {
       setHtml('')
       return
     }
@@ -77,7 +81,7 @@ export const SectionBlock = React.memo(function SectionBlock({
     return () => {
       cancelled = true
     }
-  }, [isMermaidSection, isBpmnSection, section.rawMarkdown, fileDir])
+  }, [isMermaidSection, isBpmnSection, isHtmlSection, section.rawMarkdown, fileDir])
 
   useEffect(() => {
     if (!isBpmnSection || editing) return
@@ -125,6 +129,19 @@ export const SectionBlock = React.memo(function SectionBlock({
       cancelled = true
     }
   }, [editing, isMermaidSection, renderKey, section.rawMarkdown])
+
+  // Live (debounced) preview source for the focus-mode HTML split editor.
+  useEffect(() => {
+    if (!isHtmlSection) return
+    if (!editing) {
+      setPreviewHtml(extractHtmlCodeFence(section.rawMarkdown) ?? section.rawMarkdown)
+      return
+    }
+    const timer = setTimeout(() => {
+      setPreviewHtml(extractHtmlCodeFence(draft) ?? draft)
+    }, HTML_PREVIEW_DEBOUNCE_MS)
+    return () => clearTimeout(timer)
+  }, [isHtmlSection, editing, draft, section.rawMarkdown])
 
   useEffect(() => {
     if (editing || !html || !viewRef.current) return
@@ -342,13 +359,28 @@ export const SectionBlock = React.memo(function SectionBlock({
               </label>
             )}
           </div>
-          <textarea
-            ref={textareaRef}
-            className="section-editor-textarea"
-            value={draft}
-            onChange={(e) => setDraft(e.target.value)}
-            autoFocus
-          />
+          {isHtmlSection ? (
+            <div className="section-editor-split">
+              <textarea
+                ref={textareaRef}
+                className="section-editor-textarea"
+                value={draft}
+                onChange={(e) => setDraft(e.target.value)}
+                autoFocus
+              />
+              <div className="section-editor-preview">
+                <HtmlIsland html={previewHtml} />
+              </div>
+            </div>
+          ) : (
+            <textarea
+              ref={textareaRef}
+              className="section-editor-textarea"
+              value={draft}
+              onChange={(e) => setDraft(e.target.value)}
+              autoFocus
+            />
+          )}
           {llmOpen && (
             <div className="section-llm-input">
               <input
@@ -429,6 +461,10 @@ export const SectionBlock = React.memo(function SectionBlock({
             <pre className="bpmn-render-error"><code>{section.rawMarkdown}</code></pre>
           )}
         </div>
+      ) : isHtmlSection ? (
+        <div className="section-view">
+          <HtmlIsland html={previewHtml} />
+        </div>
       ) : (
         <div
           ref={viewRef}
@@ -446,6 +482,14 @@ const BPMN_FENCE_RE = /```(?:bpmn)\s*\n([\s\S]*?)```/
 /** Strip the ```bpmn``` fence from a section's raw markdown, leaving the inner XML. */
 function extractBpmnCodeFence(rawMarkdown: string): string | undefined {
   const match = BPMN_FENCE_RE.exec(rawMarkdown)
+  return match ? match[1]!.trimEnd() : undefined
+}
+
+const HTML_FENCE_RE = /```(?:html)\s*\n([\s\S]*?)```/
+
+/** Strip the ```html``` fence from a section's raw markdown, leaving the inner HTML. */
+function extractHtmlCodeFence(rawMarkdown: string): string | undefined {
+  const match = HTML_FENCE_RE.exec(rawMarkdown)
   return match ? match[1]!.trimEnd() : undefined
 }
 
