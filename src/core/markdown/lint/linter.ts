@@ -11,6 +11,7 @@ import { rule as brokenLinks } from './rules/broken-links'
 import { rule as headingStructure } from './rules/heading-structure'
 import { rule as lexicalRepetition } from './rules/lexical-repetition'
 import { rule as codeFenceHygiene } from './rules/code-fence-hygiene'
+import { rule as danglingPronoun } from './rules/dangling-pronoun'
 
 export const RULES: LintRule[] = [
   duplicateHeadings,
@@ -23,7 +24,8 @@ export const RULES: LintRule[] = [
   brokenLinks,
   headingStructure,
   lexicalRepetition,
-  codeFenceHygiene
+  codeFenceHygiene,
+  danglingPronoun
 ]
 
 export function lintMarkdown(input: Omit<LintContext, 'tree'>): LintIssue[] {
