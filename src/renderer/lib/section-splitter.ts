@@ -17,12 +17,14 @@ export interface MarkdownSection {
 
 const parser = unified().use(remarkParse).use(remarkGfm)
 
-const MERMAID_LANG = 'mermaid'
-const BPMN_LANG = 'bpmn'
-const HTML_LANG = 'html'
 const TABLE_SECTION_TITLE = 'Table'
-const BPMN_SECTION_TITLE = 'BPMN'
-const HTML_SECTION_TITLE = 'HTML'
+
+// Fenced code blocks whose language promotes them to their own atomic island.
+const FENCED_ISLANDS: ReadonlyArray<{ lang: string; kind: SectionKind; title: string }> = [
+  { lang: 'mermaid', kind: 'mermaid', title: 'Diagram' },
+  { lang: 'bpmn', kind: 'bpmn', title: 'BPMN' },
+  { lang: 'html', kind: 'html', title: 'HTML' }
+]
 
 interface RawGroup {
   kind: SectionKind
@@ -34,7 +36,7 @@ interface RawGroup {
 
 // Atomic groups represent a single AST node and never absorb following siblings.
 function isAtomicKind(kind: RawGroup['kind']): boolean {
-  return kind === 'mermaid' || kind === 'table' || kind === 'bpmn' || kind === 'html'
+  return kind === 'table' || FENCED_ISLANDS.some((island) => island.kind === kind)
 }
 
 function nodeStartLine(node: Content): number {
@@ -45,16 +47,10 @@ function nodeEndLine(node: Content): number {
   return node.position?.end.line ?? 1
 }
 
-function isMermaidCodeBlock(node: Content): boolean {
-  return node.type === 'code' && (node as { lang?: string }).lang === MERMAID_LANG
-}
-
-function isBpmnCodeBlock(node: Content): boolean {
-  return node.type === 'code' && (node as { lang?: string }).lang === BPMN_LANG
-}
-
-function isHtmlCodeBlock(node: Content): boolean {
-  return node.type === 'code' && (node as { lang?: string }).lang === HTML_LANG
+function fencedIsland(node: Content): { kind: SectionKind; title: string } | null {
+  if (node.type !== 'code') return null
+  const lang = (node as { lang?: string }).lang
+  return FENCED_ISLANDS.find((island) => island.lang === lang) ?? null
 }
 
 function isTableNode(node: Content): boolean {
@@ -73,35 +69,12 @@ function groupAstNodes(children: Content[]): RawGroup[] {
   let current: RawGroup | null = null
 
   for (const node of children) {
-    if (isMermaidCodeBlock(node)) {
+    const island = fencedIsland(node)
+    if (island) {
       groups.push({
-        kind: 'mermaid',
+        kind: island.kind,
         depth: 0,
-        title: 'Diagram',
-        startLine: nodeStartLine(node),
-        endLine: nodeEndLine(node)
-      })
-      current = null
-      continue
-    }
-
-    if (isBpmnCodeBlock(node)) {
-      groups.push({
-        kind: 'bpmn',
-        depth: 0,
-        title: BPMN_SECTION_TITLE,
-        startLine: nodeStartLine(node),
-        endLine: nodeEndLine(node)
-      })
-      current = null
-      continue
-    }
-
-    if (isHtmlCodeBlock(node)) {
-      groups.push({
-        kind: 'html',
-        depth: 0,
-        title: HTML_SECTION_TITLE,
+        title: island.title,
         startLine: nodeStartLine(node),
         endLine: nodeEndLine(node)
       })

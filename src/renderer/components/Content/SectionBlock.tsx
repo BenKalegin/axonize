@@ -85,7 +85,7 @@ export const SectionBlock = React.memo(function SectionBlock({
 
   useEffect(() => {
     if (!isBpmnSection || editing) return
-    const xml = extractBpmnCodeFence(section.rawMarkdown) ?? section.rawMarkdown
+    const xml = extractFenceContent(section.rawMarkdown, 'bpmn') ?? section.rawMarkdown
     if (!looksLikeBpmnXml(xml)) {
       setBpmnSvg('')
       setBpmnError('Block does not look like BPMN 2.0 XML (expected <bpmn:definitions>).')
@@ -134,11 +134,11 @@ export const SectionBlock = React.memo(function SectionBlock({
   useEffect(() => {
     if (!isHtmlSection) return
     if (!editing) {
-      setPreviewHtml(extractHtmlCodeFence(section.rawMarkdown) ?? section.rawMarkdown)
+      setPreviewHtml(extractFenceContent(section.rawMarkdown, 'html') ?? section.rawMarkdown)
       return
     }
     const timer = setTimeout(() => {
-      setPreviewHtml(extractHtmlCodeFence(draft) ?? draft)
+      setPreviewHtml(extractFenceContent(draft, 'html') ?? draft)
     }, HTML_PREVIEW_DEBOUNCE_MS)
     return () => clearTimeout(timer)
   }, [isHtmlSection, editing, draft, section.rawMarkdown])
@@ -359,20 +359,7 @@ export const SectionBlock = React.memo(function SectionBlock({
               </label>
             )}
           </div>
-          {isHtmlSection ? (
-            <div className="section-editor-split">
-              <textarea
-                ref={textareaRef}
-                className="section-editor-textarea"
-                value={draft}
-                onChange={(e) => setDraft(e.target.value)}
-                autoFocus
-              />
-              <div className="section-editor-preview">
-                <HtmlIsland html={previewHtml} />
-              </div>
-            </div>
-          ) : (
+          <div className={isHtmlSection ? 'section-editor-split' : undefined}>
             <textarea
               ref={textareaRef}
               className="section-editor-textarea"
@@ -380,7 +367,12 @@ export const SectionBlock = React.memo(function SectionBlock({
               onChange={(e) => setDraft(e.target.value)}
               autoFocus
             />
-          )}
+            {isHtmlSection && (
+              <div className="section-editor-preview">
+                <HtmlIsland html={previewHtml} />
+              </div>
+            )}
+          </div>
           {llmOpen && (
             <div className="section-llm-input">
               <input
@@ -477,19 +469,9 @@ export const SectionBlock = React.memo(function SectionBlock({
   )
 })
 
-const BPMN_FENCE_RE = /```(?:bpmn)\s*\n([\s\S]*?)```/
-
-/** Strip the ```bpmn``` fence from a section's raw markdown, leaving the inner XML. */
-function extractBpmnCodeFence(rawMarkdown: string): string | undefined {
-  const match = BPMN_FENCE_RE.exec(rawMarkdown)
-  return match ? match[1]!.trimEnd() : undefined
-}
-
-const HTML_FENCE_RE = /```(?:html)\s*\n([\s\S]*?)```/
-
-/** Strip the ```html``` fence from a section's raw markdown, leaving the inner HTML. */
-function extractHtmlCodeFence(rawMarkdown: string): string | undefined {
-  const match = HTML_FENCE_RE.exec(rawMarkdown)
+/** Strip a fenced ```<lang>``` block from a section's raw markdown, leaving the inner content. */
+function extractFenceContent(rawMarkdown: string, lang: string): string | undefined {
+  const match = new RegExp('```(?:' + lang + ')\\s*\\n([\\s\\S]*?)```').exec(rawMarkdown)
   return match ? match[1]!.trimEnd() : undefined
 }
 

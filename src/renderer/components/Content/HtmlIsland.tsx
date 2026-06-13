@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 
 // Read-mode HTML island: render author HTML inside a sandboxed iframe.
 //
@@ -34,13 +34,25 @@ function buildSrcDoc(html: string, color: string, fontFamily: string): string {
 
 export function HtmlIsland({ html, className }: HtmlIslandProps) {
   const iframeRef = useRef<HTMLIFrameElement>(null)
-  const [srcDoc, setSrcDoc] = useState('')
+  const remeasureRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
   const [height, setHeight] = useState(MIN_HEIGHT_PX)
 
-  useEffect(() => {
+  // Theme colors are read once per mount (one forced reflow). The iframe is
+  // static, so it picks up theme changes on the next remount rather than live.
+  const themeRef = useRef<{ color: string; fontFamily: string } | undefined>(undefined)
+  if (!themeRef.current) {
     const bodyStyles = getComputedStyle(document.body)
-    setSrcDoc(buildSrcDoc(html, bodyStyles.color, bodyStyles.fontFamily))
-  }, [html])
+    themeRef.current = { color: bodyStyles.color, fontFamily: bodyStyles.fontFamily }
+  }
+
+  const srcDoc = useMemo(
+    () => buildSrcDoc(html, themeRef.current!.color, themeRef.current!.fontFamily),
+    [html]
+  )
+
+  useEffect(() => () => {
+    if (remeasureRef.current) clearTimeout(remeasureRef.current)
+  }, [])
 
   const measure = (): void => {
     const doc = iframeRef.current?.contentDocument
@@ -51,7 +63,7 @@ export function HtmlIsland({ html, className }: HtmlIslandProps) {
 
   const handleLoad = (): void => {
     measure()
-    setTimeout(measure, REMEASURE_DELAY_MS)
+    remeasureRef.current = setTimeout(measure, REMEASURE_DELAY_MS)
   }
 
   return (
