@@ -1,4 +1,5 @@
 import type { FileEntry } from './types'
+import { dataFileKindOf } from './data-file-types'
 
 export function flattenFileTree(entries: FileEntry[]): FileEntry[] {
   const result: FileEntry[] = []
@@ -13,6 +14,10 @@ export function flattenFileTree(entries: FileEntry[]): FileEntry[] {
 
 export function getMarkdownFiles(entries: FileEntry[]): FileEntry[] {
   return flattenFileTree(entries).filter(e => !e.isDirectory && e.name.endsWith('.md'))
+}
+
+export function getDataFiles(entries: FileEntry[]): FileEntry[] {
+  return flattenFileTree(entries).filter(e => !e.isDirectory && dataFileKindOf(e.name) !== null)
 }
 
 export function findEntry(entries: FileEntry[], relativePath: string): FileEntry | undefined {
