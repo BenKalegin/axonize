@@ -3,7 +3,7 @@ import remarkParse from 'remark-parse'
 import remarkGfm from 'remark-gfm'
 import type { Root, Content } from 'mdast'
 
-export type SectionKind = 'preamble' | 'heading' | 'mermaid' | 'table' | 'bpmn' | 'html'
+export type SectionKind = 'preamble' | 'heading' | 'mermaid' | 'table' | 'bpmn' | 'html' | 'interact'
 
 export interface MarkdownSection {
   id: string
@@ -23,7 +23,8 @@ const TABLE_SECTION_TITLE = 'Table'
 const FENCED_ISLANDS: ReadonlyArray<{ lang: string; kind: SectionKind; title: string }> = [
   { lang: 'mermaid', kind: 'mermaid', title: 'Diagram' },
   { lang: 'bpmn', kind: 'bpmn', title: 'BPMN' },
-  { lang: 'html', kind: 'html', title: 'HTML' }
+  { lang: 'html', kind: 'html', title: 'HTML' },
+  { lang: 'interact', kind: 'interact', title: 'Interactive' }
 ]
 
 interface RawGroup {

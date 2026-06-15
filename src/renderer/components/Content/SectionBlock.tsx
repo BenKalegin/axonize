@@ -20,6 +20,7 @@ import type { MarkdownSection } from '@/lib/section-splitter'
 import { DiagramVisualEditorModal } from './DiagramVisualEditorModal'
 import { TableVisualEditorModal } from './TableVisualEditorModal'
 import { HtmlIsland } from './HtmlIsland'
+import { InteractiveIsland } from './InteractiveIsland'
 
 let mermaidCounter = 0
 let mermaidRenderQueue: Promise<unknown> = Promise.resolve()
@@ -64,9 +65,12 @@ export const SectionBlock = React.memo(function SectionBlock({
   const isTableSection = section.kind === 'table'
   const isBpmnSection = section.kind === 'bpmn'
   const isHtmlSection = section.kind === 'html'
+  const isInteractiveSection = section.kind === 'interact'
+  // Both HTML-flavored islands carry their content in a single fenced block.
+  const islandFenceLang = isHtmlSection ? 'html' : isInteractiveSection ? 'interact' : null
 
   useEffect(() => {
-    if (isMermaidSection || isBpmnSection || isHtmlSection) {
+    if (isMermaidSection || isBpmnSection || islandFenceLang !== null) {
       setHtml('')
       return
     }
@@ -81,7 +85,7 @@ export const SectionBlock = React.memo(function SectionBlock({
     return () => {
       cancelled = true
     }
-  }, [isMermaidSection, isBpmnSection, isHtmlSection, section.rawMarkdown, fileDir])
+  }, [isMermaidSection, isBpmnSection, islandFenceLang, section.rawMarkdown, fileDir])
 
   useEffect(() => {
     if (!isBpmnSection || editing) return
@@ -130,18 +134,18 @@ export const SectionBlock = React.memo(function SectionBlock({
     }
   }, [editing, isMermaidSection, renderKey, section.rawMarkdown])
 
-  // Live (debounced) preview source for the focus-mode HTML split editor.
+  // Live (debounced) preview source for the focus-mode HTML/interactive split editor.
   useEffect(() => {
-    if (!isHtmlSection) return
+    if (islandFenceLang === null) return
     if (!editing) {
-      setPreviewHtml(extractFenceContent(section.rawMarkdown, 'html') ?? section.rawMarkdown)
+      setPreviewHtml(extractFenceContent(section.rawMarkdown, islandFenceLang) ?? section.rawMarkdown)
       return
     }
     const timer = setTimeout(() => {
-      setPreviewHtml(extractFenceContent(draft, 'html') ?? draft)
+      setPreviewHtml(extractFenceContent(draft, islandFenceLang) ?? draft)
     }, HTML_PREVIEW_DEBOUNCE_MS)
     return () => clearTimeout(timer)
-  }, [isHtmlSection, editing, draft, section.rawMarkdown])
+  }, [islandFenceLang, editing, draft, section.rawMarkdown])
 
   useEffect(() => {
     if (editing || !html || !viewRef.current) return
@@ -359,7 +363,7 @@ export const SectionBlock = React.memo(function SectionBlock({
               </label>
             )}
           </div>
-          <div className={isHtmlSection ? 'section-editor-split' : undefined}>
+          <div className={islandFenceLang !== null ? 'section-editor-split' : undefined}>
             <textarea
               ref={textareaRef}
               className="section-editor-textarea"
@@ -367,9 +371,13 @@ export const SectionBlock = React.memo(function SectionBlock({
               onChange={(e) => setDraft(e.target.value)}
               autoFocus
             />
-            {isHtmlSection && (
+            {islandFenceLang !== null && (
               <div className="section-editor-preview">
-                <HtmlIsland html={previewHtml} />
+                {isInteractiveSection ? (
+                  <InteractiveIsland html={previewHtml} autoRun />
+                ) : (
+                  <HtmlIsland html={previewHtml} />
+                )}
               </div>
             )}
           </div>
@@ -456,6 +464,10 @@ export const SectionBlock = React.memo(function SectionBlock({
       ) : isHtmlSection ? (
         <div className="section-view">
           <HtmlIsland html={previewHtml} />
+        </div>
+      ) : isInteractiveSection ? (
+        <div className="section-view">
+          <InteractiveIsland html={previewHtml} />
         </div>
       ) : (
         <div

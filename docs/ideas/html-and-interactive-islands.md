@@ -381,8 +381,9 @@ Based on focused-islands-vision's [smart-pull heuristics](../focused-islands-vis
 - [ ] Smart pull triggers for HTML suggestions
 
 ### Phase 3: Interactive Islands
-- [ ] JavaScript execution in isolated scope
-- [ ] Parameter UI helpers (sliders, inputs, dropdowns)
+- [x] JavaScript execution in isolated scope — ```interact``` fence → `InteractiveIsland.tsx`: `sandbox="allow-scripts"` without `allow-same-origin` (opaque origin), CSP `default-src 'none'` blocks all network, height reported via postMessage. Static ```html``` stays script-free.
+- [x] Click-to-run gate — read-mode islands show a ▶ Run placeholder and execute only on user click (per island, per session); focus-mode preview auto-runs since editing is explicit intent.
+- [ ] Parameter UI helpers (sliders, inputs, dropdowns) — authors write raw `<input>`/`<script>` today; a typed helper API (`slider(...)`, `select(...)`) is not built yet.
 - [ ] State serialization/persistence
 - [ ] "Export state" buttons
 

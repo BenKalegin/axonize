@@ -39,4 +39,36 @@ The button below must do nothing in read mode — the sandbox omits `allow-scrip
 <p>If the page background is still normal and the alert never showed, the sandbox is holding.</p>
 ```
 
+## Interactive island (Phase 3)
+
+This `interact` island runs JavaScript — but only after you click **▶ Run**. The
+slider should live-update the label and the bar width once running. It is
+sandboxed: no network, no access to the app or vault.
+
+```interact
+<label>Amplitude: <input type="range" id="amp" min="0" max="100" value="40"></label>
+<output id="out">40</output>
+<div style="height: 16px; background: #89b4fa; width: 40%; border-radius: 4px; margin-top: 8px;" id="bar"></div>
+<script>
+  const amp = document.getElementById('amp')
+  const out = document.getElementById('out')
+  const bar = document.getElementById('bar')
+  amp.addEventListener('input', () => {
+    out.textContent = amp.value
+    bar.style.width = amp.value + '%'
+  })
+</script>
+```
+
+Network access is blocked even when running — this fetch must fail silently:
+
+```interact
+<p id="status">attempting fetch…</p>
+<script>
+  fetch('https://example.com')
+    .then(() => { document.getElementById('status').textContent = 'fetch SUCCEEDED (unexpected!)' })
+    .catch(() => { document.getElementById('status').textContent = 'fetch blocked by CSP ✓' })
+</script>
+```
+
 Back to regular markdown prose after the islands.

@@ -947,6 +947,56 @@
   background: transparent;
 }
 
+/* Interactive island */
+
+.interactive-island {
+  display: block;
+  width: 100%;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg-surface);
+  margin: 8px 0;
+}
+
+.section-editor-preview .interactive-island {
+  margin: 0;
+  border: none;
+  background: transparent;
+}
+
+/* Click-to-run gate shown before the island's scripts are allowed to execute. */
+.interactive-island-gate {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  align-items: flex-start;
+  width: 100%;
+  margin: 8px 0;
+  padding: 14px 16px;
+  text-align: left;
+  background: var(--bg-surface);
+  border: 1px dashed var(--border);
+  border-radius: 6px;
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s;
+}
+
+.interactive-island-gate:hover {
+  border-color: var(--accent);
+  background: var(--bg-elevated);
+}
+
+.interactive-island-gate-run {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--accent);
+}
+
+.interactive-island-gate-note {
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
 .section-llm-input {
   display: flex;
   align-items: center;

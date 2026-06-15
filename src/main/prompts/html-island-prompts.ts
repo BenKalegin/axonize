@@ -32,4 +32,12 @@ export const HTML_ISLAND_INSTRUCTION = [
     "Few-shot HTML island example:",
     "",
     HTML_ISLAND_FEW_SHOT_EXAMPLE,
+    "",
+    "### Interactive islands",
+    "",
+    "When the user genuinely needs runtime interactivity — a slider that redraws a chart, a live parameter tuner, a small canvas demo — use a fenced ```interact``` block instead of ```html```. Its JavaScript runs in a sandboxed iframe and the reader clicks 'Run' to start it.",
+    "- Use ```interact``` ONLY when interactivity is the point. For static layouts, keep using ```html``` (no run gate, strictly safer).",
+    "- The sandbox has NO network access: no fetch/XHR, no external scripts, stylesheets, fonts, or images. Everything must be inline and self-contained; images must be data: URIs.",
+    "- alert/confirm/prompt, popups, form submission, and top-navigation are blocked. Build UI with DOM + inline <script> only.",
+    "- Keep it self-contained and short; the island cannot read the vault, the app, or the network.",
 ].join("\n");

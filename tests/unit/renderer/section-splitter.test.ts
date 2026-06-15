@@ -31,4 +31,13 @@ describe('splitSections — HTML islands', () => {
     const sections = splitSections(md)
     expect(sections.filter((s) => s.kind === 'html')).toHaveLength(2)
   })
+
+  it('splits a fenced interact block into its own atomic section', () => {
+    const md = '# Title\n\nProse.\n\n```interact\n<button>x</button>\n```\n\nMore.'
+    const sections = splitSections(md)
+    const interact = sections.filter((s) => s.kind === 'interact')
+    expect(interact).toHaveLength(1)
+    expect(interact[0].title).toBe('Interactive')
+    expect(interact[0].rawMarkdown).not.toContain('More.')
+  })
 })

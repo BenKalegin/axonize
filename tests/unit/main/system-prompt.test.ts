@@ -12,4 +12,10 @@ describe('defaultSystemPrompt — HTML islands', () => {
     expect(prompt).toMatch(/```html```|HTML islands/)
     expect(prompt).toMatch(/JavaScript never executes|<script>/)
   })
+
+  it('describes interactive islands and their network sandbox', () => {
+    const prompt = defaultSystemPrompt()
+    expect(prompt).toContain('```interact```')
+    expect(prompt).toMatch(/NO network access|no fetch/i)
+  })
 })
