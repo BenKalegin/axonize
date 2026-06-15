@@ -289,34 +289,34 @@ packages:
     engines: {node: '>=6.9.0'}
 
   '@benkalegin/clouddiagram-editor@file:tmp-pack/benkalegin-clouddiagram-editor-0.2.11.tgz':
-    resolution: {integrity: sha512-jhnU6OVtMQAKFyyW5ME7xnbjAqK4XyIJxhYaU8/fbAAGGlUmqNpZOqtaKGffx6Ot2SgL/GQ8RFuxSGCuVjwqPg==, tarball: file:tmp-pack/benkalegin-clouddiagram-editor-0.2.11.tgz}
+    resolution: {integrity: sha512-AnCok4LteUo00kaOgIUeeusAYtPXaLm4b/4gVPg5GeXfLTUxlFP2HWburkjDem1Bbupt9AtU8eairrX4oIZxWQ==, tarball: file:tmp-pack/benkalegin-clouddiagram-editor-0.2.11.tgz}
     version: 0.2.11
     peerDependencies:
       react: '>=19'
       react-dom: '>=19'
 
   '@benkalegin/doodles-api@file:tmp-pack/benkalegin-doodles-api-0.3.12.tgz':
-    resolution: {integrity: sha512-d3nyiJgDtEiu5yfhPOQdChREu5KVANqV0MtzSLzVDJ6vB/XvBHj7qtWV6LKQJXYCvji26seY7qIPjEVKonhUVA==, tarball: file:tmp-pack/benkalegin-doodles-api-0.3.12.tgz}
+    resolution: {integrity: sha512-LKRPm8+JSv8c7nfR8Vr2ysUh3mZpgfdiiU37FlaEIHnQbYB3uoiwlettX9lGBxW05lcNy4f2Vg3XVhOaOSse2Q==, tarball: file:tmp-pack/benkalegin-doodles-api-0.3.12.tgz}
     version: 0.3.12
 
   '@benkalegin/doodles-bpmn@file:tmp-pack/benkalegin-doodles-bpmn-0.1.0.tgz':
-    resolution: {integrity: sha512-9jgNQGW21O/HjfrbzpOfjnNksyvPrrosYVGbW20N4M8urdx3K9UBm3iyRyC+VJQFnCpUBGykWUbtdLYwHolOIg==, tarball: file:tmp-pack/benkalegin-doodles-bpmn-0.1.0.tgz}
+    resolution: {integrity: sha512-9bT2m/qYCAuttTZq3O8K6EBmP1eQ00tGZsIThRJPhiVEis+Ov8d2GeqSnxYcLUuqF00zHE+i/9TamG0CKKQE0A==, tarball: file:tmp-pack/benkalegin-doodles-bpmn-0.1.0.tgz}
     version: 0.1.0
 
   '@benkalegin/doodles-core@file:tmp-pack/benkalegin-doodles-core-0.3.12.tgz':
-    resolution: {integrity: sha512-Bot6zayoVkkxSE0MWHDAvi04TYRPvkUP1v+Ty9CCN4LMCOvfIGhqAMNxXTylFE7VHw4bUi248JMS2WLqvnnKug==, tarball: file:tmp-pack/benkalegin-doodles-core-0.3.12.tgz}
+    resolution: {integrity: sha512-oaZopBih5SuFVTF0R9+PYvTB9omDRfniMr97P9JU5AoLZ/fSLIQjc0iz7nS/G2L0W6AnWqlRPpP7ulhogJN0AA==, tarball: file:tmp-pack/benkalegin-doodles-core-0.3.12.tgz}
     version: 0.3.12
 
   '@benkalegin/doodles-layout@file:tmp-pack/benkalegin-doodles-layout-0.3.12.tgz':
-    resolution: {integrity: sha512-lS9takNSkNZ7ppH1jAFFjeKwweqKSlCg3s+6MGSbD3JVIrmmQ81x/0Q98+nPTQX9JFY2Vox88jc2fnuoqz6MGA==, tarball: file:tmp-pack/benkalegin-doodles-layout-0.3.12.tgz}
+    resolution: {integrity: sha512-Bb0Eux6orJkoNxsdIMwzRyFnrxFKe7RSOg3BhPU/HnLPu+OscERGYIRWG9MU0PWaPE84axgYQtnYaSXDjbZlXQ==, tarball: file:tmp-pack/benkalegin-doodles-layout-0.3.12.tgz}
     version: 0.3.12
 
   '@benkalegin/doodles-mermaid@file:tmp-pack/benkalegin-doodles-mermaid-0.3.12.tgz':
-    resolution: {integrity: sha512-gWWLuPsZ6pPv370CVUeD9edjFxnv185nozHibV54TxMAL/0ak2MQUxJwfZritcokKwkwsJyMhVhM9uRGOoto8A==, tarball: file:tmp-pack/benkalegin-doodles-mermaid-0.3.12.tgz}
+    resolution: {integrity: sha512-IebyS5SDcit6y5VCuizHaBOErHkFBmozcrPCkBXJqRAoKLphkuSXVmxtg0gSSE4jeIh5yxkg4YwFaJEb2RXlaw==, tarball: file:tmp-pack/benkalegin-doodles-mermaid-0.3.12.tgz}
     version: 0.3.12
 
   '@benkalegin/doodles-svg@file:tmp-pack/benkalegin-doodles-svg-0.3.12.tgz':
-    resolution: {integrity: sha512-LBnWv1GJ2I9YKmtNh3acVuCrTN5M/e75swd12er3tV7lcFko+icQSgZr763swRwfSaH83IbqXHr9c+Lj97v8dw==, tarball: file:tmp-pack/benkalegin-doodles-svg-0.3.12.tgz}
+    resolution: {integrity: sha512-SfqGFiQp/Wcp43LuZgEAdhEb7mS06rEYOY02JaskxweYKdxTJuj4sAtbGaGt+AVaJ286Fd2hJN+KVi9U4wYohA==, tarball: file:tmp-pack/benkalegin-doodles-svg-0.3.12.tgz}
     version: 0.3.12
 
   '@benkalegin/filigree-alg-force@0.1.3':
