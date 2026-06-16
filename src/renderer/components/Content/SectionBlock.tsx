@@ -12,6 +12,7 @@ import {
 } from '@/lib/mermaid-render-source'
 import { canRenderWithDoodles, renderMermaidWithDoodles } from '@/lib/doodles-render'
 import { looksLikeBpmnXml, renderBpmnXmlAsSvg } from '@/lib/bpmn-render'
+import { looksLikeVegaLite, renderVegaLiteAsSvg } from '@/lib/vega-render'
 import {
   MermaidRenderer,
   getMermaidRenderer
@@ -58,19 +59,22 @@ export const SectionBlock = React.memo(function SectionBlock({
   const [mermaidError, setMermaidError] = useState('')
   const [bpmnSvg, setBpmnSvg] = useState('')
   const [bpmnError, setBpmnError] = useState('')
+  const [vegaSvg, setVegaSvg] = useState('')
+  const [vegaError, setVegaError] = useState('')
   const [previewHtml, setPreviewHtml] = useState('')
   const viewRef = useRef<HTMLDivElement>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const isMermaidSection = section.kind === 'mermaid'
   const isTableSection = section.kind === 'table'
   const isBpmnSection = section.kind === 'bpmn'
+  const isVegaSection = section.kind === 'vega'
   const isHtmlSection = section.kind === 'html'
   const isInteractiveSection = section.kind === 'interact'
   // Both HTML-flavored islands carry their content in a single fenced block.
   const islandFenceLang = isHtmlSection ? 'html' : isInteractiveSection ? 'interact' : null
 
   useEffect(() => {
-    if (isMermaidSection || isBpmnSection || islandFenceLang !== null) {
+    if (isMermaidSection || isBpmnSection || isVegaSection || islandFenceLang !== null) {
       setHtml('')
       return
     }
@@ -85,7 +89,7 @@ export const SectionBlock = React.memo(function SectionBlock({
     return () => {
       cancelled = true
     }
-  }, [isMermaidSection, isBpmnSection, islandFenceLang, section.rawMarkdown, fileDir])
+  }, [isMermaidSection, isBpmnSection, isVegaSection, islandFenceLang, section.rawMarkdown, fileDir])
 
   useEffect(() => {
     if (!isBpmnSection || editing) return
@@ -108,6 +112,28 @@ export const SectionBlock = React.memo(function SectionBlock({
       setSaving(false)
     }
   }, [editing, isBpmnSection, renderKey, section.rawMarkdown])
+
+  useEffect(() => {
+    if (!isVegaSection || editing) return
+    const spec = extractFenceContent(section.rawMarkdown, 'vega-lite') ?? section.rawMarkdown
+    if (!looksLikeVegaLite(spec)) {
+      setVegaSvg('')
+      setVegaError('Block does not look like a Vega-Lite spec (expected JSON with mark + encoding).')
+      setSaving(false)
+      return
+    }
+    try {
+      const svg = renderVegaLiteAsSvg(spec)
+      setVegaSvg(svg)
+      setVegaError('')
+      setSaving(false)
+    } catch (err) {
+      console.error('[vega-lite] render failed:', err)
+      setVegaSvg('')
+      setVegaError(err instanceof Error ? err.message : 'Vega-Lite render failed')
+      setSaving(false)
+    }
+  }, [editing, isVegaSection, renderKey, section.rawMarkdown])
 
   useEffect(() => {
     if (!isMermaidSection || editing) return
@@ -459,6 +485,18 @@ export const SectionBlock = React.memo(function SectionBlock({
           )}
           {bpmnError && (
             <pre className="bpmn-render-error"><code>{section.rawMarkdown}</code></pre>
+          )}
+        </div>
+      ) : isVegaSection ? (
+        <div className="section-view" onClick={onLinkClick}>
+          {vegaSvg && (
+            <div
+              className="vega-chart"
+              dangerouslySetInnerHTML={{ __html: vegaSvg }}
+            />
+          )}
+          {vegaError && (
+            <pre className="vega-render-error"><code>{section.rawMarkdown}</code></pre>
           )}
         </div>
       ) : isHtmlSection ? (

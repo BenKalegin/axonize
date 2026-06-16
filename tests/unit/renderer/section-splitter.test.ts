@@ -40,4 +40,15 @@ describe('splitSections — HTML islands', () => {
     expect(interact[0].title).toBe('Interactive')
     expect(interact[0].rawMarkdown).not.toContain('More.')
   })
+
+  it('splits a fenced vega-lite block into its own atomic chart section', () => {
+    const spec = '{"mark":"bar","encoding":{"x":{"field":"a"},"y":{"field":"b"}}}'
+    const md = `# Title\n\nProse.\n\n\`\`\`vega-lite\n${spec}\n\`\`\`\n\nAfter.`
+    const sections = splitSections(md)
+    const vega = sections.filter((s) => s.kind === 'vega')
+    expect(vega).toHaveLength(1)
+    expect(vega[0].title).toBe('Chart')
+    expect(vega[0].rawMarkdown).toContain('```vega-lite')
+    expect(vega[0].rawMarkdown).not.toContain('After.')
+  })
 })
