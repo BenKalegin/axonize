@@ -10,6 +10,7 @@ import { SectionBlock } from './SectionBlock'
 import { SectionInsert } from './SectionInsert'
 import { ConflictDialog } from './ConflictDialog'
 import { FindInFileBar } from './FindInFileBar'
+import { FrontmatterTable } from './FrontmatterTable'
 
 mermaid.registerLayoutLoaders(elkLayouts)
 mermaid.initialize({
@@ -391,6 +392,7 @@ export const MarkdownView = React.memo(function MarkdownView() {
           onClose={() => setFindOpen(false)}
         />
       )}
+      {frontmatter && <FrontmatterTable raw={frontmatter} />}
       {sections.length === 0 && (
         <SectionInsert afterLine={0} onInsert={handleInsert} />
       )}
