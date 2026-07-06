@@ -41,6 +41,7 @@ Build a queryable knowledge graph over Axonize's KB so agents search structure-f
 - Local-first (no cloud, no telemetry)
 - Incremental updates (only re-process changed files)
 - Explainable (show path: concept A → B → C)
+- Agent lexical search track: SQLite FTS trigram grep + BM25 tools over shared search segments
 - Integrates as new island type (minimap in read mode, full viz in focus mode)
 
 **Aligns with:** Focused-islands vision — knowledge graph as a new island type with specialized renderers
@@ -78,6 +79,7 @@ Documents accumulate structural entropy the same way code does — appended sect
 3. ✅ **Agent PreSearch hook** — Read graph before blind file search
 4. ✅ **Graph island UI** — Minimap (read mode) + interactive viz (focus mode)
 5. ✅ **Incremental updates** — SHA256 cache, only re-extract changed files
+6. ⬜ **Agent lexical search index** — SQLite FTS trigram grep + BM25 tools, vectors stay in the existing RAG store for now
 
 ### From Prose Lint & Refactor
 1. ✅ **Deterministic lints** — dead links, broken anchors, heading structure, lexical repetition (local, no LLM)

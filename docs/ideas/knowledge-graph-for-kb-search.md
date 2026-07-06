@@ -437,6 +437,24 @@ From [focused-islands-vision.md](../focused-islands-vision.md#decision-rubric-fo
 
 **Success metric:** Reduce file reads by 5x for common queries (measured via agent logs)
 
+### Phase 2b: Agent Lexical Search Index
+**Goal:** Give agents fast exact and ranked lexical search over large vaults without moving vector search yet
+
+- [ ] Add `.axonize/search/search.db` as a local SQLite-backed search store
+- [ ] Create a shared `segments` table for file path, line/block range, text, content hash, and optional heading metadata
+- [ ] Add a trigram FTS index for grep-like substring lookup over large corpora
+- [ ] Add a BM25 FTS index for ranked lexical search over the same segment metadata
+- [ ] Keep vector embeddings in the current RAG storage path for now; link search results to RAG chunks/segments by stable IDs where possible
+- [ ] Build one incremental indexer that reuses file hashing and exclusion rules from the existing RAG indexer
+- [ ] Expose agent MCP tools:
+  - `indexed_grep` for exact substring search, simple regex candidate narrowing, and fallback guidance for complex regex
+  - `bm25_search` for ranked keyword-style retrieval
+  - `search_status` for freshness/index availability
+- [ ] Update the agent prompt to prefer `indexed_grep` for exact vault-wide lookup, `bm25_search` for lexical relevance, `rag_query` for semantic questions, and built-in Grep only as fallback
+- [ ] Add tests for incremental updates, deleted files, substring hits, case sensitivity, path filters, result limits, and stale-index behavior
+
+**Success metric:** Agent exact-search tasks over large vaults avoid broad filesystem Grep and return cited line snippets with stable latency.
+
 ### Phase 3: Graph Island UI (Read Mode)
 **Goal:** Show graph context in documents
 
