@@ -93,3 +93,7 @@ export interface StalenessInfo {
   removedFiles: number
   lastBuild?: number
 }
+
+export interface SemanticIndexSettings {
+  enabled: boolean
+}

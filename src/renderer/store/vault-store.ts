@@ -114,6 +114,7 @@ async function activateVaultInWindow(
   useGeneratedDocsStore.getState().runCleanup(path).catch(() => {})
   window.axonize.agentHistory.cleanup(path).catch(() => {})
   loadSemanticCacheOnly(path).catch(() => {})
+  useGraphStore.getState().loadSemanticEnabled(path).catch(() => {})
   window.axonize.vault.startWatch(path).catch(() => {})
 }
 

@@ -10,6 +10,7 @@ import type {
   SemanticCard,
   CardRelation,
   SemanticIndexState,
+  SemanticIndexSettings,
   SemanticProgress,
   SemanticEstimate,
   StalenessInfo
@@ -105,6 +106,22 @@ export async function loadSemanticState(vaultPath: string): Promise<SemanticInde
   } catch {
     return null
   }
+}
+
+const DEFAULT_SEMANTIC_SETTINGS: SemanticIndexSettings = { enabled: true }
+
+export async function loadSemanticSettings(vaultPath: string): Promise<SemanticIndexSettings> {
+  try {
+    const raw = await readFile(join(semanticDir(vaultPath), 'settings.json'), 'utf-8')
+    return { ...DEFAULT_SEMANTIC_SETTINGS, ...JSON.parse(raw) } as SemanticIndexSettings
+  } catch {
+    return DEFAULT_SEMANTIC_SETTINGS
+  }
+}
+
+export async function saveSemanticSettings(vaultPath: string, settings: SemanticIndexSettings): Promise<void> {
+  await ensureSemanticDir(vaultPath)
+  await atomicWriteJSON(join(semanticDir(vaultPath), 'settings.json'), settings)
 }
 
 export async function loadCards(vaultPath: string): Promise<SemanticCard[]> {

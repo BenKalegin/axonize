@@ -1,6 +1,6 @@
 import { contextBridge, ipcRenderer } from 'electron'
 import { homedir } from 'os'
-import type { CardKind, StalenessInfo } from '../core/semantic/types'
+import type { CardKind, StalenessInfo, SemanticIndexSettings } from '../core/semantic/types'
 import type {
   DataRowResult,
   DataSearchResult,
@@ -178,6 +178,8 @@ export interface AxonizeAPI {
     staleness: (vaultPath: string) => Promise<StalenessInfo>
     distances: (vaultPath: string, anchorCardId: string, targetLevel?: number) => Promise<Record<string, number>>
     relatedDocs: (vaultPath: string, filePath: string, k?: number) => Promise<RelatedDoc[]>
+    getSettings: (vaultPath: string) => Promise<SemanticIndexSettings>
+    setEnabled: (vaultPath: string, enabled: boolean) => Promise<void>
     onProgress: (callback: (payload: unknown) => void) => () => void
     onError: (callback: (payload: unknown) => void) => () => void
     onErrorsClear: (callback: () => void) => () => void
@@ -312,6 +314,10 @@ const api: AxonizeAPI = {
       ipcRenderer.invoke('semantic:distances', { vaultPath, anchorCardId, targetLevel }),
     relatedDocs: (vaultPath: string, filePath: string, k?: number) =>
       ipcRenderer.invoke('semantic:relatedDocs', { vaultPath, filePath, k }),
+    getSettings: (vaultPath: string): Promise<SemanticIndexSettings> =>
+      ipcRenderer.invoke('semantic:getSettings', { vaultPath }),
+    setEnabled: (vaultPath: string, enabled: boolean) =>
+      ipcRenderer.invoke('semantic:setEnabled', { vaultPath, enabled }),
     onProgress: (callback: (payload: unknown) => void) => {
       const listener = (_event: unknown, payload: unknown) => callback(payload)
       ipcRenderer.on('semantic:progress', listener)

@@ -21,9 +21,12 @@ interface GraphState {
   clusterFocus: ClusterFocus | null
   isLoading: boolean
   progress: SemanticProgress | null
+  semanticEnabled: boolean
   loadSemanticData: (cards: SemanticCard[], relations: CardRelation[], dimensions: DimensionMeta[]) => void
   setProgress: (progress: SemanticProgress | null) => void
   ensureLoaded: (vaultPath: string) => Promise<void>
+  loadSemanticEnabled: (vaultPath: string) => Promise<void>
+  setSemanticEnabled: (vaultPath: string, enabled: boolean) => Promise<void>
   buildIndex: (vaultPath: string) => Promise<void>
   increaseDepth: () => void
   decreaseDepth: () => void
@@ -109,6 +112,7 @@ export const useGraphStore = create<GraphState>((set, get) => ({
   clusterFocus: null,
   isLoading: false,
   progress: null,
+  semanticEnabled: true,
 
   loadSemanticData: (rawCards, relations, dimensions = []) => {
     const cards = resolveCardTitles(rawCards)
@@ -131,7 +135,22 @@ export const useGraphStore = create<GraphState>((set, get) => ({
     set({ isLoading: false })
   },
 
+  loadSemanticEnabled: async (vaultPath) => {
+    try {
+      const { enabled } = await window.axonize.semantic.getSettings(vaultPath)
+      set({ semanticEnabled: enabled })
+    } catch {
+      set({ semanticEnabled: true })
+    }
+  },
+
+  setSemanticEnabled: async (vaultPath, enabled) => {
+    await window.axonize.semantic.setEnabled(vaultPath, enabled)
+    set({ semanticEnabled: enabled })
+  },
+
   buildIndex: async (vaultPath) => {
+    if (!get().semanticEnabled) return
     set({ isLoading: true })
     try {
       console.log('[semantic] Building index for', vaultPath)
@@ -194,6 +213,7 @@ export const useGraphStore = create<GraphState>((set, get) => ({
     focusedDocId: null,
     clusterFocus: null,
     isLoading: false,
-    progress: null
+    progress: null,
+    semanticEnabled: true
   })
 }))

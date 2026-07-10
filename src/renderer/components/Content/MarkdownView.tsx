@@ -4,6 +4,7 @@ import elkLayouts from '@mermaid-js/layout-elk'
 import { TEST_IDS } from '@/lib/testids'
 import { useEditorStore, ViewMode, selectedFilePath } from '@/store/editor-store'
 import { useVaultStore } from '@/store/vault-store'
+import { useGraphStore } from '@/store/graph-store'
 import { splitSections, type MarkdownSection } from '@/lib/section-splitter'
 import { handleCodeFileReferenceClick, isDocLink, resolveDocLink } from '@/lib/doc-link'
 import { SectionBlock } from './SectionBlock'
@@ -195,7 +196,9 @@ export const MarkdownView = React.memo(function MarkdownView() {
         ? filePath.slice(vaultPath.length + 1)
         : filePath
       window.axonize.rag.reindexFile(vaultPath, relative).catch(() => {})
-      window.axonize.semantic.incremental(vaultPath).catch(() => {})
+      if (useGraphStore.getState().semanticEnabled) {
+        window.axonize.semantic.incremental(vaultPath).catch(() => {})
+      }
     },
     [vaultPath]
   )

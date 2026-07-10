@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react'
 import { TEST_IDS } from '@/lib/testids'
 import { useRagStore } from '@/store/rag-store'
 import { useVaultStore } from '@/store/vault-store'
+import { useGraphStore } from '@/store/graph-store'
 import { useEditorStore, selectedFilePath } from '@/store/editor-store'
 import type { AppSettings } from '@core/rag/types'
 import { DEFAULT_SETTINGS } from '@core/rag/types'
@@ -29,6 +30,7 @@ export function SettingsDialog({ onClose }: SettingsDialogProps) {
 
   const { isIndexing, indexProgress, fullReindex, reindexFile, chunkCount } = useRagStore()
   const { vaultPath } = useVaultStore()
+  const { semanticEnabled, setSemanticEnabled } = useGraphStore()
   const selectedFile = useEditorStore((s) => selectedFilePath(s.selection))
 
   useEffect(() => {
@@ -76,6 +78,10 @@ export function SettingsDialog({ onClose }: SettingsDialogProps) {
         : selectedFile
       reindexFile(vaultPath, relativePath)
     }
+  }
+
+  const handleToggleAutoIndex = () => {
+    if (vaultPath) setSemanticEnabled(vaultPath, !semanticEnabled)
   }
 
   const statusText = isIndexing && indexProgress
@@ -147,6 +153,8 @@ export function SettingsDialog({ onClose }: SettingsDialogProps) {
               selectedFile={selectedFile}
               vaultPath={vaultPath}
               statusText={statusText}
+              semanticEnabled={semanticEnabled}
+              onToggleAutoIndex={handleToggleAutoIndex}
             />
           )}
           {activeTab === SettingsTab.Appearance && (
@@ -194,12 +202,15 @@ interface GeneralTabProps {
   selectedFile: string | null
   vaultPath: string | null
   statusText: string
+  semanticEnabled: boolean
+  onToggleAutoIndex: () => void
 }
 
 function GeneralTab({
   settings, setSettings, updateLLM, updateRag, updateAgent,
   handleReindex, handleReindexFile, isIndexing,
   selectedFile, vaultPath, statusText,
+  semanticEnabled, onToggleAutoIndex,
 }: GeneralTabProps) {
   return (
     <>
@@ -310,6 +321,16 @@ function GeneralTab({
       {/* Indexing */}
       <div className="settings-section">
         <div className="settings-section-title">Indexing</div>
+        <label className="settings-checkbox-field">
+          <input
+            data-testid={TEST_IDS.AUTO_INDEX_TOGGLE}
+            type="checkbox"
+            checked={semanticEnabled}
+            disabled={!vaultPath}
+            onChange={onToggleAutoIndex}
+          />
+          Auto-index this vault (semantic index + RAG embeddings on open/save)
+        </label>
         <div className="settings-reindex-row">
           <button
             data-testid={TEST_IDS.REINDEX_FILE_BTN}

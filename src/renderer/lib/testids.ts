@@ -75,6 +75,7 @@ export const TEST_IDS = {
   INDEX_STATUS: 'index-status',
   RAG_ANSWER_VIEW: 'rag-answer-view',
   RAG_SOURCE_LINK: 'rag-source-link',
+  AUTO_INDEX_TOGGLE: 'auto-index-toggle',
 
   // Layout
   ACTIVITY_BAR: 'activity-bar',

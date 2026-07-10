@@ -47,6 +47,13 @@ window.__stores = {
 
 const axonizeApi = window.axonize
 
+async function autoIndexVaultIfEnabled(vaultPath: string): Promise<void> {
+  const { enabled } = await axonizeApi.semantic.getSettings(vaultPath).catch(() => ({ enabled: true }))
+  if (enabled) {
+    useRagStore.getState().indexVault(vaultPath)
+  }
+}
+
 if (axonizeApi) {
 // Register index progress listener
 axonizeApi.rag.onIndexProgress((payload: unknown) => {
@@ -73,7 +80,7 @@ axonizeApi.vault.onFilesChanged(() => {
   const { vaultPath, loadFileTree } = useVaultStore.getState()
   if (!vaultPath) return
   loadFileTree(vaultPath).catch(() => {})
-  useRagStore.getState().indexVault(vaultPath)
+  autoIndexVaultIfEnabled(vaultPath).catch(() => {})
   // Semantic index is NOT auto-updated to prevent silent token usage
 })
 }
@@ -106,7 +113,7 @@ if (axonizeApi) {
     const vaultPath = resolveStartupVault(recentTop)
     if (vaultPath) {
       openRecentVault(vaultPath).then(() => {
-        useRagStore.getState().indexVault(vaultPath)
+        autoIndexVaultIfEnabled(vaultPath).catch(() => {})
       })
     }
   })
