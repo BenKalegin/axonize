@@ -24,6 +24,7 @@ export const TEST_IDS = {
   // Content views
   CONTENT_VIEW: 'content-view',
   MARKDOWN_VIEW: 'markdown-view',
+  TEXT_FILE_VIEW: 'text-file-view',
   GRAPH_VIEW: 'graph-view',
   EMPTY_STATE: 'empty-state',
 

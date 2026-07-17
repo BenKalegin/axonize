@@ -12,6 +12,7 @@ import { useGeneratedDocsStore } from '@/store/generated-docs-store'
 import { MarkdownView } from './MarkdownView'
 import { BpmnFileView } from './BpmnFileView'
 import { DataFileView } from './data/DataFileView'
+import { TextFileView } from './TextFileView'
 import { RAGAnswerView } from './RAGAnswerView'
 import { GeneratedDocHeader } from './GeneratedDocHeader'
 import { SourcesList } from './SourcesList'
@@ -27,6 +28,7 @@ const ZOOM_STEPS = [50, 67, 80, 90, 100, 110, 125, 150, 175, 200]
 /** Dedicated viewers by file extension; everything else renders as markdown. */
 const EXTENSION_VIEWERS: Record<string, ComponentType> = {
   '.bpmn': BpmnFileView,
+  '.txt': TextFileView,
   '.csv': DataFileView,
   '.json': DataFileView,
   '.jsonl': DataFileView
@@ -155,6 +157,12 @@ export function ContentView() {
     () => (selectedFile && !isAgentTurn ? viewerForFile(selectedFile) : null),
     [selectedFile, isAgentTurn]
   )
+
+  useEffect(() => {
+    if (FileViewer && viewMode === ViewMode.Presentation) {
+      setViewMode(ViewMode.Markdown)
+    }
+  }, [FileViewer, setViewMode, viewMode])
 
   const generatedDoc = useMemo(
     () => (selectedFile && !isAgentTurn) ? docs.find((d) => d.filePath === selectedFile) ?? null : null,

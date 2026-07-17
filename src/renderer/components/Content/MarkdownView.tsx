@@ -75,6 +75,7 @@ declare global {
 }
 
 const FRONTMATTER_RE = /^---\n[\s\S]*?\n---\n/
+const EXPLICIT_LINK_EXTENSIONS = new Set(['.md', '.markdown', '.txt', '.csv', '.json', '.jsonl', '.bpmn'])
 
 /** When picking the nearest heading above the viewport, allow this many px of slack below scrollTop */
 const NEAREST_HEADING_TOLERANCE_PX = 100
@@ -118,6 +119,13 @@ function normalizePath(path: string): string {
     else stack.push(part)
   }
   return (isAbsolute ? '/' : '') + stack.join('/')
+}
+
+function hasExplicitFileExtension(path: string): boolean {
+  const lastSegment = path.split('/').pop() ?? path
+  const dot = lastSegment.lastIndexOf('.')
+  if (dot === -1) return false
+  return EXPLICIT_LINK_EXTENSIONS.has(lastSegment.slice(dot).toLowerCase())
 }
 
 export const MarkdownView = React.memo(function MarkdownView() {
@@ -346,7 +354,7 @@ export const MarkdownView = React.memo(function MarkdownView() {
       if (!cleanHref) return
 
       const hash = href.includes('#') ? href.slice(href.indexOf('#')) : ''
-      const target = cleanHref.endsWith('.md') ? cleanHref : `${cleanHref}.md`
+      const target = hasExplicitFileExtension(cleanHref) ? cleanHref : `${cleanHref}.md`
       const fullPath = target.startsWith('/') ? target : `${currentDir}/${target}`
 
       selectFile(`${normalizePath(fullPath)}${hash}`)

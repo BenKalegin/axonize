@@ -19,6 +19,7 @@ const MIME_TYPES: Record<string, string> = {
   '.svg': 'image/svg+xml',
   '.bmp': 'image/bmp',
   '.ico': 'image/x-icon',
+  '.txt': 'text/plain; charset=utf-8',
 }
 
 async function handleAxonizeFileRequest(request: Request): Promise<Response> {

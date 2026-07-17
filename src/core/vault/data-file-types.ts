@@ -12,7 +12,7 @@ const DATA_FILE_EXTENSIONS: Record<string, DataFileKind> = {
 }
 
 /** Non-data extensions the vault should also surface (each has a dedicated viewer). */
-const VIEWABLE_EXTENSIONS = new Set(['.md', '.bpmn'])
+const VIEWABLE_EXTENSIONS = new Set(['.md', '.txt', '.bpmn'])
 
 function extensionOf(fileName: string): string {
   const dot = fileName.lastIndexOf('.')

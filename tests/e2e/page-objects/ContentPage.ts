@@ -5,6 +5,7 @@ export class ContentPage {
 
   get contentView() { return this.page.getByTestId('content-view') }
   get markdownView() { return this.page.getByTestId('markdown-view') }
+  get textFileView() { return this.page.getByTestId('text-file-view') }
   get graphView() { return this.page.getByTestId('graph-view') }
   get emptyState() { return this.page.getByTestId('empty-state') }
 }

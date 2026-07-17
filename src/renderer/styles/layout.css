@@ -647,6 +647,64 @@
   background: var(--bg-surface);
 }
 
+/* Text file viewer */
+.text-file-view {
+  display: flex;
+  flex-direction: column;
+  min-height: 100%;
+}
+
+.text-file-header {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  padding: 8px 16px;
+  border-bottom: 1px solid var(--border);
+  color: var(--text-secondary);
+  font-size: 12px;
+  flex-shrink: 0;
+}
+
+.text-file-kind {
+  font-weight: 600;
+  color: var(--accent);
+}
+
+.text-file-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text-primary);
+}
+
+.text-file-body {
+  margin: 0;
+  padding: 24px 32px;
+  color: var(--text-secondary);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+  font-size: 13px;
+  line-height: 1.55;
+  overflow-wrap: anywhere;
+  tab-size: 2;
+  white-space: pre-wrap;
+}
+
+.text-file-error {
+  margin: 16px;
+  padding: 12px;
+  color: var(--red);
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  white-space: pre-wrap;
+}
+
+.text-file-status {
+  padding: 16px;
+  color: var(--text-muted);
+}
+
 .frontmatter-table {
   border-collapse: collapse;
   width: 100%;
