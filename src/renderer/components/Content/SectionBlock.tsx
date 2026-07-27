@@ -603,25 +603,37 @@ async function renderMermaidSource(rawSource: string): Promise<string> {
   return wrapper.innerHTML
 }
 
-// Mermaid's ELK renderer emits <a> elements without href; this wires up href from `click NODE "url"` directives in the source.
-function applyMermaidClickLinks(wrapper: HTMLElement, source: string): void {
-  const clickRegex = /click\s+(\w+)\s+["']([^"']+)["']/g
-  const links = new Map<string, string>()
+const CLICK_DIRECTIVE_RE = /click\s+(\w+)\s+["']([^"']+)["']/g
+const SVG_NAMESPACE = 'http://www.w3.org/2000/svg'
 
+// Wires `click NODE "url"` directives to the rendered SVG so node clicks navigate.
+// Two renderers need different handling: the mermaid ELK path emits <a> elements
+// without href (fill them in); the doodles path emits <g data-node-id> groups with
+// no anchor at all (wrap them in one).
+function applyMermaidClickLinks(wrapper: HTMLElement, source: string): void {
+  const links = parseClickDirectives(source)
+  if (links.size === 0) return
+  wireHreflessAnchors(wrapper, links)
+  wireDoodlesNodeGroups(wrapper, links)
+}
+
+function parseClickDirectives(source: string): Map<string, string> {
+  const links = new Map<string, string>()
   let match
-  while ((match = clickRegex.exec(source)) !== null) {
+  while ((match = CLICK_DIRECTIVE_RE.exec(source)) !== null) {
     const [, nodeId, url] = match
     links.set(nodeId, url)
   }
+  return links
+}
 
-  if (links.size === 0) return
-
-  const anchors = wrapper.querySelectorAll('a')
-  for (const anchor of anchors) {
+// Mermaid's ELK renderer emits <a> elements without href; the SVG group id embeds
+// the node id (e.g. `flowchart-A-3`), so match by substring.
+function wireHreflessAnchors(wrapper: HTMLElement, links: Map<string, string>): void {
+  for (const anchor of wrapper.querySelectorAll('a')) {
     if (anchor.hasAttribute('href') || anchor.hasAttribute('xlink:href')) continue
 
-    const nodeGroup = anchor.closest('[id]')
-    const nodeId = nodeGroup?.getAttribute('id')
+    const nodeId = anchor.closest('[id]')?.getAttribute('id')
     if (!nodeId) continue
 
     for (const [linkNodeId, url] of links) {
@@ -630,6 +642,21 @@ function applyMermaidClickLinks(wrapper: HTMLElement, source: string): void {
         break
       }
     }
+  }
+}
+
+// Doodles emits `<g data-node-id="A">` with the exact source node id and no anchor;
+// wrap matching groups in an <a> so the shared link-click handler navigates them.
+function wireDoodlesNodeGroups(wrapper: HTMLElement, links: Map<string, string>): void {
+  for (const group of wrapper.querySelectorAll('[data-node-id]')) {
+    const url = links.get(group.getAttribute('data-node-id') ?? '')
+    if (!url || group.closest('a')) continue
+
+    const anchor = document.createElementNS(SVG_NAMESPACE, 'a')
+    anchor.setAttribute('xlink:href', url)
+    anchor.style.cursor = 'pointer'
+    group.parentNode?.insertBefore(anchor, group)
+    anchor.appendChild(group)
   }
 }
 
