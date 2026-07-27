@@ -5,6 +5,7 @@ import { AgentTurnKind, AgentTurnRole } from '@core/agent/turn-kinds'
 import { AgentEventKind } from '@core/agent/event-kinds'
 import type { AgentTurnMeta } from '@core/agent/history-types'
 import { classifyTurn, makePreview, summarizeUserPrompt } from '@/lib/agent-turn-classifier'
+import { selectedFilePath, useEditorStore } from './editor-store'
 
 export interface AgentTurn {
   id: string
@@ -79,6 +80,20 @@ function storageKeyV3(vaultPath: string | null): string {
 
 function storageKeyV2(vaultPath: string | null): string {
   return `${STORAGE_PREFIX_V2}:${vaultPath ?? '__global__'}`
+}
+
+function activeFilePathForAgent(vaultPath: string | null): string | undefined {
+  if (!vaultPath) return undefined
+  const selectedFile = selectedFilePath(useEditorStore.getState().selection)
+  if (!selectedFile) return undefined
+
+  const normalizedVaultPath = vaultPath.endsWith('/') ? vaultPath.slice(0, -1) : vaultPath
+  const vaultPrefix = `${normalizedVaultPath}/`
+  if (selectedFile.startsWith(vaultPrefix)) {
+    return selectedFile.slice(vaultPrefix.length)
+  }
+  if (selectedFile.startsWith('/')) return undefined
+  return selectedFile
 }
 
 function emptySession(index: number): AgentSession {
@@ -634,6 +649,7 @@ export const useAgentStore = create<AgentStore>((set, get) => {
         prompt,
         vaultPath: vaultPath ?? '',
         allowEdits: session.allowEdits,
+        activeFilePath: activeFilePathForAgent(vaultPath),
         claudeSessionId: session.claudeSessionId
       })
     },

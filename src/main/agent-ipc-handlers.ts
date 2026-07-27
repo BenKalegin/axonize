@@ -10,6 +10,7 @@ interface AgentStartPayload {
   prompt: string
   vaultPath: string
   allowEdits: boolean
+  activeFilePath?: string
   claudeSessionId?: string
   systemPrompt?: string
 }
@@ -49,7 +50,7 @@ async function startAgent(webContents: WebContents, payload: AgentStartPayload):
     const agent = createAgent(settings.agent)
 
     for await (const event of agent.run({
-      prompt: payload.prompt,
+      prompt: buildPromptWithAxonizeContext(payload.prompt, payload.activeFilePath),
       vaultPath: payload.vaultPath,
       allowEdits: payload.allowEdits,
       claudeSessionId: payload.claudeSessionId,
@@ -68,6 +69,18 @@ async function startAgent(webContents: WebContents, payload: AgentStartPayload):
     runningAgents.delete(sessionId)
     sendEvent(webContents, sessionId, { type: AgentEventKind.Closed })
   }
+}
+
+function buildPromptWithAxonizeContext(prompt: string, activeFilePath?: string): string {
+  const filePath = activeFilePath?.trim()
+  if (!filePath) return prompt
+  return [
+    'Axonize context:',
+    `- Current active file: ${filePath}`,
+    '',
+    'User request:',
+    prompt
+  ].join('\n')
 }
 
 type OutboundEvent = AgentEvent | { type: typeof AgentEventKind.Closed }

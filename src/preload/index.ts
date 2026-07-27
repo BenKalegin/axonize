@@ -92,6 +92,7 @@ export interface AgentStartPayload {
   prompt: string
   vaultPath: string
   allowEdits: boolean
+  activeFilePath?: string
   claudeSessionId?: string
   systemPrompt?: string
 }
