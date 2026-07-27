@@ -4,8 +4,8 @@ import { useRagStore } from '@/store/rag-store'
 import { useVaultStore } from '@/store/vault-store'
 import { useGraphStore } from '@/store/graph-store'
 import { useEditorStore, selectedFilePath } from '@/store/editor-store'
-import type { AppSettings } from '@core/rag/types'
-import { DEFAULT_SETTINGS } from '@core/rag/types'
+import type { AgentProviderSettings, AppSettings } from '@core/rag/types'
+import { AgentProvider, AgentTransport, DEFAULT_SETTINGS } from '@core/rag/types'
 import { PROVIDER_MODELS, DEFAULT_MODELS } from '@/lib/llm-models'
 import { THEMES, ThemeGroup, type ThemeId } from '@core/themes'
 import { applyTheme } from '@/lib/theme-applier'
@@ -17,6 +17,70 @@ const SettingsTab = {
 type SettingsTab = (typeof SettingsTab)[keyof typeof SettingsTab]
 
 const PREVIEW_BAR_COUNT = 4
+
+function snapshotAgentProviderSettings(agent: AppSettings['agent']): AgentProviderSettings {
+  if (agent.provider === AgentProvider.Kiro) {
+    return {
+      transport: AgentTransport.Tty,
+      model: agent.model,
+      kiroCliPath: agent.kiroCliPath
+    }
+  }
+  return {
+    transport: agent.transport,
+    model: agent.model,
+    claudeCliPath: agent.claudeCliPath
+  }
+}
+
+function defaultAgentProviderSettings(provider: AppSettings['agent']['provider']): AgentProviderSettings {
+  if (provider === AgentProvider.Kiro) {
+    return DEFAULT_SETTINGS.agent.providerSettings?.[AgentProvider.Kiro] ?? {
+      transport: AgentTransport.Tty,
+      model: 'auto'
+    }
+  }
+  return DEFAULT_SETTINGS.agent.providerSettings?.[AgentProvider.ClaudeCode] ?? {
+    transport: AgentTransport.Npm,
+    model: DEFAULT_SETTINGS.agent.model
+  }
+}
+
+function rememberActiveAgentSettings(agent: AppSettings['agent']): AppSettings['agent'] {
+  return {
+    ...agent,
+    providerSettings: {
+      ...(agent.providerSettings ?? {}),
+      [agent.provider]: snapshotAgentProviderSettings(agent)
+    }
+  }
+}
+
+function switchAgentProvider(
+  agent: AppSettings['agent'],
+  provider: AppSettings['agent']['provider']
+): AppSettings['agent'] {
+  const providerSettings = {
+    ...(agent.providerSettings ?? {}),
+    [agent.provider]: snapshotAgentProviderSettings(agent)
+  }
+  const restored = {
+    ...defaultAgentProviderSettings(provider),
+    ...(providerSettings[provider] ?? {})
+  }
+
+  return {
+    ...agent,
+    provider,
+    providerSettings,
+    transport: provider === AgentProvider.Kiro
+      ? AgentTransport.Tty
+      : restored.transport ?? DEFAULT_SETTINGS.agent.transport,
+    model: restored.model ?? '',
+    claudeCliPath: restored.claudeCliPath ?? agent.claudeCliPath,
+    kiroCliPath: restored.kiroCliPath ?? agent.kiroCliPath
+  }
+}
 
 interface SettingsDialogProps {
   onClose: () => void
@@ -54,7 +118,10 @@ export function SettingsDialog({ onClose }: SettingsDialogProps) {
   const { loadExcludedFolders } = useVaultStore()
 
   const handleSave = async () => {
-    await window.axonize.settings.save(settings)
+    await window.axonize.settings.save({
+      ...settings,
+      agent: rememberActiveAgentSettings(settings.agent)
+    })
     await loadExcludedFolders()
     onClose()
   }
@@ -97,7 +164,10 @@ export function SettingsDialog({ onClose }: SettingsDialogProps) {
   }
 
   const updateAgent = <K extends keyof AppSettings['agent']>(key: K, value: AppSettings['agent'][K]) => {
-    setSettings(prev => ({ ...prev, agent: { ...prev.agent, [key]: value } }))
+    setSettings(prev => {
+      const nextAgent = rememberActiveAgentSettings({ ...prev.agent, [key]: value })
+      return { ...prev, agent: nextAgent }
+    })
   }
 
   const handleThemeSelect = (themeId: ThemeId) => {
@@ -272,10 +342,12 @@ function GeneralTab({
       {/* Agent */}
       <div className="settings-section">
         <div className="settings-section-title">Agent</div>
-        <AgentProviderField settings={settings} updateAgent={updateAgent} />
-        <AgentTransportField settings={settings} updateAgent={updateAgent} />
+        <AgentProviderField settings={settings} setSettings={setSettings} />
+        {settings.agent.provider === AgentProvider.ClaudeCode && (
+          <AgentTransportField settings={settings} updateAgent={updateAgent} />
+        )}
         <AgentModelField settings={settings} updateAgent={updateAgent} />
-        {settings.agent.transport === 'tty' && (
+        {settings.agent.provider === AgentProvider.ClaudeCode && settings.agent.transport === AgentTransport.Tty && (
           <div className="settings-field">
             <label>Claude CLI Path</label>
             <input
@@ -284,6 +356,18 @@ function GeneralTab({
               value={settings.agent.claudeCliPath ?? ''}
               onChange={e => updateAgent('claudeCliPath', e.target.value)}
               placeholder="claude (or absolute path)"
+            />
+          </div>
+        )}
+        {settings.agent.provider === AgentProvider.Kiro && (
+          <div className="settings-field">
+            <label>Kiro CLI Path (optional)</label>
+            <input
+              className="settings-input"
+              type="text"
+              value={settings.agent.kiroCliPath ?? ''}
+              onChange={e => updateAgent('kiroCliPath', e.target.value)}
+              placeholder="Auto-detect kiro-cli"
             />
           </div>
         )}
@@ -484,16 +568,30 @@ interface AgentFieldProps {
   updateAgent: <K extends keyof AppSettings['agent']>(key: K, value: AppSettings['agent'][K]) => void
 }
 
-function AgentProviderField({ settings, updateAgent }: AgentFieldProps) {
+interface AgentProviderFieldProps {
+  settings: AppSettings
+  setSettings: React.Dispatch<React.SetStateAction<AppSettings>>
+}
+
+function AgentProviderField({ settings, setSettings }: AgentProviderFieldProps) {
+  const handleChange = (provider: AppSettings['agent']['provider']) => {
+    if (provider === settings.agent.provider) return
+    setSettings(prev => ({
+      ...prev,
+      agent: switchAgentProvider(prev.agent, provider)
+    }))
+  }
+
   return (
     <div className="settings-field">
       <label>Provider</label>
       <select
         className="settings-select"
         value={settings.agent.provider}
-        onChange={e => updateAgent('provider', e.target.value as AppSettings['agent']['provider'])}
+        onChange={e => handleChange(e.target.value as AppSettings['agent']['provider'])}
       >
-        <option value="claude-code">Claude Code</option>
+        <option value={AgentProvider.ClaudeCode}>Claude Code</option>
+        <option value={AgentProvider.Kiro}>Kiro CLI</option>
       </select>
     </div>
   )
@@ -508,8 +606,8 @@ function AgentTransportField({ settings, updateAgent }: AgentFieldProps) {
         value={settings.agent.transport}
         onChange={e => updateAgent('transport', e.target.value as AppSettings['agent']['transport'])}
       >
-        <option value="npm">NPM SDK (in-process)</option>
-        <option value="tty">Claude CLI (subprocess)</option>
+        <option value={AgentTransport.Npm}>NPM SDK (in-process)</option>
+        <option value={AgentTransport.Tty}>Claude CLI (subprocess)</option>
       </select>
     </div>
   )
@@ -524,7 +622,7 @@ function AgentModelField({ settings, updateAgent }: AgentFieldProps) {
         type="text"
         value={settings.agent.model}
         onChange={e => updateAgent('model', e.target.value)}
-        placeholder="claude-sonnet-4-6"
+        placeholder={settings.agent.provider === AgentProvider.Kiro ? 'Kiro default' : 'claude-sonnet-4-6'}
       />
     </div>
   )

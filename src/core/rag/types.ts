@@ -57,7 +57,8 @@ export interface AppearanceConfig {
 }
 
 export const AgentProvider = {
-  ClaudeCode: 'claude-code'
+  ClaudeCode: 'claude-code',
+  Kiro: 'kiro'
 } as const
 export type AgentProvider = (typeof AgentProvider)[keyof typeof AgentProvider]
 
@@ -67,11 +68,20 @@ export const AgentTransport = {
 } as const
 export type AgentTransport = (typeof AgentTransport)[keyof typeof AgentTransport]
 
+export interface AgentProviderSettings {
+  transport?: AgentTransport
+  model?: string
+  claudeCliPath?: string
+  kiroCliPath?: string
+}
+
 export interface AgentConfig {
   provider: AgentProvider
   transport: AgentTransport
   model: string
   claudeCliPath?: string
+  kiroCliPath?: string
+  providerSettings?: Partial<Record<AgentProvider, AgentProviderSettings>>
 }
 
 export interface AppSettings {
@@ -183,7 +193,17 @@ export const DEFAULT_SETTINGS: AppSettings = {
   agent: {
     provider: AgentProvider.ClaudeCode,
     transport: AgentTransport.Npm,
-    model: 'claude-sonnet-4-6'
+    model: 'claude-sonnet-4-6',
+    providerSettings: {
+      [AgentProvider.ClaudeCode]: {
+        transport: AgentTransport.Npm,
+        model: 'claude-sonnet-4-6'
+      },
+      [AgentProvider.Kiro]: {
+        transport: AgentTransport.Tty,
+        model: 'auto'
+      }
+    }
   },
   ui: {
     activePanelId: 'files',
