@@ -67,3 +67,44 @@ input {
   font: inherit;
   outline: none;
 }
+
+.app-error-boundary {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  padding: 32px;
+  background: var(--bg-base);
+  color: var(--text-primary);
+}
+
+.app-error-boundary__panel {
+  width: min(760px, 100%);
+  padding: 24px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg-surface);
+}
+
+.app-error-boundary__panel h1 {
+  margin-bottom: 8px;
+  font-size: 18px;
+  font-weight: 650;
+}
+
+.app-error-boundary__panel p {
+  margin-bottom: 16px;
+  color: var(--text-secondary);
+}
+
+.app-error-boundary__panel pre {
+  max-height: 320px;
+  overflow: auto;
+  padding: 12px;
+  border-radius: 4px;
+  background: var(--bg-base);
+  color: var(--red);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 12px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+}

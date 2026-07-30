@@ -72,6 +72,46 @@ function debouncedSaveAllSessions(): void {
   sessionSaveTimeout = setTimeout(saveAllWindowSessions, 500)
 }
 
+function installWebContentsDiagnostics(win: BrowserWindow): void {
+  win.webContents.on('console-message', (event, level, message, line, sourceId) => {
+    const details = event as unknown as {
+      level?: number
+      message?: string
+      lineNumber?: number
+      sourceId?: string
+    }
+    const actualLevel = details.level ?? level
+    const actualMessage = details.message ?? message
+    if (!actualMessage) return
+
+    const actualLine = details.lineNumber ?? line
+    const actualSourceId = details.sourceId ?? sourceId
+    const location = actualSourceId ? ` (${actualSourceId}:${actualLine})` : ''
+    const text = `[renderer:${win.id}] ${actualMessage}${location}`
+
+    if (actualLevel >= 3) log.error(text)
+    else if (actualLevel === 2) log.warn(text)
+    else log.info(text)
+  })
+
+  win.webContents.on('preload-error', (_event, preloadPath, error) => {
+    log.error(`[renderer:${win.id}] preload failed: ${preloadPath}`, error)
+  })
+
+  win.webContents.on('did-fail-load', (_event, errorCode, errorDescription, validatedURL, isMainFrame) => {
+    if (!isMainFrame) return
+    log.error(`[renderer:${win.id}] failed to load ${validatedURL}: ${errorCode} ${errorDescription}`)
+  })
+
+  win.webContents.on('render-process-gone', (_event, details) => {
+    log.error(`[renderer:${win.id}] render process gone: ${details.reason} (${details.exitCode})`)
+  })
+
+  win.webContents.on('unresponsive', () => {
+    log.warn(`[renderer:${win.id}] renderer became unresponsive`)
+  })
+}
+
 const WINDOW_OFFSET_PX = 30
 
 interface CreateWindowOptions {
@@ -140,6 +180,8 @@ function createWindow(options: CreateWindowOptions = {}): BrowserWindow {
     shell.openExternal(url)
     return { action: 'deny' }
   })
+
+  installWebContentsDiagnostics(win)
 
   win.webContents.on('will-navigate', (event, url) => {
     const rendererUrl = process.env.ELECTRON_RENDERER_URL ?? ''

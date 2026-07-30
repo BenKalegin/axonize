@@ -187,6 +187,7 @@ export function FileExplorer() {
   const [searchOpen, setSearchOpen] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
   const [collapsedPaths, setCollapsedPaths] = useState<Set<string>>(new Set())
+  const [initializedTreeKey, setInitializedTreeKey] = useState('')
   const [focusedPath, setFocusedPath] = useState<string | null>(null)
   const [recentFiles, setRecentFiles] = useState<RecentFile[]>([])
   const [recentOpen, setRecentOpen] = useState(false)
@@ -196,13 +197,18 @@ export function FileExplorer() {
   const recentRef = useRef<HTMLDivElement>(null)
   const modifiedRef = useRef<HTMLDivElement>(null)
 
-  // Collapse all folders by default, expand only ancestors of the selected file
-  const treeInitRef = useRef<string | null>(null)
+  const treeKey = useMemo(() => fileTree.map((e) => e.path).join('\n'), [fileTree])
+  const treeInitialized = fileTree.length === 0 || initializedTreeKey === treeKey
+
+  // Collapse all folders by default, expand only ancestors of the selected file.
+  // Until this state is initialized for a new tree, render directories as
+  // collapsed so a large restored vault cannot recursively render itself first.
   useEffect(() => {
-    if (fileTree.length === 0) return
-    const treeKey = fileTree.map(e => e.path).join('\n')
-    if (treeInitRef.current === treeKey) return
-    treeInitRef.current = treeKey
+    if (fileTree.length === 0) {
+      if (initializedTreeKey) setInitializedTreeKey('')
+      return
+    }
+    if (initializedTreeKey === treeKey) return
 
     const allDirs = collectAllDirPaths(fileTree as FileEntry[])
     const openDirs = selectedFile ? ancestorDirPaths(selectedFile, fileTree as FileEntry[]) : new Set<string>()
@@ -211,7 +217,8 @@ export function FileExplorer() {
       if (!openDirs.has(dir)) collapsed.add(dir)
     }
     setCollapsedPaths(collapsed)
-  }, [fileTree, selectedFile])
+    setInitializedTreeKey(treeKey)
+  }, [fileTree, initializedTreeKey, selectedFile, treeKey])
 
   // When the selected file changes (e.g. via hlink navigation), expand its
   // ancestor folders and focus the node so it scrolls into view.
@@ -318,8 +325,9 @@ export function FileExplorer() {
 
   const isExpanded = useCallback((path: string): boolean => {
     if (searchQuery) return true
+    if (!treeInitialized) return false
     return !collapsedPaths.has(path)
-  }, [searchQuery, collapsedPaths])
+  }, [searchQuery, treeInitialized, collapsedPaths])
 
   const handleToggle = useCallback((path: string) => {
     setCollapsedPaths(prev => {

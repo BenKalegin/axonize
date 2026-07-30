@@ -209,7 +209,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
     activePanelId: 'files',
     sidePanelWidth: 220
   },
-  excludedFolders: ['node_modules', '.git', '.next', 'dist', 'build', 'out', '.cache'],
+  excludedFolders: ['node_modules', '.git', '.next', 'dist', 'build', 'out', '.cache', 'venv', 'env'],
   generatedDocs: {
     retentionDays: 7
   },

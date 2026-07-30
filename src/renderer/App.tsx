@@ -1,5 +1,6 @@
 import { useEffect } from 'react'
 import { Shell } from './components/Shell'
+import { AppErrorBoundary } from './components/AppErrorBoundary'
 import type { AppSettings } from '@core/rag/types'
 import type { ThemeId } from '@core/themes'
 import { applyTheme } from '@/lib/theme-applier'
@@ -18,5 +19,9 @@ export function App() {
     })
   }, [])
 
-  return <Shell />
+  return (
+    <AppErrorBoundary>
+      <Shell />
+    </AppErrorBoundary>
+  )
 }

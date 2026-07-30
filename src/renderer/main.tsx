@@ -16,6 +16,24 @@ import '@benkalegin/clouddiagram-editor/styles.css'
 import 'highlight.js/styles/github-dark.min.css'
 import 'katex/dist/katex.min.css'
 
+function stringifyError(reason: unknown): string {
+  if (reason instanceof Error) return reason.stack ?? reason.message
+  if (typeof reason === 'string') return reason
+  try {
+    return JSON.stringify(reason)
+  } catch {
+    return String(reason)
+  }
+}
+
+window.addEventListener('error', (event) => {
+  console.error('[renderer] Uncaught error:', stringifyError(event.error ?? event.message))
+})
+
+window.addEventListener('unhandledrejection', (event) => {
+  console.error('[renderer] Unhandled rejection:', stringifyError(event.reason))
+})
+
 // Expose stores on window for E2E testing
 declare global {
   interface Window {
