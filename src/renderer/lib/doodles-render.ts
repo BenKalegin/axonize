@@ -83,6 +83,7 @@ const EDGE_LABEL_HALO_STROKE_WIDTH = 4
 const EDGE_LABEL_VERTICAL_OFFSET = 4
 
 const WHITE_SPACE_RE = /\s+/g
+const MERMAID_QUOTED_LABEL_RIGHT_BRACKET_PLACEHOLDER = '\uE000'
 
 type DiagramDisplay = {
   width: number
@@ -165,13 +166,72 @@ export async function renderMermaidWithDoodles(
 }
 
 async function renderFlowchartWithDoodles(source: string, theme: ThemeTokens): Promise<string> {
+  const diagram = await importMermaidFlowchartWithAxonizeLayout(source)
+  return renderSvg(diagram as never, { theme })
+}
+
+export async function importMermaidFlowchartWithAxonizeLayout(source: string): Promise<Diagram> {
   const base: Diagram = {
     id: 'ax-doodle',
     type: ElementType.FlowchartDiagram,
     display: defaultDiagramDisplay,
   }
-  const diagram = await importMermaidFlowchartWithLayout(base, source)
-  return renderSvg(diagram as never, { theme })
+  const protectedSource = protectQuotedLabelClosingBrackets(source)
+  const diagram = (await importMermaidFlowchartWithLayout(base, protectedSource)) as StructureDiagram
+  restoreQuotedLabelClosingBrackets(diagram)
+  return diagram
+}
+
+function protectQuotedLabelClosingBrackets(source: string): string {
+  return source
+    .split('\n')
+    .map(line => (line.trimStart().startsWith('%%') ? line : protectQuotedLineClosingBrackets(line)))
+    .join('\n')
+}
+
+function protectQuotedLineClosingBrackets(line: string): string {
+  let quote: '"' | '`' | undefined
+  let escaped = false
+  let result = ''
+
+  for (const char of line) {
+    if (quote) {
+      if (escaped) {
+        result += char
+        escaped = false
+        continue
+      }
+      if (char === '\\') {
+        result += char
+        escaped = true
+        continue
+      }
+      if (char === quote) {
+        quote = undefined
+      }
+      result += char === ']' ? MERMAID_QUOTED_LABEL_RIGHT_BRACKET_PLACEHOLDER : char
+      continue
+    }
+
+    if (char === '"' || char === '`') {
+      quote = char
+    }
+    result += char
+  }
+
+  return result
+}
+
+function restoreQuotedLabelClosingBrackets(diagram: StructureDiagram): void {
+  for (const element of Object.values(diagram.elements)) {
+    if (typeof element?.text !== 'string') continue
+    element.text = restoreQuotedLabelText(element.text)
+  }
+}
+
+function restoreQuotedLabelText(text: string): string {
+  if (!text.includes(MERMAID_QUOTED_LABEL_RIGHT_BRACKET_PLACEHOLDER)) return text
+  return text.split(MERMAID_QUOTED_LABEL_RIGHT_BRACKET_PLACEHOLDER).join(']')
 }
 
 function renderXyChartWithDoodles(source: string, theme: ThemeTokens): string {

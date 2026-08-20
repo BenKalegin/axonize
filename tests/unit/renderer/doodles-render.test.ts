@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest'
-import { canRenderWithDoodles, renderMermaidWithDoodles } from '../../../src/renderer/lib/doodles-render'
+import {
+  canRenderWithDoodles,
+  importMermaidFlowchartWithAxonizeLayout,
+  renderMermaidWithDoodles,
+} from '../../../src/renderer/lib/doodles-render'
+import { defaultLightTheme, layoutFor, routeEdges } from '@benkalegin/doodles-api'
 
 describe('doodles render', () => {
   it('claims sequence diagrams for the doodles path', () => {
@@ -247,6 +252,41 @@ xychart-beta
 
     expect((svg.match(/<rect\b/g) ?? []).length).toBe(3)
     expect((svg.match(/<path\b/g) ?? []).length).toBe(1)
+  })
+
+  it('keeps quoted bracket labels inside flowchart subgraphs', async () => {
+    const source = `
+flowchart LR
+  subgraph SnackBox["Snack cache: pantry/{snack}/v{batch}/"]
+    direction TB
+    waffle["waffle_manifest.json<br/>+ syrup[],<br/>butter_uri"]
+    pancake["pancake_report.json<br/>+ toppings[] with sprinkles[],<br/>(fluff score)"]
+    toast["toast_index.json<br/>+ crumb_slots,<br/>jam_count"]
+  end
+
+  waffle --> pancake --> toast
+`.trim()
+
+    const diagram = await importMermaidFlowchartWithAxonizeLayout(source)
+    const layout = layoutFor(diagram as never, {
+      routes: routeEdges(diagram as never, defaultLightTheme),
+    })
+
+    layout
+      .cluster('Snack cache: pantry/{snack}/v{batch}/')
+      .contains('waffle_manifest.json', 'pancake_report.json', 'toast_index.json')
+    layout
+      .edge({ fromText: 'waffle_manifest.json', toText: 'pancake_report.json' })
+      .polylineLengthAtMost(4)
+    layout
+      .edge({ fromText: 'pancake_report.json', toText: 'toast_index.json' })
+      .polylineLengthAtMost(4)
+    layout.edges().noNodeIntersection()
+
+    const svg = await renderMermaidWithDoodles(source)
+
+    expect(svg).toContain('syrup[]')
+    expect(svg).toContain('toppings[] with sprinkles[]')
   })
 
   it('renders class diagram members in doodles mode', async () => {
