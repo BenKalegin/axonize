@@ -35,13 +35,17 @@ interface SectionBlockProps {
   onSave: (sectionId: string, newMarkdown: string) => void
   onLinkClick: (e: React.MouseEvent) => void
   fileDir?: string
+  vaultPath?: string | null
+  filePath?: string | null
 }
 
 export const SectionBlock = React.memo(function SectionBlock({
   section,
   onSave,
   onLinkClick,
-  fileDir
+  fileDir,
+  vaultPath,
+  filePath
 }: SectionBlockProps) {
   const [editing, setEditing] = useState(false)
   const [draft, setDraft] = useState('')
@@ -263,7 +267,10 @@ export const SectionBlock = React.memo(function SectionBlock({
     setLlmLoading(true)
     setLlmError('')
     try {
-      const result = await window.axonize.llm.rewriteSection(draft, llmInstruction.trim())
+      const result = await window.axonize.llm.rewriteSection(draft, llmInstruction.trim(), {
+        vaultPath,
+        filePath
+      })
       setDraft(result)
       setLlmInstruction('')
       setLlmOpen(false)
@@ -272,7 +279,7 @@ export const SectionBlock = React.memo(function SectionBlock({
     } finally {
       setLlmLoading(false)
     }
-  }, [draft, llmInstruction, llmLoading])
+  }, [draft, filePath, llmInstruction, llmLoading, vaultPath])
 
   const handleLlmKeyDown = useCallback(
     (e: React.KeyboardEvent) => {

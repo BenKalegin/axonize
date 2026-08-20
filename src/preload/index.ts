@@ -97,6 +97,11 @@ export interface AgentStartPayload {
   systemPrompt?: string
 }
 
+export interface RewriteSectionContext {
+  vaultPath?: string | null
+  filePath?: string | null
+}
+
 export type AgentEventBody =
   | { type: typeof AgentEventKind.Session; claudeSessionId: string }
   | { type: typeof AgentEventKind.TextDelta; text: string }
@@ -186,7 +191,7 @@ export interface AxonizeAPI {
     onErrorsClear: (callback: () => void) => () => void
   }
   llm: {
-    rewriteSection: (section: string, instruction: string) => Promise<string>
+    rewriteSection: (section: string, instruction: string, context?: RewriteSectionContext) => Promise<string>
     summarizeSession: (payload: { prevTitle: string; userPrompt: string; assistantPreview: string }) => Promise<string>
   }
   prose: {
@@ -342,8 +347,8 @@ const api: AxonizeAPI = {
     }
   },
   llm: {
-    rewriteSection: (section: string, instruction: string) =>
-      ipcRenderer.invoke('llm:rewriteSection', { section, instruction }),
+    rewriteSection: (section: string, instruction: string, context?: RewriteSectionContext) =>
+      ipcRenderer.invoke('llm:rewriteSection', { section, instruction, ...context }),
     summarizeSession: (payload: { prevTitle: string; userPrompt: string; assistantPreview: string }) =>
       ipcRenderer.invoke('llm:summarizeSession', payload)
   },

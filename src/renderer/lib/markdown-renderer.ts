@@ -108,8 +108,30 @@ function markFileReferenceCode(html: string): string {
   )
 }
 
+function normalizeLatexInlineCode(text: string): string {
+  return text
+    .replace(/\\\\(?=(text|mathrm|mathit|mathcal|mathbf|qquad|quad|mid|prod|sum|max|min|forall|in|phi|hat)\b)/g, '\\')
+    .replace(/\\_/g, '_')
+    .replace(/(\\(?:prod|sum))\*\{/g, '$1_{')
+}
+
+function looksLikeLatexInlineCode(text: string): boolean {
+  if (looksLikeVaultFileReference(text)) return false
+  return /\\(?:text|mathrm|mathit|mathcal|mathbf|qquad|quad|mid|prod|sum|max|min|forall|in|phi|hat)\b/.test(text) ||
+    /(?:\^|_)\{[^}]+\}/.test(text)
+}
+
+function recoverLatexInlineCode(markdown: string): string {
+  return markdown.replace(/`([^`\n]+)`/g, (match, text: string) => {
+    if (!looksLikeLatexInlineCode(text)) return match
+    const latex = normalizeLatexInlineCode(text)
+    const delimiter = latex.length > 80 || /\\qquad|;/.test(latex) ? '$$' : '$'
+    return delimiter === '$$' ? `\n\n$$\n${latex}\n$$\n\n` : `$${latex}$`
+  })
+}
+
 export async function renderMarkdown(markdown: string, fileDir?: string): Promise<string> {
-  const result = await processor.process(markdown)
+  const result = await processor.process(recoverLatexInlineCode(markdown))
   const html = markFileReferenceCode(String(result))
   return fileDir ? resolveImageSrcs(html, fileDir) : html
 }

@@ -39,7 +39,8 @@ interface KiroSessionGroup {
 
 const DEFAULT_CLI_PATH = 'kiro-cli'
 const READ_ONLY_TOOLS = ['read', 'glob', 'grep', `@${RAG_MCP_SERVER_NAME}`]
-const WRITE_TOOLS = ['write', 'shell', 'code']
+const WRITE_TOOLS = ['write', 'shell']
+const READ_ONLY_TRUSTED_TOOL_IDS = ['fs_read', `@${RAG_MCP_SERVER_NAME}`]
 
 export class KiroCliAgent implements Agent {
   constructor(private readonly deps: KiroCliAgentDeps) {}
@@ -144,7 +145,7 @@ function buildCliArgs(params: CliArgsParams): string[] {
     '--require-mcp-startup',
     '--agent',
     params.agentName,
-    `--trust-tools=${allowedKiroTools(params.allowEdits).join(',')}`
+    ...buildKiroTrustArgs(params.allowEdits)
   ]
 
   const model = params.model.trim()
@@ -188,6 +189,11 @@ async function writeKiroAgentConfig(
 
 function allowedKiroTools(allowEdits: boolean): string[] {
   return allowEdits ? [...READ_ONLY_TOOLS, ...WRITE_TOOLS] : READ_ONLY_TOOLS
+}
+
+function buildKiroTrustArgs(allowEdits: boolean): string[] {
+  if (allowEdits) return ['--trust-all-tools']
+  return [`--trust-tools=${READ_ONLY_TRUSTED_TOOL_IDS.join(',')}`]
 }
 
 function kiroToolSettings(allowEdits: boolean): Record<string, unknown> {
@@ -344,8 +350,9 @@ function cleanKiroOutputChunk(chunk: string, hasEmittedText: boolean): string {
 function defaultKiroSystemPrompt(): string {
   const guidance = [
     'You are Axonize Agent, an expert assistant working inside a markdown documentation vault.',
-    'The current working directory is the vault root. Use read, glob, and grep to explore files, and the axonize-rag MCP server for semantic questions across the whole vault. When edit permission is enabled, code may also be available for code-intelligence workflows.',
+    'The current working directory is the vault root. Use read, glob, and grep to explore files, and the axonize-rag MCP server for semantic questions across the whole vault.',
     'When asked to edit docs, use write or shell only if the user has explicitly granted edit permission for this session. If edit tools are unavailable, stop and ask the user to enable edits.',
+    'For mathematical notation in markdown, use $...$ for inline LaTeX and $$...$$ for display equations. Never wrap equations in backticks; backticks are for literal code. When repairing converted papers, normalize artifacts such as escaped math underscores (d\\_i -> d_i) and command-subscript asterisks (\\prod*{...} -> \\prod_{...}) inside math.',
     'Be concise and prefer the smallest change that satisfies the request. When referring to specific vault files, cite them as markdown links with the vault-relative path as both text and target, e.g. [eval/plan.md](eval/plan.md), so they are clickable.'
   ].join(' ')
   return `${guidance}\n\n${DIAGRAM_BLOCKS_INSTRUCTION}\n\n${HTML_ISLAND_INSTRUCTION}`

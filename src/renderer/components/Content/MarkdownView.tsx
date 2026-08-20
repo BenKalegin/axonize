@@ -374,19 +374,43 @@ export const MarkdownView = React.memo(function MarkdownView() {
         {prevSlide && (
           <div className="presentation-adjacent presentation-adjacent--prev" style={{ opacity: ADJACENT_OPACITY }}>
             {prevSlide.map((s) => (
-              <SectionBlock key={s.id} section={s} onSave={handleSave} onLinkClick={handleLinkClick} fileDir={fileDir} />
+              <SectionBlock
+                key={s.id}
+                section={s}
+                onSave={handleSave}
+                onLinkClick={handleLinkClick}
+                fileDir={fileDir}
+                vaultPath={vaultPath}
+                filePath={selectedFile}
+              />
             ))}
           </div>
         )}
         <div className="presentation-current">
           {currentSlide.map((s) => (
-            <SectionBlock key={s.id} section={s} onSave={handleSave} onLinkClick={handleLinkClick} fileDir={fileDir} />
+            <SectionBlock
+              key={s.id}
+              section={s}
+              onSave={handleSave}
+              onLinkClick={handleLinkClick}
+              fileDir={fileDir}
+              vaultPath={vaultPath}
+              filePath={selectedFile}
+            />
           ))}
         </div>
         {nextSlide && (
           <div className="presentation-adjacent presentation-adjacent--next" style={{ opacity: ADJACENT_OPACITY }}>
             {nextSlide.map((s) => (
-              <SectionBlock key={s.id} section={s} onSave={handleSave} onLinkClick={handleLinkClick} fileDir={fileDir} />
+              <SectionBlock
+                key={s.id}
+                section={s}
+                onSave={handleSave}
+                onLinkClick={handleLinkClick}
+                fileDir={fileDir}
+                vaultPath={vaultPath}
+                filePath={selectedFile}
+              />
             ))}
           </div>
         )}
@@ -414,6 +438,8 @@ export const MarkdownView = React.memo(function MarkdownView() {
             onSave={handleSave}
             onLinkClick={handleLinkClick}
             fileDir={fileDir}
+            vaultPath={vaultPath}
+            filePath={selectedFile}
           />
           <SectionInsert
             afterLine={section.endLine}
