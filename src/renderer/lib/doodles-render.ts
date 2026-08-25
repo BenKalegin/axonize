@@ -10,7 +10,8 @@ import {
   renderSequenceSvg,
   renderSvg,
   routeEdges,
-  insetBounds,
+  inflate,
+  PortAlignment,
   segmentEntersRect,
   type EdgeRoute,
   type ThemeTokens,
@@ -87,7 +88,7 @@ const EDGE_LABEL_VERTICAL_OFFSET = 4
 const WHITE_SPACE_RE = /\s+/g
 const MERMAID_QUOTED_LABEL_RIGHT_BRACKET_PLACEHOLDER = '\uE000'
 const AXONIZE_HEXAGON_SHAPE = 'hexagon'
-const ROUTE_OBSTACLE_INSET_PX = 0.5
+const ROUTE_OBSTACLE_CLEARANCE_PX = 8
 const PORT_RATIO_STEP = 5
 
 type DiagramDisplay = {
@@ -131,7 +132,7 @@ type DiagramNodeRecord = {
 }
 
 type DiagramPortRecord = {
-  alignment?: unknown
+  alignment?: PortAlignment
   edgePosRatio?: number
 }
 
@@ -316,11 +317,59 @@ function avoidNodeCrossingRoutes(diagram: StructureDiagram): void {
       }
     }
 
+    if (!resolved && targetPort.alignment !== undefined) {
+      sourcePort.edgePosRatio = originalSourceRatio
+      targetPort.edgePosRatio = originalTargetRatio
+      const originalTargetAlignment = targetPort.alignment
+      const alternateAlignments = perpendicularPortAlignments(originalTargetAlignment)
+      let best: { alignment: PortAlignment; ratio: number; length: number } | undefined
+
+      for (const alignment of alternateAlignments) {
+        targetPort.alignment = alignment
+        const centeredRatios = [...portRatios].sort((left, right) =>
+          Math.abs(left - 50) - Math.abs(right - 50)
+        )
+        for (const ratio of centeredRatios) {
+          targetPort.edgePosRatio = ratio
+          const route = routeEdges(diagram as never, defaultLightTheme)
+            .find((item) => item.edgeId === initialRoute.edgeId)
+          if (!route || routeNodeIntersectionCount(route, diagram) > 0) continue
+          const length = routePolylineLength(route)
+          if (!best || length < best.length) best = { alignment, ratio, length }
+        }
+      }
+
+      if (best) {
+        targetPort.alignment = best.alignment
+        targetPort.edgePosRatio = best.ratio
+        resolved = true
+      } else {
+        targetPort.alignment = originalTargetAlignment
+      }
+    }
+
     if (!resolved) {
       sourcePort.edgePosRatio = originalSourceRatio
       targetPort.edgePosRatio = originalTargetRatio
     }
   }
+}
+
+function perpendicularPortAlignments(alignment: PortAlignment): PortAlignment[] {
+  if (alignment === PortAlignment.Top || alignment === PortAlignment.Bottom) {
+    return [PortAlignment.Left, PortAlignment.Right]
+  }
+  return [PortAlignment.Top, PortAlignment.Bottom]
+}
+
+function routePolylineLength(route: EdgeRoute): number {
+  let length = 0
+  for (let index = 1; index < route.polyline.length; index++) {
+    const previous = route.polyline[index - 1]!
+    const current = route.polyline[index]!
+    length += Math.abs(current.x - previous.x) + Math.abs(current.y - previous.y)
+  }
+  return length
 }
 
 function routeNodeIntersectionCount(route: EdgeRoute, diagram: StructureDiagram): number {
@@ -330,7 +379,7 @@ function routeNodeIntersectionCount(route: EdgeRoute, diagram: StructureDiagram)
     if (element.id === route.sourceNodeId || element.id === route.targetNodeId) continue
     const bounds = diagram.nodes[element.id]?.bounds
     if (!isValidBounds(bounds)) continue
-    const obstacle = insetBounds(bounds, ROUTE_OBSTACLE_INSET_PX)
+    const obstacle = inflate(bounds, ROUTE_OBSTACLE_CLEARANCE_PX, ROUTE_OBSTACLE_CLEARANCE_PX)
     for (let index = 1; index < route.polyline.length; index++) {
       if (segmentEntersRect(route.polyline[index - 1]!, route.polyline[index]!, obstacle)) {
         count++

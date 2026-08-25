@@ -4,7 +4,7 @@ import {
   importMermaidFlowchartWithAxonizeLayout,
   renderMermaidWithDoodles,
 } from '../../../src/renderer/lib/doodles-render'
-import { defaultLightTheme, layoutFor, routeEdges } from '@benkalegin/doodles-api'
+import { defaultLightTheme, layoutFor, PortAlignment, routeEdges } from '@benkalegin/doodles-api'
 
 describe('doodles render', () => {
   it('claims sequence diagrams for the doodles path', () => {
@@ -321,6 +321,41 @@ flowchart TD
     expect(svg).toMatch(/<g data-node-id="M"><polygon\b/)
     expect(svg).not.toContain('>KB<')
     expect(svg).not.toContain('>M<')
+  })
+
+  it('keeps a long ontology branch clear of an aligned intermediate node border', async () => {
+    const source = `
+flowchart TD
+    D["Support document<br/>data:text"]
+    LLM{{"LLM<br/>model:stat"}}
+    LINF(["LLM inference<br/>extract candidate relations"])
+    C["Candidate JSON<br/>data"]
+    VAL(["Schema + ontology validation<br/>transform"])
+    S["Typed symbols<br/>REQUIRES / BLOCKS / Status"]
+    KB{{"ERP ontology + rules<br/>model:sem"}}
+    R(["Symbolic inference"])
+    K["Derived symbolic knowledge"]
+
+    D --> LINF
+    LLM --> LINF
+    LINF --> C
+    C --> VAL
+    KB --> VAL
+    VAL --> S
+    S --> R
+    KB --> R
+    R --> K
+`.trim()
+
+    const diagram = await importMermaidFlowchartWithAxonizeLayout(source)
+    const routes = routeEdges(diagram as never, defaultLightTheme)
+    const layout = layoutFor(diagram as never, { routes })
+
+    layout.edges().noNodeIntersection()
+    layout.edge({
+      fromText: 'ERP ontology + rules',
+      toText: 'Schema + ontology validation',
+    }).hasTargetAlignment(PortAlignment.Right)
   })
 
   it('renders class diagram members in doodles mode', async () => {
