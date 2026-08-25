@@ -10,6 +10,8 @@ import {
   renderSequenceSvg,
   renderSvg,
   routeEdges,
+  insetBounds,
+  segmentEntersRect,
   type EdgeRoute,
   type ThemeTokens,
   defaultLightTheme,
@@ -84,6 +86,9 @@ const EDGE_LABEL_VERTICAL_OFFSET = 4
 
 const WHITE_SPACE_RE = /\s+/g
 const MERMAID_QUOTED_LABEL_RIGHT_BRACKET_PLACEHOLDER = '\uE000'
+const AXONIZE_HEXAGON_SHAPE = 'hexagon'
+const ROUTE_OBSTACLE_INSET_PX = 0.5
+const PORT_RATIO_STEP = 5
 
 type DiagramDisplay = {
   width: number
@@ -112,9 +117,13 @@ type DiagramElement = {
   id: string
   type: ElementType
   text?: string
+  sourceId?: string
   classAnnotation?: string
   classMembers?: DiagramClassMember[]
   colorSchema?: DiagramColorSchema
+  axonizeFlowchartShape?: typeof AXONIZE_HEXAGON_SHAPE
+  port1?: string
+  port2?: string
 }
 
 type DiagramNodeRecord = {
@@ -167,7 +176,8 @@ export async function renderMermaidWithDoodles(
 
 async function renderFlowchartWithDoodles(source: string, theme: ThemeTokens): Promise<string> {
   const diagram = await importMermaidFlowchartWithAxonizeLayout(source)
-  return renderSvg(diagram as never, { theme })
+  const svg = renderSvg(diagram as never, { theme })
+  return patchUnsupportedFlowchartShapes(svg, diagram as StructureDiagram)
 }
 
 export async function importMermaidFlowchartWithAxonizeLayout(source: string): Promise<Diagram> {
@@ -176,10 +186,198 @@ export async function importMermaidFlowchartWithAxonizeLayout(source: string): P
     type: ElementType.FlowchartDiagram,
     display: defaultDiagramDisplay,
   }
-  const protectedSource = protectQuotedLabelClosingBrackets(source)
+  const { source: compatibleSource, hexagonNodeIds } = replaceHexagonNodes(source)
+  const protectedSource = protectQuotedLabelClosingBrackets(compatibleSource)
   const diagram = (await importMermaidFlowchartWithLayout(base, protectedSource)) as StructureDiagram
   restoreQuotedLabelClosingBrackets(diagram)
+  markHexagonNodes(diagram, hexagonNodeIds)
+  avoidNodeCrossingRoutes(diagram)
   return diagram
+}
+
+/**
+ * Doodles currently understands the common Mermaid flowchart wrappers but not
+ * the hexagon form (`NODE{{label}}`). Feed the importer the equivalent process
+ * wrapper so it retains the label and graph topology, while recording the
+ * source ids whose outlines must be restored after SVG rendering.
+ */
+function replaceHexagonNodes(source: string): { source: string; hexagonNodeIds: Set<string> } {
+  const hexagonNodeIds = new Set<string>()
+  const lines = source.split('\n').map((line) => {
+    if (line.trimStart().startsWith('%%')) return line
+    return replaceHexagonNodesInLine(line, hexagonNodeIds)
+  })
+  return { source: lines.join('\n'), hexagonNodeIds }
+}
+
+function replaceHexagonNodesInLine(line: string, ids: Set<string>): string {
+  const startRe = /(^|[^\w-])([\w-]+)(\s*)\{\{/g
+  let result = ''
+  let cursor = 0
+  let match: RegExpExecArray | null
+
+  while ((match = startRe.exec(line)) !== null) {
+    const contentStart = startRe.lastIndex
+    const contentEnd = findHexagonClose(line, contentStart)
+    if (contentEnd < 0) break
+
+    const prefixLength = match[1]!.length
+    const nodeStart = match.index + prefixLength
+    const id = match[2]!
+    const spacing = match[3]!
+    const label = line.slice(contentStart, contentEnd)
+
+    result += line.slice(cursor, nodeStart)
+    result += `${id}${spacing}[${label}]`
+    ids.add(id)
+    cursor = contentEnd + 2
+    startRe.lastIndex = cursor
+  }
+
+  return cursor === 0 ? line : result + line.slice(cursor)
+}
+
+function findHexagonClose(line: string, start: number): number {
+  let quote: '"' | '`' | undefined
+  let escaped = false
+  for (let index = start; index < line.length - 1; index++) {
+    const char = line[index]!
+    if (quote) {
+      if (escaped) {
+        escaped = false
+      } else if (char === '\\') {
+        escaped = true
+      } else if (char === quote) {
+        quote = undefined
+      }
+      continue
+    }
+    if (char === '"' || char === '`') {
+      quote = char
+      continue
+    }
+    if (char === '}' && line[index + 1] === '}') return index
+  }
+  return -1
+}
+
+function markHexagonNodes(diagram: StructureDiagram, sourceIds: Set<string>): void {
+  if (sourceIds.size === 0) return
+  for (const element of Object.values(diagram.elements)) {
+    if (element.type !== ElementType.ClassNode || !element.sourceId) continue
+    if (sourceIds.has(element.sourceId)) {
+      element.axonizeFlowchartShape = AXONIZE_HEXAGON_SHAPE
+    }
+  }
+}
+
+/**
+ * The upstream TB edge router distributes multiple incoming ports evenly, but
+ * does not obstacle-check vertical routes. A distributed target leg can then
+ * pass through a node in the preceding row. Move only the affected edge's
+ * attach point to the nearest clear position; clean routes remain untouched.
+ */
+function avoidNodeCrossingRoutes(diagram: StructureDiagram): void {
+  const portRatios = Array.from(
+    { length: Math.floor(100 / PORT_RATIO_STEP) + 1 },
+    (_, index) => index * PORT_RATIO_STEP
+  )
+  const initialRoutes = routeEdges(diagram as never, defaultLightTheme)
+
+  for (const initialRoute of initialRoutes) {
+    if (routeNodeIntersectionCount(initialRoute, diagram) === 0) continue
+    const link = diagram.elements[initialRoute.edgeId]
+    if (!link?.port1 || !link.port2 || !diagram.ports) continue
+    const sourcePort = diagram.ports[link.port1]
+    const targetPort = diagram.ports[link.port2]
+    if (!sourcePort || !targetPort) continue
+
+    const originalSourceRatio = sourcePort.edgePosRatio ?? 50
+    const originalTargetRatio = targetPort.edgePosRatio ?? 50
+    const candidates = portRatios.flatMap((sourceRatio) =>
+      portRatios.map((targetRatio) => ({ sourceRatio, targetRatio }))
+    ).sort((left, right) => {
+      const leftDelta = Math.abs(left.sourceRatio - originalSourceRatio) +
+        Math.abs(left.targetRatio - originalTargetRatio)
+      const rightDelta = Math.abs(right.sourceRatio - originalSourceRatio) +
+        Math.abs(right.targetRatio - originalTargetRatio)
+      return leftDelta - rightDelta
+    })
+
+    let resolved = false
+    for (const candidate of candidates) {
+      sourcePort.edgePosRatio = candidate.sourceRatio
+      targetPort.edgePosRatio = candidate.targetRatio
+      const route = routeEdges(diagram as never, defaultLightTheme)
+        .find((item) => item.edgeId === initialRoute.edgeId)
+      if (route && routeNodeIntersectionCount(route, diagram) === 0) {
+        resolved = true
+        break
+      }
+    }
+
+    if (!resolved) {
+      sourcePort.edgePosRatio = originalSourceRatio
+      targetPort.edgePosRatio = originalTargetRatio
+    }
+  }
+}
+
+function routeNodeIntersectionCount(route: EdgeRoute, diagram: StructureDiagram): number {
+  let count = 0
+  for (const element of Object.values(diagram.elements)) {
+    if (element.type !== ElementType.ClassNode) continue
+    if (element.id === route.sourceNodeId || element.id === route.targetNodeId) continue
+    const bounds = diagram.nodes[element.id]?.bounds
+    if (!isValidBounds(bounds)) continue
+    const obstacle = insetBounds(bounds, ROUTE_OBSTACLE_INSET_PX)
+    for (let index = 1; index < route.polyline.length; index++) {
+      if (segmentEntersRect(route.polyline[index - 1]!, route.polyline[index]!, obstacle)) {
+        count++
+        break
+      }
+    }
+  }
+  return count
+}
+
+function patchUnsupportedFlowchartShapes(svg: string, diagram: StructureDiagram): string {
+  let result = svg
+  for (const element of Object.values(diagram.elements)) {
+    if (element.axonizeFlowchartShape !== AXONIZE_HEXAGON_SHAPE || !element.sourceId) continue
+    const bounds = diagram.nodes[element.id]?.bounds
+    if (!isValidBounds(bounds)) continue
+    result = replaceNodeRectWithHexagon(result, element.sourceId, bounds)
+  }
+  return result
+}
+
+function replaceNodeRectWithHexagon(svg: string, sourceId: string, bounds: DiagramBounds): string {
+  const groupStart = `<g data-node-id="${escapeXml(sourceId)}">`
+  const groupIndex = svg.indexOf(groupStart)
+  if (groupIndex < 0) return svg
+  const groupEnd = svg.indexOf('</g>', groupIndex + groupStart.length)
+  if (groupEnd < 0) return svg
+  const rectStart = svg.indexOf('<rect ', groupIndex + groupStart.length)
+  if (rectStart < 0 || rectStart >= groupEnd) return svg
+  const rectEnd = svg.indexOf('/>', rectStart)
+  if (rectEnd < 0 || rectEnd >= groupEnd) return svg
+
+  const rect = svg.slice(rectStart, rectEnd + 2)
+  const paint = Array.from(rect.matchAll(/\s(?:fill|fill-opacity|stroke|stroke-width)="[^"]*"/g))
+    .map((match) => match[0])
+    .join('')
+  const inset = Math.min(bounds.width * 0.12, bounds.height * 0.25)
+  const points = [
+    `${bounds.x + inset},${bounds.y}`,
+    `${bounds.x + bounds.width - inset},${bounds.y}`,
+    `${bounds.x + bounds.width},${bounds.y + bounds.height / 2}`,
+    `${bounds.x + bounds.width - inset},${bounds.y + bounds.height}`,
+    `${bounds.x + inset},${bounds.y + bounds.height}`,
+    `${bounds.x},${bounds.y + bounds.height / 2}`,
+  ].join(' ')
+  const polygon = `<polygon points="${points}"${paint} />`
+  return svg.slice(0, rectStart) + polygon + svg.slice(rectEnd + 2)
 }
 
 function protectQuotedLabelClosingBrackets(source: string): string {

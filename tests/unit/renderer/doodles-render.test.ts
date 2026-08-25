@@ -289,6 +289,40 @@ flowchart LR
     expect(svg).toContain('toppings[] with sprinkles[]')
   })
 
+  it('preserves Mermaid hexagon nodes and routes around sibling nodes', async () => {
+    const source = `
+flowchart TD
+    EX["ERP training examples<br/>data"]
+
+    KB{{"ERP ontology / rules<br/>model:sem"}}
+    SI(["Symbolic inference"])
+    CONS["Derived constraints<br/>symbols"]
+
+    TRAIN(["Train / fine-tune<br/>task loss + semantic loss"])
+    M{{"ERP classifier / LLM adapter<br/>model:stat"}}
+
+    EX --> TRAIN
+    KB --> SI
+    SI --> CONS
+    CONS --> TRAIN
+    TRAIN --> M
+`.trim()
+
+    const diagram = await importMermaidFlowchartWithAxonizeLayout(source)
+    const routes = routeEdges(diagram as never, defaultLightTheme)
+    const layout = layoutFor(diagram as never, { routes })
+
+    layout.edges().noNodeIntersection()
+
+    const svg = await renderMermaidWithDoodles(source)
+    expect(svg).toContain('ERP ontology / rules')
+    expect(svg).toContain('ERP classifier / LLM adapter')
+    expect(svg).toMatch(/<g data-node-id="KB"><polygon\b/)
+    expect(svg).toMatch(/<g data-node-id="M"><polygon\b/)
+    expect(svg).not.toContain('>KB<')
+    expect(svg).not.toContain('>M<')
+  })
+
   it('renders class diagram members in doodles mode', async () => {
     const source = `
 classDiagram
