@@ -206,6 +206,7 @@ export async function importMermaidFlowchartWithAxonizeLayout(source: string): P
   repairFlowchartGeometry(diagram, parseMermaidLayoutHints(protectedSource).direction)
   avoidNodeCrossingRoutes(diagram)
   avoidSameSourceRouteCrossings(diagram)
+  avoidSameTargetRouteCrossings(diagram)
   expandDisplayToFitNodes(diagram)
   return diagram
 }
@@ -699,6 +700,71 @@ function avoidSameSourceRouteCrossings(diagram: StructureDiagram): void {
     for (const snapshot of snapshots) {
       snapshot.port.alignment = snapshot.alignment
       snapshot.port.edgePosRatio = snapshot.ratio
+    }
+  }
+}
+
+/**
+ * Port distribution can assign two links entering the same face in the
+ * opposite order from their source nodes. The resulting doglegs cross just
+ * before the target. Sort those target ports along the face by source position
+ * and keep the change only when it makes the whole diagram strictly better.
+ */
+function avoidSameTargetRouteCrossings(diagram: StructureDiagram): void {
+  if (!diagram.ports) return
+  const targetIds = new Set(
+    routeEdges(diagram as never, defaultLightTheme).map((route) => route.targetNodeId)
+  )
+
+  for (const targetId of targetIds) {
+    const currentRoutes = routeEdges(diagram as never, defaultLightTheme)
+    const targetRoutes = currentRoutes.filter((route) => route.targetNodeId === targetId)
+    if (targetRoutes.length < 2) continue
+    const currentCrossings = routeCrossingCount(currentRoutes)
+    const groups = new Map<PortAlignment, EdgeRoute[]>()
+
+    for (const route of targetRoutes) {
+      const link = diagram.elements[route.edgeId]
+      if (!link?.port2) continue
+      const targetPort = diagram.ports[link.port2]
+      if (!targetPort || targetPort.alignment === undefined) continue
+      const group = groups.get(targetPort.alignment) ?? []
+      group.push(route)
+      groups.set(targetPort.alignment, group)
+    }
+
+    for (const [alignment, routes] of groups) {
+      if (routes.length !== 2) continue
+      const verticalFace = alignment === PortAlignment.Left || alignment === PortAlignment.Right
+      routes.sort((left, right) => {
+        const leftStart = left.polyline[0]!
+        const rightStart = right.polyline[0]!
+        return verticalFace ? leftStart.y - rightStart.y : leftStart.x - rightStart.x
+      })
+      const snapshots: Array<{ port: DiagramPortRecord; ratio: number | undefined }> = []
+      routes.forEach((route, index) => {
+        const link = diagram.elements[route.edgeId]!
+        const targetPort = diagram.ports![link.port2!]!
+        snapshots.push({ port: targetPort, ratio: targetPort.edgePosRatio })
+        targetPort.edgePosRatio = index === 0 ? 25 : 75
+      })
+
+      const candidateRoutes = routeEdges(diagram as never, defaultLightTheme)
+      const edgeIds = new Set(routes.map((route) => route.edgeId))
+      const candidatePair = candidateRoutes.filter((route) => edgeIds.has(route.edgeId))
+      const hasClearance = candidatePair.every((route) =>
+        routeNodeIntersectionCount(route, diagram) === 0
+      )
+      if (
+        candidatePair.length === 2 &&
+        hasClearance &&
+        routeCrossingCount(candidateRoutes) <= currentCrossings &&
+        !routesOverlap(candidatePair[0]!, candidatePair[1]!)
+      ) continue
+
+      for (const snapshot of snapshots) {
+        snapshot.port.edgePosRatio = snapshot.ratio
+      }
     }
   }
 }

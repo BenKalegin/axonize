@@ -423,8 +423,16 @@ graph LR
       .hasTargetAlignment(PortAlignment.Bottom)
 
     const structure = diagram as typeof diagram & {
-      elements: Record<string, { id: string; type: ElementType }>
+      elements: Record<string, {
+        id: string
+        type: ElementType
+        sourceId?: string
+        nodeId?: string
+        port1?: string
+        port2?: string
+      }>
       nodes: Record<string, { bounds?: { x: number; y: number; width: number; height: number } }>
+      ports: Record<string, { edgePosRatio?: number }>
     }
     const nodeBounds = Object.values(structure.elements)
       .filter((element) => element.type === ElementType.ClassNode)
@@ -441,6 +449,19 @@ graph LR
         expect(overlaps, `label "${route.label}" overlaps a node`).toBe(false)
       }
     }
+
+    const targetRatio = (sourceId: string, targetId: string): number | undefined => {
+      const link = Object.values(structure.elements).find((element) => {
+        if (!element.port1 || !element.port2) return false
+        const sourcePort = structure.elements[element.port1]
+        const targetPort = structure.elements[element.port2]
+        return structure.elements[sourcePort?.nodeId ?? '']?.sourceId === sourceId &&
+          structure.elements[targetPort?.nodeId ?? '']?.sourceId === targetId
+      })
+      return link?.port2 ? structure.ports[link.port2]?.edgePosRatio : undefined
+    }
+    expect(targetRatio('DB', 'MR')).toBe(25)
+    expect(targetRatio('SS', 'MR')).toBe(75)
 
     const svg = await renderMermaidWithDoodles(source)
     expect(svg).toContain('POST /api/items/search')
