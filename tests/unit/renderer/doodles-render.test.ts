@@ -352,10 +352,34 @@ flowchart TD
     const layout = layoutFor(diagram as never, { routes })
 
     layout.edges().noNodeIntersection()
+    layout.edges().noSameSourceCrossings()
     layout.edge({
       fromText: 'ERP ontology + rules',
       toText: 'Schema + ontology validation',
     }).hasTargetAlignment(PortAlignment.Right)
+    layout.edge({
+      fromText: 'ERP ontology + rules',
+      toText: 'Symbolic inference',
+    }).hasTargetAlignment(PortAlignment.Right)
+
+    const structure = diagram as typeof diagram & {
+      elements: Record<string, {
+        sourceId?: string
+        nodeId?: string
+        port1?: string
+        port2?: string
+      }>
+      ports: Record<string, { edgePosRatio?: number }>
+    }
+    const validationLink = Object.values(structure.elements).find((element) => {
+      if (!element.port1 || !element.port2) return false
+      const sourcePort = structure.elements[element.port1]
+      const targetPort = structure.elements[element.port2]
+      return structure.elements[sourcePort?.nodeId ?? '']?.sourceId === 'KB' &&
+        structure.elements[targetPort?.nodeId ?? '']?.sourceId === 'VAL'
+    })
+    expect(validationLink?.port2).toBeDefined()
+    expect(structure.ports[validationLink!.port2!]?.edgePosRatio).toBe(50)
   })
 
   it('renders class diagram members in doodles mode', async () => {

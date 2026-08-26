@@ -193,6 +193,7 @@ export async function importMermaidFlowchartWithAxonizeLayout(source: string): P
   restoreQuotedLabelClosingBrackets(diagram)
   markHexagonNodes(diagram, hexagonNodeIds)
   avoidNodeCrossingRoutes(diagram)
+  avoidSameSourceRouteCrossings(diagram)
   return diagram
 }
 
@@ -322,7 +323,12 @@ function avoidNodeCrossingRoutes(diagram: StructureDiagram): void {
       targetPort.edgePosRatio = originalTargetRatio
       const originalTargetAlignment = targetPort.alignment
       const alternateAlignments = perpendicularPortAlignments(originalTargetAlignment)
-      let best: { alignment: PortAlignment; ratio: number; length: number } | undefined
+      let best: {
+        alignment: PortAlignment
+        ratio: number
+        centerDelta: number
+        length: number
+      } | undefined
 
       for (const alignment of alternateAlignments) {
         targetPort.alignment = alignment
@@ -335,7 +341,11 @@ function avoidNodeCrossingRoutes(diagram: StructureDiagram): void {
             .find((item) => item.edgeId === initialRoute.edgeId)
           if (!route || routeNodeIntersectionCount(route, diagram) > 0) continue
           const length = routePolylineLength(route)
-          if (!best || length < best.length) best = { alignment, ratio, length }
+          const centerDelta = Math.abs(ratio - 50)
+          if (!best || centerDelta < best.centerDelta ||
+            (centerDelta === best.centerDelta && length < best.length)) {
+            best = { alignment, ratio, centerDelta, length }
+          }
         }
       }
 
@@ -353,6 +363,107 @@ function avoidNodeCrossingRoutes(diagram: StructureDiagram): void {
       targetPort.edgePosRatio = originalTargetRatio
     }
   }
+}
+
+/**
+ * Obstacle repair can change one edge in a fan-out from top-entry to side-entry.
+ * If a sibling keeps its old top-entry dogleg, the two orthogonal polylines can
+ * weave across one another twice. Re-evaluate target faces for that source and
+ * keep a centered, obstacle-free candidate only when it reduces crossings.
+ */
+function avoidSameSourceRouteCrossings(diagram: StructureDiagram): void {
+  if (!diagram.ports) return
+  const routes = routeEdges(diagram as never, defaultLightTheme)
+  const sourceIds = new Set(routes.map((route) => route.sourceNodeId))
+
+  for (const sourceId of sourceIds) {
+    const sourceRoutes = routes.filter((route) => route.sourceNodeId === sourceId)
+    const currentCrossings = routeCrossingCount(sourceRoutes)
+    if (currentCrossings === 0) continue
+    const sourceBounds = diagram.nodes[sourceId]?.bounds
+    if (!isValidBounds(sourceBounds)) continue
+
+    const snapshots: Array<{
+      port: DiagramPortRecord
+      alignment: PortAlignment | undefined
+      ratio: number | undefined
+    }> = []
+    const sourceCenterX = sourceBounds.x + sourceBounds.width / 2
+
+    for (const route of sourceRoutes) {
+      const link = diagram.elements[route.edgeId]
+      if (!link?.port2) continue
+      const targetPort = diagram.ports[link.port2]
+      const targetBounds = diagram.nodes[route.targetNodeId]?.bounds
+      if (!targetPort || !isValidBounds(targetBounds)) continue
+      snapshots.push({
+        port: targetPort,
+        alignment: targetPort.alignment,
+        ratio: targetPort.edgePosRatio,
+      })
+      const targetCenterX = targetBounds.x + targetBounds.width / 2
+      targetPort.alignment = targetCenterX <= sourceCenterX
+        ? PortAlignment.Right
+        : PortAlignment.Left
+      targetPort.edgePosRatio = 50
+    }
+
+    const candidateRoutes = routeEdges(diagram as never, defaultLightTheme)
+    const candidateSourceRoutes = candidateRoutes
+      .filter((route) => route.sourceNodeId === sourceId)
+    const hasClearance = candidateSourceRoutes.every((route) =>
+      routeNodeIntersectionCount(route, diagram) === 0
+    )
+    if (hasClearance && routeCrossingCount(candidateSourceRoutes) < currentCrossings) continue
+
+    for (const snapshot of snapshots) {
+      snapshot.port.alignment = snapshot.alignment
+      snapshot.port.edgePosRatio = snapshot.ratio
+    }
+  }
+}
+
+function routeCrossingCount(routes: EdgeRoute[]): number {
+  let count = 0
+  for (let left = 0; left < routes.length; left++) {
+    for (let right = left + 1; right < routes.length; right++) {
+      if (routesCross(routes[left]!, routes[right]!)) count++
+    }
+  }
+  return count
+}
+
+function routesCross(left: EdgeRoute, right: EdgeRoute): boolean {
+  for (let leftIndex = 1; leftIndex < left.polyline.length; leftIndex++) {
+    for (let rightIndex = 1; rightIndex < right.polyline.length; rightIndex++) {
+      if (segmentsCross(
+        left.polyline[leftIndex - 1]!,
+        left.polyline[leftIndex]!,
+        right.polyline[rightIndex - 1]!,
+        right.polyline[rightIndex]!
+      )) return true
+    }
+  }
+  return false
+}
+
+function segmentsCross(
+  firstStart: EdgeRoute['polyline'][number],
+  firstEnd: EdgeRoute['polyline'][number],
+  secondStart: EdgeRoute['polyline'][number],
+  secondEnd: EdgeRoute['polyline'][number]
+): boolean {
+  const cross = (
+    origin: EdgeRoute['polyline'][number],
+    end: EdgeRoute['polyline'][number],
+    point: EdgeRoute['polyline'][number]
+  ) => (end.x - origin.x) * (point.y - origin.y) -
+    (end.y - origin.y) * (point.x - origin.x)
+  const firstSideA = cross(secondStart, secondEnd, firstStart)
+  const firstSideB = cross(secondStart, secondEnd, firstEnd)
+  const secondSideA = cross(firstStart, firstEnd, secondStart)
+  const secondSideB = cross(firstStart, firstEnd, secondEnd)
+  return firstSideA * firstSideB < 0 && secondSideA * secondSideB < 0
 }
 
 function perpendicularPortAlignments(alignment: PortAlignment): PortAlignment[] {
