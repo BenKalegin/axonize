@@ -463,6 +463,16 @@ graph LR
     expect(targetRatio('DB', 'MR')).toBe(25)
     expect(targetRatio('SS', 'MR')).toBe(75)
 
+    const incomingRoute = (sourceId: string, targetId: string) => routes.find((route) =>
+      structure.elements[route.sourceNodeId]?.sourceId === sourceId &&
+      structure.elements[route.targetNodeId]?.sourceId === targetId
+    )
+    const databaseRoute = incomingRoute('DB', 'MR')!
+    const searchRoute = incomingRoute('SS', 'MR')!
+    const databaseTargetY = databaseRoute.polyline[databaseRoute.polyline.length - 1]!.y
+    const searchSourceY = searchRoute.polyline[0]!.y
+    expect(Math.abs(searchSourceY - databaseTargetY)).toBeGreaterThanOrEqual(15)
+
     const svg = await renderMermaidWithDoodles(source)
     expect(svg).toContain('POST /api/items/search')
     expect(svg).toContain('results')
