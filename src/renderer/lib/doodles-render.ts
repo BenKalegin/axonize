@@ -17,6 +17,8 @@ import {
   type ThemeTokens,
   defaultLightTheme,
   defaultDarkTheme,
+  LayoutDirection,
+  parseMermaidLayoutHints,
 } from '@benkalegin/doodles-api'
 import { getActiveTheme } from '@/lib/theme-applier'
 import {
@@ -90,6 +92,10 @@ const MERMAID_QUOTED_LABEL_RIGHT_BRACKET_PLACEHOLDER = '\uE000'
 const AXONIZE_HEXAGON_SHAPE = 'hexagon'
 const ROUTE_OBSTACLE_CLEARANCE_PX = 8
 const PORT_RATIO_STEP = 5
+const SAME_RANK_TOLERANCE_PX = 1
+const OVERLAPPING_NODE_GAP_PX = 40
+const EDGE_LABEL_NODE_CLEARANCE_PX = 16
+const DISPLAY_BOUNDS_MARGIN_PX = 48
 
 type DiagramDisplay = {
   width: number
@@ -128,6 +134,11 @@ type DiagramElement = {
 }
 
 type DiagramNodeRecord = {
+  bounds: DiagramBounds
+}
+
+type DiagramNodeEntry = {
+  element: DiagramElement
   bounds: DiagramBounds
 }
 
@@ -192,8 +203,10 @@ export async function importMermaidFlowchartWithAxonizeLayout(source: string): P
   const diagram = (await importMermaidFlowchartWithLayout(base, protectedSource)) as StructureDiagram
   restoreQuotedLabelClosingBrackets(diagram)
   markHexagonNodes(diagram, hexagonNodeIds)
+  repairFlowchartGeometry(diagram, parseMermaidLayoutHints(protectedSource).direction)
   avoidNodeCrossingRoutes(diagram)
   avoidSameSourceRouteCrossings(diagram)
+  expandDisplayToFitNodes(diagram)
   return diagram
 }
 
@@ -274,6 +287,215 @@ function markHexagonNodes(diagram: StructureDiagram, sourceIds: Set<string>): vo
 }
 
 /**
+ * Filigree can collapse parallel branch nodes onto identical coordinates, and
+ * its fixed rank gap does not account for long edge labels. Repair those two
+ * geometry defects before ports are obstacle-checked and routed.
+ */
+function repairFlowchartGeometry(
+  diagram: StructureDiagram,
+  direction: string | undefined
+): void {
+  const resolvedDirection = direction ?? LayoutDirection.TopToBottom
+  separateOverlappingRankNodes(diagram, resolvedDirection)
+  makeRoomForForwardEdgeLabels(diagram, resolvedDirection)
+}
+
+function classNodeEntries(diagram: StructureDiagram): DiagramNodeEntry[] {
+  const entries: DiagramNodeEntry[] = []
+  for (const element of Object.values(diagram.elements)) {
+    if (element.type !== ElementType.ClassNode) continue
+    const bounds = diagram.nodes[element.id]?.bounds
+    if (!isValidBounds(bounds)) continue
+    entries.push({ element, bounds })
+  }
+  return entries
+}
+
+function isHorizontalDirection(direction: string): boolean {
+  return direction === LayoutDirection.LeftToRight ||
+    direction === LayoutDirection.RightToLeft
+}
+
+/**
+ * Nodes in one layout rank must occupy distinct slots on the cross axis. Keep
+ * the rank centered where Filigree placed it, but repack a colliding rank with
+ * a readable gutter between siblings.
+ */
+function separateOverlappingRankNodes(diagram: StructureDiagram, direction: string): void {
+  const horizontal = isHorizontalDirection(direction)
+  const entries = classNodeEntries(diagram)
+  const ranks: DiagramNodeEntry[][] = []
+
+  for (const entry of entries.sort((left, right) =>
+    primaryStart(left.bounds, horizontal) - primaryStart(right.bounds, horizontal)
+  )) {
+    const rank = ranks.find((candidate) =>
+      Math.abs(
+        primaryStart(candidate[0]!.bounds, horizontal) -
+        primaryStart(entry.bounds, horizontal)
+      ) <= SAME_RANK_TOLERANCE_PX
+    )
+    if (rank) rank.push(entry)
+    else ranks.push([entry])
+  }
+
+  for (const rank of ranks) {
+    if (rank.length < 2) continue
+    rank.sort((left, right) =>
+      crossStart(left.bounds, horizontal) - crossStart(right.bounds, horizontal)
+    )
+    const hasOverlap = rank.some((entry, index) => {
+      if (index === 0) return false
+      const previous = rank[index - 1]!
+      return crossStart(entry.bounds, horizontal) < crossEnd(previous.bounds, horizontal)
+    })
+    if (!hasOverlap) continue
+
+    const originalCenter = rank.reduce(
+      (sum, entry) => sum + crossCenter(entry.bounds, horizontal),
+      0
+    ) / rank.length
+    const packedSize = rank.reduce(
+      (sum, entry) => sum + crossSize(entry.bounds, horizontal),
+      OVERLAPPING_NODE_GAP_PX * (rank.length - 1)
+    )
+    let cursor = originalCenter - packedSize / 2
+    for (const entry of rank) {
+      setCrossStart(entry.bounds, horizontal, cursor)
+      cursor += crossSize(entry.bounds, horizontal) + OVERLAPPING_NODE_GAP_PX
+    }
+  }
+}
+
+/**
+ * A centered edge label needs a rank gap at least as wide/tall as its label
+ * box, plus breathing room on both sides. Shift the target rank and every rank
+ * after it as one unit so downstream topology stays intact. Compound diagrams
+ * are left to their cluster-aware layout because moving only leaf nodes would
+ * invalidate cluster bounds.
+ */
+function makeRoomForForwardEdgeLabels(diagram: StructureDiagram, direction: string): void {
+  if (Object.values(diagram.elements).some((element) => element.type === ElementType.Cluster)) {
+    return
+  }
+
+  const processedEdges = new Set<string>()
+  while (true) {
+    const route = routeEdges(diagram as never, defaultLightTheme).find((candidate) => {
+      if (!candidate.labelBox || processedEdges.has(candidate.edgeId)) return false
+      const sourceBounds = diagram.nodes[candidate.sourceNodeId]?.bounds
+      const targetBounds = diagram.nodes[candidate.targetNodeId]?.bounds
+      return isValidBounds(sourceBounds) && isValidBounds(targetBounds) &&
+        forwardRankGap(sourceBounds, targetBounds, direction) !== undefined
+    })
+    if (!route?.labelBox) break
+    processedEdges.add(route.edgeId)
+
+    const sourceBounds = diagram.nodes[route.sourceNodeId]!.bounds
+    const targetBounds = diagram.nodes[route.targetNodeId]!.bounds
+    const gap = forwardRankGap(sourceBounds, targetBounds, direction)
+    if (gap === undefined) continue
+    const labelExtent = isHorizontalDirection(direction)
+      ? route.labelBox.width
+      : route.labelBox.height
+    const requiredGap = labelExtent + EDGE_LABEL_NODE_CLEARANCE_PX * 2
+    const shift = Math.ceil(requiredGap - gap)
+    if (shift <= 0) continue
+    shiftTargetAndLaterRanks(diagram, targetBounds, direction, shift)
+  }
+}
+
+function forwardRankGap(
+  source: DiagramBounds,
+  target: DiagramBounds,
+  direction: string
+): number | undefined {
+  if (direction === LayoutDirection.LeftToRight && target.x >= source.x + source.width) {
+    return target.x - source.x - source.width
+  }
+  if (direction === LayoutDirection.RightToLeft && target.x + target.width <= source.x) {
+    return source.x - target.x - target.width
+  }
+  if (direction === LayoutDirection.TopToBottom && target.y >= source.y + source.height) {
+    return target.y - source.y - source.height
+  }
+  if (direction === LayoutDirection.BottomToTop && target.y + target.height <= source.y) {
+    return source.y - target.y - target.height
+  }
+  return undefined
+}
+
+function shiftTargetAndLaterRanks(
+  diagram: StructureDiagram,
+  target: DiagramBounds,
+  direction: string,
+  distance: number
+): void {
+  for (const { bounds } of classNodeEntries(diagram)) {
+    if (direction === LayoutDirection.LeftToRight && bounds.x >= target.x - SAME_RANK_TOLERANCE_PX) {
+      bounds.x += distance
+    } else if (
+      direction === LayoutDirection.RightToLeft &&
+      bounds.x <= target.x + SAME_RANK_TOLERANCE_PX
+    ) {
+      bounds.x -= distance
+    } else if (
+      direction === LayoutDirection.TopToBottom &&
+      bounds.y >= target.y - SAME_RANK_TOLERANCE_PX
+    ) {
+      bounds.y += distance
+    } else if (
+      direction === LayoutDirection.BottomToTop &&
+      bounds.y <= target.y + SAME_RANK_TOLERANCE_PX
+    ) {
+      bounds.y -= distance
+    }
+  }
+}
+
+function primaryStart(bounds: DiagramBounds, horizontal: boolean): number {
+  return horizontal ? bounds.x : bounds.y
+}
+
+function crossStart(bounds: DiagramBounds, horizontal: boolean): number {
+  return horizontal ? bounds.y : bounds.x
+}
+
+function crossEnd(bounds: DiagramBounds, horizontal: boolean): number {
+  return crossStart(bounds, horizontal) + crossSize(bounds, horizontal)
+}
+
+function crossCenter(bounds: DiagramBounds, horizontal: boolean): number {
+  return crossStart(bounds, horizontal) + crossSize(bounds, horizontal) / 2
+}
+
+function crossSize(bounds: DiagramBounds, horizontal: boolean): number {
+  return horizontal ? bounds.height : bounds.width
+}
+
+function setCrossStart(bounds: DiagramBounds, horizontal: boolean, value: number): void {
+  if (horizontal) bounds.y = value
+  else bounds.x = value
+}
+
+function expandDisplayToFitNodes(diagram: StructureDiagram): void {
+  const entries = classNodeEntries(diagram)
+  if (entries.length === 0) return
+  const left = Math.min(...entries.map(({ bounds }) => bounds.x))
+  const top = Math.min(...entries.map(({ bounds }) => bounds.y))
+  const shiftX = Math.max(0, DISPLAY_BOUNDS_MARGIN_PX - left)
+  const shiftY = Math.max(0, DISPLAY_BOUNDS_MARGIN_PX - top)
+  for (const { bounds } of entries) {
+    bounds.x += shiftX
+    bounds.y += shiftY
+  }
+  const right = Math.max(...entries.map(({ bounds }) => bounds.x + bounds.width))
+  const bottom = Math.max(...entries.map(({ bounds }) => bounds.y + bounds.height))
+  diagram.display.width = Math.max(diagram.display.width, right + DISPLAY_BOUNDS_MARGIN_PX)
+  diagram.display.height = Math.max(diagram.display.height, bottom + DISPLAY_BOUNDS_MARGIN_PX)
+}
+
+/**
  * The upstream TB edge router distributes multiple incoming ports evenly, but
  * does not obstacle-check vertical routes. A distributed target leg can then
  * pass through a node in the preceding row. Move only the affected edge's
@@ -296,6 +518,8 @@ function avoidNodeCrossingRoutes(diagram: StructureDiagram): void {
 
     const originalSourceRatio = sourcePort.edgePosRatio ?? 50
     const originalTargetRatio = targetPort.edgePosRatio ?? 50
+    const originalSourceAlignment = sourcePort.alignment
+    const originalTargetAlignment = targetPort.alignment
     const candidates = portRatios.flatMap((sourceRatio) =>
       portRatios.map((targetRatio) => ({ sourceRatio, targetRatio }))
     ).sort((left, right) => {
@@ -318,10 +542,9 @@ function avoidNodeCrossingRoutes(diagram: StructureDiagram): void {
       }
     }
 
-    if (!resolved && targetPort.alignment !== undefined) {
+    if (!resolved && originalTargetAlignment !== undefined) {
       sourcePort.edgePosRatio = originalSourceRatio
       targetPort.edgePosRatio = originalTargetRatio
-      const originalTargetAlignment = targetPort.alignment
       const alternateAlignments = perpendicularPortAlignments(originalTargetAlignment)
       let best: {
         alignment: PortAlignment
@@ -358,7 +581,64 @@ function avoidNodeCrossingRoutes(diagram: StructureDiagram): void {
       }
     }
 
+    if (
+      !resolved &&
+      originalSourceAlignment !== undefined &&
+      originalTargetAlignment !== undefined
+    ) {
+      sourcePort.alignment = originalSourceAlignment
+      targetPort.alignment = originalTargetAlignment
+      sourcePort.edgePosRatio = originalSourceRatio
+      targetPort.edgePosRatio = originalTargetRatio
+      const alignments = [
+        PortAlignment.Top,
+        PortAlignment.Right,
+        PortAlignment.Bottom,
+        PortAlignment.Left,
+      ]
+      let best: {
+        sourceAlignment: PortAlignment
+        targetAlignment: PortAlignment
+        crossings: number
+        overlaps: number
+        length: number
+      } | undefined
+
+      for (const sourceAlignment of alignments) {
+        for (const targetAlignment of alignments) {
+          sourcePort.alignment = sourceAlignment
+          targetPort.alignment = targetAlignment
+          sourcePort.edgePosRatio = 50
+          targetPort.edgePosRatio = 50
+          const candidateRoutes = routeEdges(diagram as never, defaultLightTheme)
+          const route = candidateRoutes
+            .find((item) => item.edgeId === initialRoute.edgeId)
+          if (!route || routeNodeIntersectionCount(route, diagram) > 0) continue
+          if (routeLabelNodeIntersectionCount(route, diagram) > 0) continue
+          const siblings = candidateRoutes.filter((item) => item.edgeId !== route.edgeId)
+          const crossings = siblings.filter((item) => routesCross(route, item)).length
+          const overlaps = siblings.filter((item) => routesOverlap(route, item)).length
+          const length = routePolylineLength(route)
+          if (!best || crossings < best.crossings ||
+            (crossings === best.crossings && overlaps < best.overlaps) ||
+            (crossings === best.crossings && overlaps === best.overlaps && length < best.length)) {
+            best = { sourceAlignment, targetAlignment, crossings, overlaps, length }
+          }
+        }
+      }
+
+      if (best) {
+        sourcePort.alignment = best.sourceAlignment
+        targetPort.alignment = best.targetAlignment
+        sourcePort.edgePosRatio = 50
+        targetPort.edgePosRatio = 50
+        resolved = true
+      }
+    }
+
     if (!resolved) {
+      sourcePort.alignment = originalSourceAlignment
+      targetPort.alignment = originalTargetAlignment
       sourcePort.edgePosRatio = originalSourceRatio
       targetPort.edgePosRatio = originalTargetRatio
     }
@@ -447,6 +727,45 @@ function routesCross(left: EdgeRoute, right: EdgeRoute): boolean {
   return false
 }
 
+function routesOverlap(left: EdgeRoute, right: EdgeRoute): boolean {
+  for (let leftIndex = 1; leftIndex < left.polyline.length; leftIndex++) {
+    for (let rightIndex = 1; rightIndex < right.polyline.length; rightIndex++) {
+      if (segmentsOverlap(
+        left.polyline[leftIndex - 1]!,
+        left.polyline[leftIndex]!,
+        right.polyline[rightIndex - 1]!,
+        right.polyline[rightIndex]!
+      )) return true
+    }
+  }
+  return false
+}
+
+function segmentsOverlap(
+  firstStart: EdgeRoute['polyline'][number],
+  firstEnd: EdgeRoute['polyline'][number],
+  secondStart: EdgeRoute['polyline'][number],
+  secondEnd: EdgeRoute['polyline'][number]
+): boolean {
+  if (firstStart.y === firstEnd.y && secondStart.y === secondEnd.y &&
+    firstStart.y === secondStart.y) {
+    const firstMin = Math.min(firstStart.x, firstEnd.x)
+    const firstMax = Math.max(firstStart.x, firstEnd.x)
+    const secondMin = Math.min(secondStart.x, secondEnd.x)
+    const secondMax = Math.max(secondStart.x, secondEnd.x)
+    return Math.min(firstMax, secondMax) > Math.max(firstMin, secondMin)
+  }
+  if (firstStart.x === firstEnd.x && secondStart.x === secondEnd.x &&
+    firstStart.x === secondStart.x) {
+    const firstMin = Math.min(firstStart.y, firstEnd.y)
+    const firstMax = Math.max(firstStart.y, firstEnd.y)
+    const secondMin = Math.min(secondStart.y, secondEnd.y)
+    const secondMax = Math.max(secondStart.y, secondEnd.y)
+    return Math.min(firstMax, secondMax) > Math.max(firstMin, secondMin)
+  }
+  return false
+}
+
 function segmentsCross(
   firstStart: EdgeRoute['polyline'][number],
   firstEnd: EdgeRoute['polyline'][number],
@@ -499,6 +818,22 @@ function routeNodeIntersectionCount(route: EdgeRoute, diagram: StructureDiagram)
     }
   }
   return count
+}
+
+function routeLabelNodeIntersectionCount(route: EdgeRoute, diagram: StructureDiagram): number {
+  if (!route.labelBox) return 0
+  let count = 0
+  for (const { bounds } of classNodeEntries(diagram)) {
+    if (rectanglesOverlap(route.labelBox, bounds)) count++
+  }
+  return count
+}
+
+function rectanglesOverlap(left: DiagramBounds, right: DiagramBounds): boolean {
+  return left.x < right.x + right.width &&
+    right.x < left.x + left.width &&
+    left.y < right.y + right.height &&
+    right.y < left.y + left.height
 }
 
 function patchUnsupportedFlowchartShapes(svg: string, diagram: StructureDiagram): string {

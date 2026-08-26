@@ -4,7 +4,13 @@ import {
   importMermaidFlowchartWithAxonizeLayout,
   renderMermaidWithDoodles,
 } from '../../../src/renderer/lib/doodles-render'
-import { defaultLightTheme, layoutFor, PortAlignment, routeEdges } from '@benkalegin/doodles-api'
+import {
+  defaultLightTheme,
+  ElementType,
+  layoutFor,
+  PortAlignment,
+  routeEdges,
+} from '@benkalegin/doodles-api'
 
 describe('doodles render', () => {
   it('claims sequence diagrams for the doodles path', () => {
@@ -380,6 +386,65 @@ flowchart TD
     })
     expect(validationLink?.port2).toBeDefined()
     expect(structure.ports[validationLink!.port2!]?.edgePosRatio).toBe(50)
+  })
+
+  it('separates parallel LR branches and keeps labeled cycle edges clear', async () => {
+    const source = `
+graph LR
+    C["Client"]
+    GP["GridPackage"]
+    DB[("Database\\nmetadata query")]
+    SS["Search Service\\nfull-text"]
+    MR{{"Merge Results"}}
+
+    C -->|"POST /api/items/search"| GP
+    GP --> DB & SS
+    DB & SS --> MR
+    MR -->|results| C
+`.trim()
+
+    const diagram = await importMermaidFlowchartWithAxonizeLayout(source)
+    const routes = routeEdges(diagram as never, defaultLightTheme)
+    const layout = layoutFor(diagram as never, { routes })
+
+    layout.nodes(
+      'Client',
+      'GridPackage',
+      'Database\nmetadata query',
+      'Search Service\nfull-text',
+      'Merge Results'
+    ).noOverlap()
+    layout.edges().noNodeIntersection()
+    layout.edge({
+      fromText: 'Merge Results',
+      toText: 'Client',
+    })
+      .hasSourceAlignment(PortAlignment.Bottom)
+      .hasTargetAlignment(PortAlignment.Bottom)
+
+    const structure = diagram as typeof diagram & {
+      elements: Record<string, { id: string; type: ElementType }>
+      nodes: Record<string, { bounds?: { x: number; y: number; width: number; height: number } }>
+    }
+    const nodeBounds = Object.values(structure.elements)
+      .filter((element) => element.type === ElementType.ClassNode)
+      .map((element) => structure.nodes[element.id]?.bounds)
+      .filter((bounds): bounds is NonNullable<typeof bounds> => bounds !== undefined)
+
+    for (const route of routes) {
+      if (!route.labelBox) continue
+      for (const bounds of nodeBounds) {
+        const overlaps = route.labelBox.x < bounds.x + bounds.width &&
+          bounds.x < route.labelBox.x + route.labelBox.width &&
+          route.labelBox.y < bounds.y + bounds.height &&
+          bounds.y < route.labelBox.y + route.labelBox.height
+        expect(overlaps, `label "${route.label}" overlaps a node`).toBe(false)
+      }
+    }
+
+    const svg = await renderMermaidWithDoodles(source)
+    expect(svg).toContain('POST /api/items/search')
+    expect(svg).toContain('results')
   })
 
   it('renders class diagram members in doodles mode', async () => {
