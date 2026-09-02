@@ -145,6 +145,7 @@ type DiagramElement = {
   nodeId?: string
   memberNodeIds?: string[]
   axonizeRoutePolyline?: EdgeRoute['polyline']
+  axonizeRouteLabelOffset?: { x: number; y: number }
 }
 
 type DiagramNodeRecord = {
@@ -971,10 +972,11 @@ function alignedTargetPortRatio(
 
 /**
  * Parallel cross-cluster TB routes share the same midpoint, so their long
- * horizontal sections can collapse into one ambiguous bus. Give only the
- * overlapping, unlabeled routes separate channel lanes. Candidate lane orders
- * are accepted only when they reduce overlap without adding crossings or node
- * intersections; the node layout and port assignments remain unchanged.
+ * horizontal sections can collapse into one ambiguous bus. Give the
+ * overlapping routes separate channel lanes and move their labels with them.
+ * Candidate lane orders are accepted only when they reduce overlap without
+ * adding crossings, label collisions, or node intersections; the node layout
+ * and port assignments remain unchanged.
  */
 function separateOverlappingTopBottomRouteBuses(
   diagram: StructureDiagram,
@@ -988,7 +990,7 @@ function separateOverlappingTopBottomRouteBuses(
   let workingRoutes = routeEdges(diagram as never, defaultLightTheme)
   const routeGroups = new Map<string, EdgeRoute[]>()
   for (const route of workingRoutes) {
-    if (route.label || route.polyline.length !== 4) continue
+    if (route.polyline.length !== 4) continue
     const link = diagram.elements[route.edgeId]
     if (!link?.port1 || !link.port2) continue
     const sourcePort = diagram.ports[link.port1]
@@ -1059,6 +1061,7 @@ function separateOverlappingTopBottomRouteBuses(
     let bestRoutes: EdgeRoute[] | undefined
     let bestOverlaps = routeOverlapCount(workingRoutes)
     let bestCrossings = routeCrossingCount(workingRoutes)
+    let bestLabelOverlaps = routeLabelOverlapCount(workingRoutes)
     const tried = new Set<string>()
 
     for (const order of routeOrders) {
@@ -1073,15 +1076,22 @@ function separateOverlappingTopBottomRouteBuses(
           return lane === undefined ? route : routeWithHorizontalLane(route, lane)
         })
         const candidateAffected = candidateRoutes.filter((route) => affectedIds.has(route.edgeId))
-        if (candidateAffected.some((route) => routeNodeIntersectionCount(route, diagram) > 0)) {
+        if (candidateAffected.some((route) =>
+          routeNodeIntersectionCount(route, diagram) > 0 ||
+          routeLabelNodeIntersectionCount(route, diagram) > 0
+        )) {
           continue
         }
         const overlaps = routeOverlapCount(candidateRoutes)
         const crossings = routeCrossingCount(candidateRoutes)
-        if (overlaps >= bestOverlaps || crossings > bestCrossings) continue
+        const labelOverlaps = routeLabelOverlapCount(candidateRoutes)
+        if (overlaps >= bestOverlaps ||
+          crossings > bestCrossings ||
+          labelOverlaps > bestLabelOverlaps) continue
         bestRoutes = candidateRoutes
         bestOverlaps = overlaps
         bestCrossings = crossings
+        bestLabelOverlaps = labelOverlaps
       }
     }
 
@@ -1094,7 +1104,14 @@ function separateOverlappingTopBottomRouteBuses(
   for (const route of workingRoutes) {
     const original = originalById.get(route.edgeId)
     if (!original || polylinesEqual(original.polyline, route.polyline)) continue
-    diagram.elements[route.edgeId]!.axonizeRoutePolyline = route.polyline
+    const link = diagram.elements[route.edgeId]!
+    link.axonizeRoutePolyline = route.polyline
+    if (original.labelBox && route.labelBox) {
+      link.axonizeRouteLabelOffset = {
+        x: route.labelBox.x - original.labelBox.x,
+        y: route.labelBox.y - original.labelBox.y,
+      }
+    }
   }
 }
 
@@ -1121,10 +1138,43 @@ function compareRouteTargetX(left: EdgeRoute, right: EdgeRoute): number {
 function routeWithHorizontalLane(route: EdgeRoute, y: number): EdgeRoute {
   const source = route.polyline[0]!
   const target = route.polyline[route.polyline.length - 1]!
+  const polyline = [source, { x: source.x, y }, { x: target.x, y }, target]
+  const midpoint = routePolylineMidpoint(polyline)
+  const labelBox = route.labelBox
+    ? {
+        ...route.labelBox,
+        x: midpoint.x - route.labelBox.width / 2,
+        y: midpoint.y - route.labelBox.height / 2,
+      }
+    : undefined
   return {
     ...route,
-    polyline: [source, { x: source.x, y }, { x: target.x, y }, target],
+    polyline,
+    labelBox,
   }
+}
+
+function routePolylineMidpoint(polyline: EdgeRoute['polyline']): EdgeRoute['polyline'][number] {
+  const totalLength = polyline.reduce((sum, point, index) => {
+    if (index === 0) return sum
+    const previous = polyline[index - 1]!
+    return sum + Math.abs(point.x - previous.x) + Math.abs(point.y - previous.y)
+  }, 0)
+  let remaining = totalLength / 2
+  for (let index = 1; index < polyline.length; index++) {
+    const start = polyline[index - 1]!
+    const end = polyline[index]!
+    const length = Math.abs(end.x - start.x) + Math.abs(end.y - start.y)
+    if (remaining <= length) {
+      const ratio = length === 0 ? 0 : remaining / length
+      return {
+        x: start.x + (end.x - start.x) * ratio,
+        y: start.y + (end.y - start.y) * ratio,
+      }
+    }
+    remaining -= length
+  }
+  return polyline[polyline.length - 1]!
 }
 
 function routeOverlapCount(routes: EdgeRoute[]): number {
@@ -1132,6 +1182,19 @@ function routeOverlapCount(routes: EdgeRoute[]): number {
   for (let left = 0; left < routes.length; left++) {
     for (let right = left + 1; right < routes.length; right++) {
       if (routesOverlap(routes[left]!, routes[right]!)) count++
+    }
+  }
+  return count
+}
+
+function routeLabelOverlapCount(routes: EdgeRoute[]): number {
+  let count = 0
+  for (let left = 0; left < routes.length; left++) {
+    const leftBox = routes[left]!.labelBox
+    if (!leftBox) continue
+    for (let right = left + 1; right < routes.length; right++) {
+      const rightBox = routes[right]!.labelBox
+      if (rightBox && rectanglesOverlap(leftBox, rightBox)) count++
     }
   }
   return count
@@ -1280,13 +1343,23 @@ function patchFlowchartEdgeRoutes(svg: string, diagram: StructureDiagram): strin
   const routes = routeEdges(diagram as never, defaultLightTheme)
   let routeIndex = 0
   return svg.replace(
-    /<path\b(?=[^>]*\bmarker-end="url\(#arrow\)")[^>]*\/>/g,
-    (path) => {
+    /(<path\b(?=[^>]*\bmarker-end="url\(#arrow\)")[^>]*\/>)(<text\b[\s\S]*?<\/text>)?/g,
+    (_chunk, path: string, label: string | undefined) => {
       const route = routes[routeIndex++]
-      if (!route) return path
-      const polyline = diagram.elements[route.edgeId]?.axonizeRoutePolyline
-      if (!polyline) return path
-      return path.replace(/\bd="[^"]*"/, `d="${edgePolylinePath(polyline)}"`)
+      if (!route) return path + (label ?? '')
+      const link = diagram.elements[route.edgeId]
+      const polyline = link?.axonizeRoutePolyline
+      const offset = link?.axonizeRouteLabelOffset
+      const patchedPath = polyline
+        ? path.replace(/\bd="[^"]*"/, `d="${edgePolylinePath(polyline)}"`)
+        : path
+      const patchedLabel = label && offset
+        ? label.replace(
+            '<text ',
+            `<text transform="translate(${offset.x} ${offset.y})" `
+          )
+        : (label ?? '')
+      return patchedPath + patchedLabel
     }
   )
 }

@@ -393,10 +393,10 @@ flowchart TB
     end
 
     W1 --> D1
-    W1 --> D2
-    W1 --> D3
-    W2 --> D4
-    W3 --> D5
+    W1 -->|large payload| D2
+    W1 -->|raw payload| D3
+    W2 -->|vector output| D4
+    W3 -->|media output| D5
 `.trim()
 
     const diagram = await importMermaidFlowchartWithAxonizeLayout(source)
@@ -404,12 +404,24 @@ flowchart TB
       elements: Record<string, {
         sourceId?: string
         axonizeRoutePolyline?: Array<{ x: number; y: number }>
+        axonizeRouteLabelOffset?: { x: number; y: number }
       }>
     }
-    const routes = routeEdges(diagram as never, defaultLightTheme).map((route) => ({
-      ...route,
-      polyline: structure.elements[route.edgeId]?.axonizeRoutePolyline ?? route.polyline,
-    }))
+    const routes = routeEdges(diagram as never, defaultLightTheme).map((route) => {
+      const link = structure.elements[route.edgeId]
+      const offset = link?.axonizeRouteLabelOffset
+      return {
+        ...route,
+        polyline: link?.axonizeRoutePolyline ?? route.polyline,
+        labelBox: route.labelBox && offset
+          ? {
+              ...route.labelBox,
+              x: route.labelBox.x + offset.x,
+              y: route.labelBox.y + offset.y,
+            }
+          : route.labelBox,
+      }
+    })
     const relevantRoutes = routes.filter((route) =>
       ['W1', 'W2', 'W3'].includes(structure.elements[route.sourceNodeId]?.sourceId ?? '') &&
       ['D1', 'D2', 'D3', 'D4', 'D5']
@@ -424,7 +436,10 @@ flowchart TB
     expect(relevantRoutes.filter((route) =>
       structure.elements[route.edgeId]?.axonizeRoutePolyline
     )).toHaveLength(4)
-    layout.edges().noCrossings().noNodeIntersection()
+    expect(relevantRoutes.filter((route) =>
+      structure.elements[route.edgeId]?.axonizeRouteLabelOffset
+    )).toHaveLength(4)
+    layout.edges().noCrossings().noNodeIntersection().noLabelOverlap()
 
     const svg = await renderMermaidWithDoodles(source)
     for (const route of busRoutes) {
@@ -434,6 +449,7 @@ flowchart TB
       )].join(' ')
       expect(svg).toContain(`d="${path}"`)
     }
+    expect(svg.match(/<text transform="translate\(/g)).toHaveLength(4)
   })
 
   it('keeps a long ontology branch clear of an aligned intermediate node border', async () => {
