@@ -96,6 +96,8 @@ const SAME_RANK_TOLERANCE_PX = 1
 const OVERLAPPING_NODE_GAP_PX = 60
 const EDGE_LABEL_NODE_CLEARANCE_PX = 16
 const DISPLAY_BOUNDS_MARGIN_PX = 48
+const TERMINAL_NODE_RANK_GAP_PX = 80
+const STRAIGHT_ROUTE_PORT_MARGIN_PERCENT = 10
 
 type DiagramDisplay = {
   width: number
@@ -131,6 +133,7 @@ type DiagramElement = {
   axonizeFlowchartShape?: typeof AXONIZE_HEXAGON_SHAPE
   port1?: string
   port2?: string
+  nodeId?: string
 }
 
 type DiagramNodeRecord = {
@@ -207,6 +210,7 @@ export async function importMermaidFlowchartWithAxonizeLayout(source: string): P
   avoidNodeCrossingRoutes(diagram)
   avoidSameSourceRouteCrossings(diagram)
   avoidSameTargetRouteCrossings(diagram)
+  straightenSingleIncomingRoutes(diagram)
   expandDisplayToFitNodes(diagram)
   return diagram
 }
@@ -297,6 +301,7 @@ function repairFlowchartGeometry(
   direction: string | undefined
 ): void {
   const resolvedDirection = direction ?? LayoutDirection.TopToBottom
+  repairMisplacedTerminalNodes(diagram, resolvedDirection)
   separateOverlappingRankNodes(diagram, resolvedDirection)
   makeRoomForForwardEdgeLabels(diagram, resolvedDirection)
 }
@@ -315,6 +320,54 @@ function classNodeEntries(diagram: StructureDiagram): DiagramNodeEntry[] {
 function isHorizontalDirection(direction: string): boolean {
   return direction === LayoutDirection.LeftToRight ||
     direction === LayoutDirection.RightToLeft
+}
+
+/**
+ * A terminal sink with one predecessor cannot be a graph back-edge. If the
+ * layout nevertheless places it behind that predecessor, restore the terminal
+ * rank and align it with the end of the main chain. Multi-input sinks and
+ * compound diagrams are left to the layout engine because their placement has
+ * more than one valid interpretation.
+ */
+function repairMisplacedTerminalNodes(diagram: StructureDiagram, direction: string): void {
+  if (Object.values(diagram.elements).some((element) => element.type === ElementType.Cluster)) {
+    return
+  }
+
+  const incoming = new Map<string, string[]>()
+  const outgoingCount = new Map<string, number>()
+  for (const element of Object.values(diagram.elements)) {
+    if (element.type !== ElementType.ClassLink || !element.port1 || !element.port2) continue
+    const sourceNodeId = diagram.elements[element.port1]?.nodeId
+    const targetNodeId = diagram.elements[element.port2]?.nodeId
+    if (!sourceNodeId || !targetNodeId) continue
+    outgoingCount.set(sourceNodeId, (outgoingCount.get(sourceNodeId) ?? 0) + 1)
+    const predecessors = incoming.get(targetNodeId) ?? []
+    predecessors.push(sourceNodeId)
+    incoming.set(targetNodeId, predecessors)
+  }
+
+  for (const { element, bounds } of classNodeEntries(diagram)) {
+    const predecessors = incoming.get(element.id)
+    if (outgoingCount.get(element.id) || predecessors?.length !== 1) continue
+    const predecessorBounds = diagram.nodes[predecessors[0]!]?.bounds
+    if (!isValidBounds(predecessorBounds)) continue
+    if (forwardRankGap(predecessorBounds, bounds, direction) !== undefined) continue
+
+    if (direction === LayoutDirection.LeftToRight) {
+      bounds.x = predecessorBounds.x + predecessorBounds.width + TERMINAL_NODE_RANK_GAP_PX
+      bounds.y = predecessorBounds.y + (predecessorBounds.height - bounds.height) / 2
+    } else if (direction === LayoutDirection.RightToLeft) {
+      bounds.x = predecessorBounds.x - bounds.width - TERMINAL_NODE_RANK_GAP_PX
+      bounds.y = predecessorBounds.y + (predecessorBounds.height - bounds.height) / 2
+    } else if (direction === LayoutDirection.TopToBottom) {
+      bounds.x = predecessorBounds.x + (predecessorBounds.width - bounds.width) / 2
+      bounds.y = predecessorBounds.y + predecessorBounds.height + TERMINAL_NODE_RANK_GAP_PX
+    } else if (direction === LayoutDirection.BottomToTop) {
+      bounds.x = predecessorBounds.x + (predecessorBounds.width - bounds.width) / 2
+      bounds.y = predecessorBounds.y - bounds.height - TERMINAL_NODE_RANK_GAP_PX
+    }
+  }
 }
 
 /**
@@ -767,6 +820,89 @@ function avoidSameTargetRouteCrossings(diagram: StructureDiagram): void {
       }
     }
   }
+}
+
+/**
+ * The orthogonal router centers a lone target port even when the source port
+ * already lines up with the target face. That introduces a short dogleg which
+ * carries no routing value. Align the target port to the source coordinate
+ * only when this produces one clear segment and does not worsen the rest of
+ * the diagram. Multi-input targets remain under the fan-in ordering repair.
+ */
+function straightenSingleIncomingRoutes(diagram: StructureDiagram): void {
+  if (!diagram.ports) return
+  const targetCounts = new Map<string, number>()
+  for (const route of routeEdges(diagram as never, defaultLightTheme)) {
+    targetCounts.set(route.targetNodeId, (targetCounts.get(route.targetNodeId) ?? 0) + 1)
+  }
+
+  const edgeIds = routeEdges(diagram as never, defaultLightTheme).map((route) => route.edgeId)
+  for (const edgeId of edgeIds) {
+    const currentRoutes = routeEdges(diagram as never, defaultLightTheme)
+    const currentRoute = currentRoutes.find((route) => route.edgeId === edgeId)
+    if (!currentRoute || currentRoute.polyline.length <= 2) continue
+    if (targetCounts.get(currentRoute.targetNodeId) !== 1) continue
+
+    const link = diagram.elements[edgeId]
+    if (!link?.port1 || !link.port2) continue
+    const sourcePort = diagram.ports[link.port1]
+    const targetPort = diagram.ports[link.port2]
+    const targetBounds = diagram.nodes[currentRoute.targetNodeId]?.bounds
+    if (!sourcePort || !targetPort || !isValidBounds(targetBounds)) continue
+
+    const ratio = alignedTargetPortRatio(
+      currentRoute.polyline[0]!,
+      sourcePort.alignment,
+      targetPort.alignment,
+      targetBounds
+    )
+    if (ratio === undefined ||
+      ratio < STRAIGHT_ROUTE_PORT_MARGIN_PERCENT ||
+      ratio > 100 - STRAIGHT_ROUTE_PORT_MARGIN_PERCENT) continue
+
+    const originalRatio = targetPort.edgePosRatio
+    const originalLength = routePolylineLength(currentRoute)
+    const originalCrossings = routeCrossingCount(currentRoutes)
+    targetPort.edgePosRatio = ratio
+
+    const candidateRoutes = routeEdges(diagram as never, defaultLightTheme)
+    const candidate = candidateRoutes.find((route) => route.edgeId === edgeId)
+    const siblings = candidateRoutes.filter((route) => route.edgeId !== edgeId)
+    const isBetter = candidate !== undefined &&
+      candidate.polyline.length === 2 &&
+      routePolylineLength(candidate) < originalLength &&
+      routeNodeIntersectionCount(candidate, diagram) === 0 &&
+      routeLabelNodeIntersectionCount(candidate, diagram) === 0 &&
+      routeCrossingCount(candidateRoutes) <= originalCrossings &&
+      siblings.every((route) => !routesOverlap(candidate, route))
+
+    if (!isBetter) targetPort.edgePosRatio = originalRatio
+  }
+}
+
+function alignedTargetPortRatio(
+  sourcePoint: EdgeRoute['polyline'][number],
+  sourceAlignment: PortAlignment | undefined,
+  targetAlignment: PortAlignment | undefined,
+  targetBounds: DiagramBounds
+): number | undefined {
+  if (sourceAlignment === PortAlignment.Right && targetAlignment === PortAlignment.Left &&
+    targetBounds.x >= sourcePoint.x) {
+    return (sourcePoint.y - targetBounds.y) / targetBounds.height * 100
+  }
+  if (sourceAlignment === PortAlignment.Left && targetAlignment === PortAlignment.Right &&
+    targetBounds.x + targetBounds.width <= sourcePoint.x) {
+    return (sourcePoint.y - targetBounds.y) / targetBounds.height * 100
+  }
+  if (sourceAlignment === PortAlignment.Bottom && targetAlignment === PortAlignment.Top &&
+    targetBounds.y >= sourcePoint.y) {
+    return (sourcePoint.x - targetBounds.x) / targetBounds.width * 100
+  }
+  if (sourceAlignment === PortAlignment.Top && targetAlignment === PortAlignment.Bottom &&
+    targetBounds.y + targetBounds.height <= sourcePoint.y) {
+    return (sourcePoint.x - targetBounds.x) / targetBounds.width * 100
+  }
+  return undefined
 }
 
 function routeCrossingCount(routes: EdgeRoute[]): number {

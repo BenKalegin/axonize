@@ -478,6 +478,120 @@ graph LR
     expect(svg).toContain('results')
   })
 
+  it('keeps a terminal LR sink at the end of its main chain', async () => {
+    const source = `
+graph LR
+    DC["Document Change"]
+    K["Kinesis Stream"]
+    SIL["SearchIntegrationLambda"]
+    Proc["Process Document"]
+    Meta["Extract Metadata"]
+    SI["Search Index"]
+    DB[("Database")]
+
+    DC --> K --> SIL --> Proc --> Meta --> SI
+    SIL -->|update index status| DB
+`.trim()
+
+    const diagram = await importMermaidFlowchartWithAxonizeLayout(source)
+    const routes = routeEdges(diagram as never, defaultLightTheme)
+    const layout = layoutFor(diagram as never, { routes })
+
+    layout.nodes(
+      'Document Change',
+      'Kinesis Stream',
+      'SearchIntegrationLambda',
+      'Process Document',
+      'Extract Metadata',
+      'Search Index'
+    )
+      .orderedLeftToRight()
+      .sameRow()
+    layout.node('Database').below('SearchIntegrationLambda')
+    layout.edge({
+      fromText: 'Extract Metadata',
+      toText: 'Search Index',
+    }).polylineLengthAtMost(2)
+    layout.edges().noNodeIntersection()
+
+    const svg = await renderMermaidWithDoodles(source)
+    expect(svg).toContain('Search Index')
+    expect(svg).toContain('update index status')
+  })
+
+  it('removes an unnecessary dogleg from an aligned single-input target', async () => {
+    const source = `
+%%{init: {'flowchart':{'curve':'basis','htmlLabels':true}}}%%
+flowchart LR
+    subgraph Sources["Event sources — emitted after the primary transaction commits"]
+        CREATE["createRecord<br/>~120"]
+        UPDATE["updateRecord<br/>~240"]
+        ATTACH["attachPayload<br/>~360"]
+        BULK["bulkChanges<br/>buffers, flushes post-commit<br/>~480 to 540"]
+        SPECIAL["ConversionPipeline<br/>OptionalCheckEnabled<br/>~660 to 720"]
+        MIGRATE["Platform migration / reindex<br/>enqueueBackfillJob"]
+    end
+
+    FILTER{"dispatchProcessingJob<br/>5 eligibility rules<br/>see policy"}
+    TOGGLE{"ENABLE_SECONDARY_PROCESSING<br/>per workspace"}
+    PRIMARY["Queue<br/>app.processing.primary<br/>Primary worker"]
+    SECONDARY["Queue<br/>app.processing.secondary<br/>delivery channel<br/>Secondary worker"]
+
+    CREATE --> FILTER
+    UPDATE --> FILTER
+    ATTACH --> FILTER
+    BULK --> FILTER
+    SPECIAL --> FILTER
+    MIGRATE --> FILTER
+    FILTER -->|passes| PRIMARY
+    FILTER --> TOGGLE
+    TOGGLE -->|on| SECONDARY
+    TOGGLE -->|off| DROP["no secondary message"]
+
+    style Sources fill:#6366f11A,stroke:#6366f1
+    style CREATE fill:#6366f133,stroke:#6366f1
+    style UPDATE fill:#6366f133,stroke:#6366f1
+    style ATTACH fill:#6366f133,stroke:#6366f1
+    style BULK fill:#6366f133,stroke:#6366f1
+    style SPECIAL fill:#10b98133,stroke:#10b981
+    style MIGRATE fill:#64748b33,stroke:#64748b
+    style FILTER fill:#f59e0b40,stroke:#f59e0b
+    style TOGGLE fill:#f59e0b40,stroke:#f59e0b
+    style SECONDARY fill:#10b98133,stroke:#10b981
+    style PRIMARY fill:#64748b33,stroke:#64748b
+    style DROP fill:#ef444433,stroke:#ef4444
+`.trim()
+
+    const diagram = await importMermaidFlowchartWithAxonizeLayout(source)
+    const routes = routeEdges(diagram as never, defaultLightTheme)
+    const layout = layoutFor(diagram as never, { routes })
+
+    layout.edge({
+      fromText: 'ENABLE_SECONDARY_PROCESSING\nper workspace',
+      toText: 'Queue\napp.processing.secondary\ndelivery channel\nSecondary worker',
+    }).polylineLengthAtMost(2)
+    layout.edges().noNodeIntersection()
+
+    const structure = diagram as typeof diagram & {
+      elements: Record<string, {
+        sourceId?: string
+        nodeId?: string
+        port1?: string
+        port2?: string
+      }>
+      ports: Record<string, { edgePosRatio?: number }>
+    }
+    const onLink = Object.values(structure.elements).find((element) => {
+      if (!element.port1 || !element.port2) return false
+      const sourcePort = structure.elements[element.port1]
+      const targetPort = structure.elements[element.port2]
+      return structure.elements[sourcePort?.nodeId ?? '']?.sourceId === 'TOGGLE' &&
+        structure.elements[targetPort?.nodeId ?? '']?.sourceId === 'SECONDARY'
+    })
+    expect(onLink?.port2).toBeDefined()
+    expect(structure.ports[onLink!.port2!]?.edgePosRatio).toBeCloseTo(84.66, 1)
+  })
+
   it('renders class diagram members in doodles mode', async () => {
     const source = `
 classDiagram
