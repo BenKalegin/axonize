@@ -329,6 +329,113 @@ flowchart TD
     expect(svg).not.toContain('>M<')
   })
 
+  it('preserves Mermaid database and subroutine node outlines', async () => {
+    const source = `
+flowchart LR
+    EVENT["Input event"]
+    STORE[("Archive bucket<br/>oversized payloads")]
+    STREAM[["Event stream<br/>configured channel<br/>from settings"]]
+
+    EVENT --> STORE
+    EVENT --> STREAM
+
+    style STORE fill:#64748b33,stroke:#64748b
+    style STREAM fill:#10b98133,stroke:#10b981
+`.trim()
+
+    const diagram = await importMermaidFlowchartWithAxonizeLayout(source)
+    const routes = routeEdges(diagram as never, defaultLightTheme)
+    const layout = layoutFor(diagram as never, { routes })
+
+    layout.edge({
+      fromText: 'Input event',
+      toText: 'Archive bucket\noversized payloads',
+    }).polylineLengthAtMost(4)
+    layout.edge({
+      fromText: 'Input event',
+      toText: 'Event stream\nconfigured channel\nfrom settings',
+    }).polylineLengthAtMost(4)
+    layout.edges().noNodeIntersection()
+
+    const svg = await renderMermaidWithDoodles(source)
+    const nodeBody = (sourceId: string): string | undefined =>
+      svg.match(new RegExp(`<g data-node-id="${sourceId}">([\\s\\S]*?)</g>`))?.[1]
+    const databaseBody = nodeBody('STORE')
+    const subroutineBody = nodeBody('STREAM')
+
+    expect(databaseBody).toBeDefined()
+    expect(databaseBody).not.toContain('<rect')
+    expect(databaseBody?.match(/<path\b/g)).toHaveLength(2)
+    expect(databaseBody).toContain('stroke="#64748b"')
+    expect(subroutineBody).toBeDefined()
+    expect(subroutineBody).toContain('<rect')
+    expect(subroutineBody?.match(/<line\b/g)).toHaveLength(2)
+    expect(subroutineBody).toContain('stroke="#10b981"')
+  })
+
+  it('separates overlapping cross-cluster routes into traceable lanes', async () => {
+    const source = `
+flowchart TB
+    subgraph WORKERS["Workers"]
+        W1["Parser worker"]
+        W2["Vector worker"]
+        W3["Media worker"]
+        W4["Audit worker"]
+        W5["Sync worker"]
+    end
+
+    subgraph STORES["Stores"]
+        D1["Primary records"]
+        D2["Large payloads"]
+        D3["Raw payloads"]
+        D4["Vector records"]
+        D5["Media cache"]
+    end
+
+    W1 --> D1
+    W1 --> D2
+    W1 --> D3
+    W2 --> D4
+    W3 --> D5
+`.trim()
+
+    const diagram = await importMermaidFlowchartWithAxonizeLayout(source)
+    const structure = diagram as typeof diagram & {
+      elements: Record<string, {
+        sourceId?: string
+        axonizeRoutePolyline?: Array<{ x: number; y: number }>
+      }>
+    }
+    const routes = routeEdges(diagram as never, defaultLightTheme).map((route) => ({
+      ...route,
+      polyline: structure.elements[route.edgeId]?.axonizeRoutePolyline ?? route.polyline,
+    }))
+    const relevantRoutes = routes.filter((route) =>
+      ['W1', 'W2', 'W3'].includes(structure.elements[route.sourceNodeId]?.sourceId ?? '') &&
+      ['D1', 'D2', 'D3', 'D4', 'D5']
+        .includes(structure.elements[route.targetNodeId]?.sourceId ?? '')
+    )
+    const busRoutes = relevantRoutes.filter((route) => route.polyline.length === 4)
+    const lanes = busRoutes.map((route) => route.polyline[1]!.y)
+    const layout = layoutFor(diagram as never, { routes })
+
+    expect(busRoutes).toHaveLength(4)
+    expect(new Set(lanes).size).toBe(busRoutes.length)
+    expect(relevantRoutes.filter((route) =>
+      structure.elements[route.edgeId]?.axonizeRoutePolyline
+    )).toHaveLength(4)
+    layout.edges().noCrossings().noNodeIntersection()
+
+    const svg = await renderMermaidWithDoodles(source)
+    for (const route of busRoutes) {
+      const [first, ...rest] = route.polyline
+      const path = [`M ${first!.x} ${first!.y}`, ...rest.map((point) =>
+        `L ${point.x} ${point.y}`
+      )].join(' ')
+      expect(svg).toContain(`d="${path}"`)
+    }
+  })
+
   it('keeps a long ontology branch clear of an aligned intermediate node border', async () => {
     const source = `
 flowchart TD

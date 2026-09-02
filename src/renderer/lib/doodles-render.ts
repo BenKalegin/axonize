@@ -89,7 +89,13 @@ const EDGE_LABEL_VERTICAL_OFFSET = 4
 
 const WHITE_SPACE_RE = /\s+/g
 const MERMAID_QUOTED_LABEL_RIGHT_BRACKET_PLACEHOLDER = '\uE000'
-const AXONIZE_HEXAGON_SHAPE = 'hexagon'
+const AxonizeFlowchartShape = {
+  Hexagon: 'hexagon',
+  Database: 'database',
+  Subroutine: 'subroutine',
+} as const
+type AxonizeFlowchartShape =
+  (typeof AxonizeFlowchartShape)[keyof typeof AxonizeFlowchartShape]
 const ROUTE_OBSTACLE_CLEARANCE_PX = 8
 const PORT_RATIO_STEP = 5
 const SAME_RANK_TOLERANCE_PX = 1
@@ -98,6 +104,9 @@ const EDGE_LABEL_NODE_CLEARANCE_PX = 16
 const DISPLAY_BOUNDS_MARGIN_PX = 48
 const TERMINAL_NODE_RANK_GAP_PX = 80
 const STRAIGHT_ROUTE_PORT_MARGIN_PERCENT = 10
+const BUS_ROUTE_LANE_GAP_PX = 20
+const BUS_ROUTE_MIN_LANE_GAP_PX = 8
+const BUS_ROUTE_CLUSTER_CLEARANCE_PX = 20
 
 type DiagramDisplay = {
   width: number
@@ -130,10 +139,12 @@ type DiagramElement = {
   classAnnotation?: string
   classMembers?: DiagramClassMember[]
   colorSchema?: DiagramColorSchema
-  axonizeFlowchartShape?: typeof AXONIZE_HEXAGON_SHAPE
+  axonizeFlowchartShape?: AxonizeFlowchartShape
   port1?: string
   port2?: string
   nodeId?: string
+  memberNodeIds?: string[]
+  axonizeRoutePolyline?: EdgeRoute['polyline']
 }
 
 type DiagramNodeRecord = {
@@ -192,7 +203,8 @@ export async function renderMermaidWithDoodles(
 async function renderFlowchartWithDoodles(source: string, theme: ThemeTokens): Promise<string> {
   const diagram = await importMermaidFlowchartWithAxonizeLayout(source)
   const svg = renderSvg(diagram as never, { theme })
-  return patchUnsupportedFlowchartShapes(svg, diagram as StructureDiagram)
+  const withShapes = patchUnsupportedFlowchartShapes(svg, diagram as StructureDiagram)
+  return patchFlowchartEdgeRoutes(withShapes, diagram as StructureDiagram)
 }
 
 export async function importMermaidFlowchartWithAxonizeLayout(source: string): Promise<Diagram> {
@@ -201,44 +213,82 @@ export async function importMermaidFlowchartWithAxonizeLayout(source: string): P
     type: ElementType.FlowchartDiagram,
     display: defaultDiagramDisplay,
   }
-  const { source: compatibleSource, hexagonNodeIds } = replaceHexagonNodes(source)
+  const { source: compatibleSource, nodeShapes } = replaceUnsupportedFlowchartNodes(source)
   const protectedSource = protectQuotedLabelClosingBrackets(compatibleSource)
   const diagram = (await importMermaidFlowchartWithLayout(base, protectedSource)) as StructureDiagram
+  const direction = parseMermaidLayoutHints(protectedSource).direction
   restoreQuotedLabelClosingBrackets(diagram)
-  markHexagonNodes(diagram, hexagonNodeIds)
-  repairFlowchartGeometry(diagram, parseMermaidLayoutHints(protectedSource).direction)
+  markUnsupportedFlowchartNodes(diagram, nodeShapes)
+  repairFlowchartGeometry(diagram, direction)
   avoidNodeCrossingRoutes(diagram)
   avoidSameSourceRouteCrossings(diagram)
   avoidSameTargetRouteCrossings(diagram)
   straightenSingleIncomingRoutes(diagram)
   expandDisplayToFitNodes(diagram)
+  separateOverlappingTopBottomRouteBuses(diagram, direction)
   return diagram
 }
 
 /**
- * Doodles currently understands the common Mermaid flowchart wrappers but not
- * the hexagon form (`NODE{{label}}`). Feed the importer the equivalent process
- * wrapper so it retains the label and graph topology, while recording the
- * source ids whose outlines must be restored after SVG rendering.
+ * Doodles currently maps database nodes to terminator pills and does not have
+ * native hexagon or subroutine node kinds. Feed its importer equivalent process
+ * wrappers so labels and topology survive, while recording the Mermaid source
+ * ids whose correct outlines must be restored after SVG rendering.
  */
-function replaceHexagonNodes(source: string): { source: string; hexagonNodeIds: Set<string> } {
-  const hexagonNodeIds = new Set<string>()
+function replaceUnsupportedFlowchartNodes(source: string): {
+  source: string
+  nodeShapes: Map<string, AxonizeFlowchartShape>
+} {
+  const nodeShapes = new Map<string, AxonizeFlowchartShape>()
   const lines = source.split('\n').map((line) => {
     if (line.trimStart().startsWith('%%')) return line
-    return replaceHexagonNodesInLine(line, hexagonNodeIds)
+    return replaceUnsupportedFlowchartNodesInLine(line, nodeShapes)
   })
-  return { source: lines.join('\n'), hexagonNodeIds }
+  return { source: lines.join('\n'), nodeShapes }
 }
 
-function replaceHexagonNodesInLine(line: string, ids: Set<string>): string {
-  const startRe = /(^|[^\w-])([\w-]+)(\s*)\{\{/g
+type UnsupportedFlowchartShapeSpec = {
+  shape: AxonizeFlowchartShape
+  innerOpen: string
+  innerClose: string
+  close: string
+}
+
+const UNSUPPORTED_FLOWCHART_SHAPE_SPECS: Record<string, UnsupportedFlowchartShapeSpec> = {
+  '{{': {
+    shape: AxonizeFlowchartShape.Hexagon,
+    innerOpen: '{',
+    innerClose: '}',
+    close: '}}',
+  },
+  '[(': {
+    shape: AxonizeFlowchartShape.Database,
+    innerOpen: '(',
+    innerClose: ')',
+    close: ')]',
+  },
+  '[[': {
+    shape: AxonizeFlowchartShape.Subroutine,
+    innerOpen: '[',
+    innerClose: ']',
+    close: ']]',
+  },
+}
+
+function replaceUnsupportedFlowchartNodesInLine(
+  line: string,
+  nodeShapes: Map<string, AxonizeFlowchartShape>
+): string {
+  const startRe = /(^|[^\w-])([\w-]+)(\s*)(\{\{|\[\(|\[\[)/g
   let result = ''
   let cursor = 0
   let match: RegExpExecArray | null
 
   while ((match = startRe.exec(line)) !== null) {
+    const spec = UNSUPPORTED_FLOWCHART_SHAPE_SPECS[match[4]!]
+    if (!spec) continue
     const contentStart = startRe.lastIndex
-    const contentEnd = findHexagonClose(line, contentStart)
+    const contentEnd = findUnsupportedFlowchartShapeClose(line, contentStart, spec)
     if (contentEnd < 0) break
 
     const prefixLength = match[1]!.length
@@ -249,18 +299,23 @@ function replaceHexagonNodesInLine(line: string, ids: Set<string>): string {
 
     result += line.slice(cursor, nodeStart)
     result += `${id}${spacing}[${label}]`
-    ids.add(id)
-    cursor = contentEnd + 2
+    nodeShapes.set(id, spec.shape)
+    cursor = contentEnd + spec.close.length
     startRe.lastIndex = cursor
   }
 
   return cursor === 0 ? line : result + line.slice(cursor)
 }
 
-function findHexagonClose(line: string, start: number): number {
+function findUnsupportedFlowchartShapeClose(
+  line: string,
+  start: number,
+  spec: UnsupportedFlowchartShapeSpec
+): number {
   let quote: '"' | '`' | undefined
   let escaped = false
-  for (let index = start; index < line.length - 1; index++) {
+  let depth = 1
+  for (let index = start; index < line.length; index++) {
     const char = line[index]!
     if (quote) {
       if (escaped) {
@@ -276,18 +331,27 @@ function findHexagonClose(line: string, start: number): number {
       quote = char
       continue
     }
-    if (char === '}' && line[index + 1] === '}') return index
+    if (char === spec.innerOpen) {
+      depth++
+    } else if (char === spec.innerClose) {
+      depth--
+      if (depth === 0) {
+        if (line.slice(index, index + spec.close.length) === spec.close) return index
+        depth++
+      }
+    }
   }
   return -1
 }
 
-function markHexagonNodes(diagram: StructureDiagram, sourceIds: Set<string>): void {
-  if (sourceIds.size === 0) return
+function markUnsupportedFlowchartNodes(
+  diagram: StructureDiagram,
+  nodeShapes: Map<string, AxonizeFlowchartShape>
+): void {
+  if (nodeShapes.size === 0) return
   for (const element of Object.values(diagram.elements)) {
     if (element.type !== ElementType.ClassNode || !element.sourceId) continue
-    if (sourceIds.has(element.sourceId)) {
-      element.axonizeFlowchartShape = AXONIZE_HEXAGON_SHAPE
-    }
+    element.axonizeFlowchartShape = nodeShapes.get(element.sourceId)
   }
 }
 
@@ -905,6 +969,180 @@ function alignedTargetPortRatio(
   return undefined
 }
 
+/**
+ * Parallel cross-cluster TB routes share the same midpoint, so their long
+ * horizontal sections can collapse into one ambiguous bus. Give only the
+ * overlapping, unlabeled routes separate channel lanes. Candidate lane orders
+ * are accepted only when they reduce overlap without adding crossings or node
+ * intersections; the node layout and port assignments remain unchanged.
+ */
+function separateOverlappingTopBottomRouteBuses(
+  diagram: StructureDiagram,
+  direction: string | undefined
+): void {
+  const resolvedDirection = direction ?? LayoutDirection.TopToBottom
+  if (resolvedDirection !== LayoutDirection.TopToBottom &&
+    resolvedDirection !== LayoutDirection.BottomToTop) return
+  if (!diagram.ports) return
+
+  let workingRoutes = routeEdges(diagram as never, defaultLightTheme)
+  const routeGroups = new Map<string, EdgeRoute[]>()
+  for (const route of workingRoutes) {
+    if (route.label || route.polyline.length !== 4) continue
+    const link = diagram.elements[route.edgeId]
+    if (!link?.port1 || !link.port2) continue
+    const sourcePort = diagram.ports[link.port1]
+    const targetPort = diagram.ports[link.port2]
+    const expectedSourceAlignment = resolvedDirection === LayoutDirection.TopToBottom
+      ? PortAlignment.Bottom
+      : PortAlignment.Top
+    const expectedTargetAlignment = resolvedDirection === LayoutDirection.TopToBottom
+      ? PortAlignment.Top
+      : PortAlignment.Bottom
+    if (sourcePort?.alignment !== expectedSourceAlignment ||
+      targetPort?.alignment !== expectedTargetAlignment) continue
+
+    const sourceClusterId = directClusterContainingNode(diagram, route.sourceNodeId)
+    const targetClusterId = directClusterContainingNode(diagram, route.targetNodeId)
+    if (!sourceClusterId || !targetClusterId || sourceClusterId === targetClusterId) continue
+    const key = `${sourceClusterId}\u0000${targetClusterId}`
+    const group = routeGroups.get(key) ?? []
+    group.push(route)
+    routeGroups.set(key, group)
+  }
+
+  for (const [key, group] of routeGroups) {
+    const affectedIds = new Set(
+      group
+        .filter((route) => group.some((other) =>
+          route.edgeId !== other.edgeId && routesOverlap(route, other)
+        ))
+        .map((route) => route.edgeId)
+    )
+    if (affectedIds.size < 2) continue
+
+    const [sourceClusterId, targetClusterId] = key.split('\u0000')
+    const sourceClusterBounds = diagram.nodes[sourceClusterId!]?.bounds
+    const targetClusterBounds = diagram.nodes[targetClusterId!]?.bounds
+    if (!isValidBounds(sourceClusterBounds) || !isValidBounds(targetClusterBounds)) continue
+
+    const affected = workingRoutes.filter((route) => affectedIds.has(route.edgeId))
+    const sourceBoundary = resolvedDirection === LayoutDirection.TopToBottom
+      ? sourceClusterBounds.y + sourceClusterBounds.height
+      : sourceClusterBounds.y
+    const targetBoundary = resolvedDirection === LayoutDirection.TopToBottom
+      ? targetClusterBounds.y
+      : targetClusterBounds.y + targetClusterBounds.height
+    const laneMin = Math.min(sourceBoundary, targetBoundary) + BUS_ROUTE_CLUSTER_CLEARANCE_PX
+    const laneMax = Math.max(sourceBoundary, targetBoundary) - BUS_ROUTE_CLUSTER_CLEARANCE_PX
+    const availableLaneGap = (laneMax - laneMin) / (affected.length - 1)
+    const laneGap = Math.min(BUS_ROUTE_LANE_GAP_PX, availableLaneGap)
+    if (laneGap < BUS_ROUTE_MIN_LANE_GAP_PX) continue
+    const laneSpan = laneGap * (affected.length - 1)
+
+    const originalCenter = affected.reduce(
+      (sum, route) => sum + route.polyline[1]!.y,
+      0
+    ) / affected.length
+    const center = Math.min(
+      laneMax - laneSpan / 2,
+      Math.max(laneMin + laneSpan / 2, originalCenter)
+    )
+    const lanes = affected.map((_, index) =>
+      center + (index - (affected.length - 1) / 2) * laneGap
+    )
+
+    const routeOrders = [
+      [...affected].sort(compareRouteSourceX),
+      [...affected].sort(compareRouteTargetX),
+    ]
+    let bestRoutes: EdgeRoute[] | undefined
+    let bestOverlaps = routeOverlapCount(workingRoutes)
+    let bestCrossings = routeCrossingCount(workingRoutes)
+    const tried = new Set<string>()
+
+    for (const order of routeOrders) {
+      for (const laneOrder of [lanes, [...lanes].reverse()]) {
+        const laneByEdge = new Map(order.map((route, index) => [route.edgeId, laneOrder[index]!]))
+        const signature = order.map((route) => `${route.edgeId}:${laneByEdge.get(route.edgeId)}`).join('|')
+        if (tried.has(signature)) continue
+        tried.add(signature)
+
+        const candidateRoutes = workingRoutes.map((route) => {
+          const lane = laneByEdge.get(route.edgeId)
+          return lane === undefined ? route : routeWithHorizontalLane(route, lane)
+        })
+        const candidateAffected = candidateRoutes.filter((route) => affectedIds.has(route.edgeId))
+        if (candidateAffected.some((route) => routeNodeIntersectionCount(route, diagram) > 0)) {
+          continue
+        }
+        const overlaps = routeOverlapCount(candidateRoutes)
+        const crossings = routeCrossingCount(candidateRoutes)
+        if (overlaps >= bestOverlaps || crossings > bestCrossings) continue
+        bestRoutes = candidateRoutes
+        bestOverlaps = overlaps
+        bestCrossings = crossings
+      }
+    }
+
+    if (bestRoutes) workingRoutes = bestRoutes
+  }
+
+  const originalById = new Map(
+    routeEdges(diagram as never, defaultLightTheme).map((route) => [route.edgeId, route])
+  )
+  for (const route of workingRoutes) {
+    const original = originalById.get(route.edgeId)
+    if (!original || polylinesEqual(original.polyline, route.polyline)) continue
+    diagram.elements[route.edgeId]!.axonizeRoutePolyline = route.polyline
+  }
+}
+
+function directClusterContainingNode(
+  diagram: StructureDiagram,
+  nodeId: string
+): string | undefined {
+  return Object.values(diagram.elements).find((element) =>
+    element.type === ElementType.Cluster && element.memberNodeIds?.includes(nodeId)
+  )?.id
+}
+
+function compareRouteSourceX(left: EdgeRoute, right: EdgeRoute): number {
+  return left.polyline[0]!.x - right.polyline[0]!.x ||
+    left.polyline[left.polyline.length - 1]!.x - right.polyline[right.polyline.length - 1]!.x
+}
+
+function compareRouteTargetX(left: EdgeRoute, right: EdgeRoute): number {
+  return left.polyline[left.polyline.length - 1]!.x -
+    right.polyline[right.polyline.length - 1]!.x ||
+    left.polyline[0]!.x - right.polyline[0]!.x
+}
+
+function routeWithHorizontalLane(route: EdgeRoute, y: number): EdgeRoute {
+  const source = route.polyline[0]!
+  const target = route.polyline[route.polyline.length - 1]!
+  return {
+    ...route,
+    polyline: [source, { x: source.x, y }, { x: target.x, y }, target],
+  }
+}
+
+function routeOverlapCount(routes: EdgeRoute[]): number {
+  let count = 0
+  for (let left = 0; left < routes.length; left++) {
+    for (let right = left + 1; right < routes.length; right++) {
+      if (routesOverlap(routes[left]!, routes[right]!)) count++
+    }
+  }
+  return count
+}
+
+function polylinesEqual(left: EdgeRoute['polyline'], right: EdgeRoute['polyline']): boolean {
+  return left.length === right.length && left.every((point, index) =>
+    point.x === right[index]!.x && point.y === right[index]!.y
+  )
+}
+
 function routeCrossingCount(routes: EdgeRoute[]): number {
   let count = 0
   for (let left = 0; left < routes.length; left++) {
@@ -1038,18 +1276,106 @@ function rectanglesOverlap(left: DiagramBounds, right: DiagramBounds): boolean {
     right.y < left.y + left.height
 }
 
+function patchFlowchartEdgeRoutes(svg: string, diagram: StructureDiagram): string {
+  const routes = routeEdges(diagram as never, defaultLightTheme)
+  let routeIndex = 0
+  return svg.replace(
+    /<path\b(?=[^>]*\bmarker-end="url\(#arrow\)")[^>]*\/>/g,
+    (path) => {
+      const route = routes[routeIndex++]
+      if (!route) return path
+      const polyline = diagram.elements[route.edgeId]?.axonizeRoutePolyline
+      if (!polyline) return path
+      return path.replace(/\bd="[^"]*"/, `d="${edgePolylinePath(polyline)}"`)
+    }
+  )
+}
+
+function edgePolylinePath(polyline: EdgeRoute['polyline']): string {
+  const [first, ...rest] = polyline
+  if (!first) return ''
+  return [`M ${first.x} ${first.y}`, ...rest.map((point) => `L ${point.x} ${point.y}`)]
+    .join(' ')
+}
+
 function patchUnsupportedFlowchartShapes(svg: string, diagram: StructureDiagram): string {
   let result = svg
   for (const element of Object.values(diagram.elements)) {
-    if (element.axonizeFlowchartShape !== AXONIZE_HEXAGON_SHAPE || !element.sourceId) continue
+    if (!element.axonizeFlowchartShape || !element.sourceId) continue
     const bounds = diagram.nodes[element.id]?.bounds
     if (!isValidBounds(bounds)) continue
-    result = replaceNodeRectWithHexagon(result, element.sourceId, bounds)
+    if (element.axonizeFlowchartShape === AxonizeFlowchartShape.Hexagon) {
+      result = replaceNodeRectWithHexagon(result, element.sourceId, bounds)
+    } else if (element.axonizeFlowchartShape === AxonizeFlowchartShape.Database) {
+      result = replaceNodeRectWithDatabase(result, element.sourceId, bounds)
+    } else if (element.axonizeFlowchartShape === AxonizeFlowchartShape.Subroutine) {
+      result = addSubroutineBorders(result, element.sourceId, bounds)
+    }
   }
   return result
 }
 
 function replaceNodeRectWithHexagon(svg: string, sourceId: string, bounds: DiagramBounds): string {
+  return replaceNodeRect(svg, sourceId, (rect) => {
+    const paint = nodeRectPaintAttributes(rect)
+    const inset = Math.min(bounds.width * 0.12, bounds.height * 0.25)
+    const points = [
+      `${bounds.x + inset},${bounds.y}`,
+      `${bounds.x + bounds.width - inset},${bounds.y}`,
+      `${bounds.x + bounds.width},${bounds.y + bounds.height / 2}`,
+      `${bounds.x + bounds.width - inset},${bounds.y + bounds.height}`,
+      `${bounds.x + inset},${bounds.y + bounds.height}`,
+      `${bounds.x},${bounds.y + bounds.height / 2}`,
+    ].join(' ')
+    return `<polygon points="${points}"${paint} />`
+  })
+}
+
+function replaceNodeRectWithDatabase(
+  svg: string,
+  sourceId: string,
+  bounds: DiagramBounds
+): string {
+  return replaceNodeRect(svg, sourceId, (rect) => {
+    const paint = nodeRectPaintAttributes(rect)
+    const stroke = nodeRectStrokeAttributes(rect)
+    const { x, y, width, height } = bounds
+    const capDepth = Math.min(9, height * 0.12)
+    const right = x + width
+    const bottom = y + height
+    const bodyPath = [
+      `M${x},${y + capDepth}`,
+      `C${x},${y} ${right},${y} ${right},${y + capDepth}`,
+      `L${right},${bottom - capDepth}`,
+      `C${right},${bottom} ${x},${bottom} ${x},${bottom - capDepth}`,
+      'Z',
+    ].join(' ')
+    const rimPath = [
+      `M${x},${y + capDepth}`,
+      `C${x},${y + capDepth * 2} ${right},${y + capDepth * 2} ${right},${y + capDepth}`,
+    ].join(' ')
+    return `<path d="${bodyPath}"${paint} /><path d="${rimPath}" fill="none"${stroke} />`
+  })
+}
+
+function addSubroutineBorders(svg: string, sourceId: string, bounds: DiagramBounds): string {
+  return replaceNodeRect(svg, sourceId, (rect) => {
+    const stroke = nodeRectStrokeAttributes(rect)
+    const inset = Math.min(8, bounds.width * 0.06)
+    const left = bounds.x + inset
+    const right = bounds.x + bounds.width - inset
+    const top = bounds.y
+    const bottom = bounds.y + bounds.height
+    const borders = `<line x1="${left}" y1="${top}" x2="${left}" y2="${bottom}"${stroke} /><line x1="${right}" y1="${top}" x2="${right}" y2="${bottom}"${stroke} />`
+    return rect + borders
+  })
+}
+
+function replaceNodeRect(
+  svg: string,
+  sourceId: string,
+  replacement: (rect: string) => string
+): string {
   const groupStart = `<g data-node-id="${escapeXml(sourceId)}">`
   const groupIndex = svg.indexOf(groupStart)
   if (groupIndex < 0) return svg
@@ -1061,20 +1387,19 @@ function replaceNodeRectWithHexagon(svg: string, sourceId: string, bounds: Diagr
   if (rectEnd < 0 || rectEnd >= groupEnd) return svg
 
   const rect = svg.slice(rectStart, rectEnd + 2)
-  const paint = Array.from(rect.matchAll(/\s(?:fill|fill-opacity|stroke|stroke-width)="[^"]*"/g))
+  return svg.slice(0, rectStart) + replacement(rect) + svg.slice(rectEnd + 2)
+}
+
+function nodeRectPaintAttributes(rect: string): string {
+  return Array.from(rect.matchAll(/\s(?:fill|fill-opacity|stroke|stroke-width)="[^"]*"/g))
     .map((match) => match[0])
     .join('')
-  const inset = Math.min(bounds.width * 0.12, bounds.height * 0.25)
-  const points = [
-    `${bounds.x + inset},${bounds.y}`,
-    `${bounds.x + bounds.width - inset},${bounds.y}`,
-    `${bounds.x + bounds.width},${bounds.y + bounds.height / 2}`,
-    `${bounds.x + bounds.width - inset},${bounds.y + bounds.height}`,
-    `${bounds.x + inset},${bounds.y + bounds.height}`,
-    `${bounds.x},${bounds.y + bounds.height / 2}`,
-  ].join(' ')
-  const polygon = `<polygon points="${points}"${paint} />`
-  return svg.slice(0, rectStart) + polygon + svg.slice(rectEnd + 2)
+}
+
+function nodeRectStrokeAttributes(rect: string): string {
+  return Array.from(rect.matchAll(/\s(?:stroke|stroke-width)="[^"]*"/g))
+    .map((match) => match[0])
+    .join('')
 }
 
 function protectQuotedLabelClosingBrackets(source: string): string {
