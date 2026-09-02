@@ -452,6 +452,151 @@ flowchart TB
     expect(svg.match(/<text transform="translate\(/g)).toHaveLength(4)
   })
 
+  it('keeps long multi-source fan-in routes on interior top ports', async () => {
+    const source = `
+flowchart TB
+    subgraph CORE["Core services — post-commit dispatch"]
+        ACTIVE["ACTIVE operations<br/>create · update<br/>attach · publish"]
+        CLOSED["LIFECYCLE operations<br/>remove · archive<br/>purge"]
+        ROUTER{"selectTarget<br/>FAST · SAFE · ALL · NONE"}
+    end
+
+    subgraph ADMIN["Administrative and migration jobs"]
+        CONTROL["SchemaModelAdmin · EntityCoordinator<br/>Provisioning · retry loop"]
+        PIPELINE(["Search repository workflow<br/>app.search.workflow.ref"])
+        IMPORTER["IndexIntegrationWorker<br/>SearchDocumentHandler"]
+        PAGER["IndexDispatcher.fetchDocuments<br/>pages records from storage by startDate<br/>→ indexRecords → reindexRecords"]
+    end
+
+    subgraph TRANSPORT["Event stream — indexing"]
+        SINGLE["SearchPublisher.sendToStream<br/>putRecord · partitionKey = id<br/>ONE record per document change"]
+        BATCH["SearchPublisher.processStreamRecords<br/>putRecords · batch = configuredBatchCount, default 5<br/>bulk refresh / migration only"]
+        STREAM[["Event stream<br/>PrimaryStream<br/>from workspace config StreamList"]]
+        OVERFLOW[("Object index bucket<br/>oversized event payloads")]
+    end
+
+    subgraph EXTERNAL["External indexing service"]
+        SEARCH["External search platform service<br/>owns the index writes"]
+        INDEX[("Search engine<br/>shared index + filtered aliases<br/>workspace key")]
+    end
+
+    subgraph QUEUES["Document event queues"]
+        QTEXT["app.rs.contentExtraction.queue"]
+        QVECTOR["app.rs.semanticExtraction.queue"]
+        QMEDIA["app.rs.mediaConversion.queue"]
+        QAUDIT["app.rs.auditCollection.queue"]
+        QSYNC["Partner / Sync queue<br/>app.sqs.workspace.url"]
+    end
+
+    subgraph WORKERS["Consumers"]
+        TEXT["TextProcessing Worker<br/>ContentHelper.extract"]
+        VECTOR["Vector trigger Worker<br/>→ state workflow, 11 stages"]
+        MEDIA["MediaConversion Worker"]
+        AUDIT["AuditingCollection Worker"]
+        SYNC["Partner / Sync<br/>event delivery"]
+    end
+
+    subgraph STORES["Stores"]
+        RECORDS[("Application DB — Postgres OR MSSQL<br/>column NORMALIZEDCONTENT on the record type table<br/>Record_Main · Record_Draft_* · Record_History_* · Record_Archive_*<br/>normalised text, first 900 KB · FTS-indexed")]
+        LARGE[("Object resourceContentFiles<br/>normalised text, complete · >900 KB only")]
+        RAW[("Object rawResourceContentFiles<br/>RAW text, un-normalised · AI only")]
+        EMBEDDINGS[("Vector store — SEPARATE Postgres + pgvector<br/>one database per workspace<br/>schema vectors: document · chunk")]
+        CACHE[("Object conversions cache")]
+    end
+
+    ACTIVE --> ROUTER
+    CLOSED --> ROUTER
+    ROUTER -->|"active target"| SINGLE
+    CONTROL --> PIPELINE --> IMPORTER --> PAGER --> BATCH
+    SINGLE --> STREAM
+    BATCH --> STREAM
+    SINGLE -.->|"oversized"| OVERFLOW
+    STREAM --> SEARCH
+    OVERFLOW -.-> SEARCH
+    SEARCH --> INDEX
+
+    ACTIVE -->|"text extraction enabled<br/>plus eligibility rules"| QTEXT
+    CLOSED -.->|"not emitted after removal"| QTEXT
+    ACTIVE -->|"vector extraction enabled<br/>same-event fan-out"| QVECTOR
+    CLOSED -->|"lifecycle vector event<br/>remove and archive only"| QVECTOR
+    ACTIVE -->|"media conversion enabled"| QMEDIA
+    ACTIVE -->|"every active mutation"| QAUDIT
+    CLOSED -->|"every lifecycle mutation"| QAUDIT
+    ACTIVE -->|"partner service enabled"| QSYNC
+    CLOSED -->|"partner service enabled"| QSYNC
+
+    QTEXT --> TEXT
+    QVECTOR --> VECTOR
+    QMEDIA --> MEDIA
+    QAUDIT --> AUDIT
+    QSYNC --> SYNC
+
+    TEXT --> RECORDS
+    TEXT --> LARGE
+    TEXT --> RAW
+    VECTOR --> EMBEDDINGS
+    MEDIA --> CACHE
+
+    RECORDS -.->|"content update emits another event"| SINGLE
+`.trim()
+
+    const diagram = await importMermaidFlowchartWithAxonizeLayout(source)
+    const routes = routeEdges(diagram as never, defaultLightTheme)
+    const structure = diagram as typeof diagram & {
+      elements: Record<string, {
+        sourceId?: string
+        nodeId?: string
+        port1?: string
+        port2?: string
+        axonizeRoutePolyline?: Array<{ x: number; y: number }>
+      }>
+      nodes: Record<string, { bounds?: { x: number; y: number; width: number; height: number } }>
+      ports: Record<string, { alignment?: PortAlignment; edgePosRatio?: number }>
+    }
+    const syncRoutes = routes.filter((route) =>
+      structure.elements[route.targetNodeId]?.sourceId === 'QSYNC'
+    )
+
+    expect(syncRoutes).toHaveLength(2)
+    expect(syncRoutes.some((route) =>
+      structure.elements[route.edgeId]?.axonizeRoutePolyline
+    )).toBe(true)
+    const syncBounds = structure.nodes[syncRoutes[0]!.targetNodeId]!.bounds!
+    const effectiveRoutes = routes.map((route) => ({
+      ...route,
+      polyline: structure.elements[route.edgeId]?.axonizeRoutePolyline ?? route.polyline,
+    }))
+    for (const route of syncRoutes) {
+      const link = structure.elements[route.edgeId]!
+      const targetPort = structure.ports[link.port2!]!
+      const polyline = link.axonizeRoutePolyline ?? route.polyline
+      const endpoint = polyline[polyline.length - 1]!
+      expect(targetPort.alignment).toBe(PortAlignment.Top)
+      expect(targetPort.edgePosRatio).toBeGreaterThan(10)
+      expect(targetPort.edgePosRatio).toBeLessThan(90)
+      expect(endpoint.y).toBe(syncBounds.y)
+      expect(endpoint.x).toBeGreaterThan(syncBounds.x + syncBounds.width * 0.1)
+      expect(endpoint.x).toBeLessThan(syncBounds.x + syncBounds.width * 0.9)
+    }
+    layoutFor(diagram as never, { routes: effectiveRoutes }).edges().noNodeIntersection()
+
+    const customPolyline = syncRoutes
+      .map((route) => structure.elements[route.edgeId]?.axonizeRoutePolyline)
+      .find((polyline) => polyline)
+    expect(Math.max(...customPolyline!.map((point) => point.x)))
+      .toBeLessThan(syncBounds.x + syncBounds.width)
+    expect(Math.abs(
+      customPolyline![customPolyline!.length - 2]!.y -
+      customPolyline![customPolyline!.length - 1]!.y
+    )).toBeGreaterThan(syncBounds.height)
+    const [firstPoint, ...remainingPoints] = customPolyline!
+    const customPath = [`M ${firstPoint!.x} ${firstPoint!.y}`, ...remainingPoints.map((point) =>
+      `L ${point.x} ${point.y}`
+    )].join(' ')
+    const svg = await renderMermaidWithDoodles(source)
+    expect(svg).toContain(`d="${customPath}"`)
+  })
+
   it('keeps a long ontology branch clear of an aligned intermediate node border', async () => {
     const source = `
 flowchart TD

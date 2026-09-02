@@ -227,6 +227,7 @@ export async function importMermaidFlowchartWithAxonizeLayout(source: string): P
   straightenSingleIncomingRoutes(diagram)
   expandDisplayToFitNodes(diagram)
   separateOverlappingTopBottomRouteBuses(diagram, direction)
+  repairTopBottomFanInCornerAttachments(diagram, direction)
   return diagram
 }
 
@@ -885,6 +886,221 @@ function avoidSameTargetRouteCrossings(diagram: StructureDiagram): void {
       }
     }
   }
+}
+
+/**
+ * A long fan-in sometimes cannot use a top/bottom port through the stock
+ * router because its full-height final leg would cross another node. Preserve
+ * the already-clear outer route, then turn toward an interior target port only
+ * in the small gap immediately before the target. This fixes the visual corner
+ * attachment without reopening crossings earlier in the diagram.
+ */
+function repairTopBottomFanInCornerAttachments(
+  diagram: StructureDiagram,
+  direction: string | undefined
+): void {
+  if (!diagram.ports) return
+  const resolvedDirection = direction ?? LayoutDirection.TopToBottom
+  if (resolvedDirection !== LayoutDirection.TopToBottom &&
+    resolvedDirection !== LayoutDirection.BottomToTop) return
+  const expectedAlignment = resolvedDirection === LayoutDirection.TopToBottom
+    ? PortAlignment.Top
+    : PortAlignment.Bottom
+  const targetIds = new Set(
+    effectiveRouteEdges(diagram).map((route) => route.targetNodeId)
+  )
+
+  for (const targetId of targetIds) {
+    let currentRoutes = effectiveRouteEdges(diagram)
+    const initialFanIn = currentRoutes.filter((route) => route.targetNodeId === targetId)
+    if (initialFanIn.length < 2) continue
+    const targetBounds = diagram.nodes[targetId]?.bounds
+    const targetClusterId = directClusterContainingNode(diagram, targetId)
+    if (!targetClusterId || !isValidBounds(targetBounds) || !initialFanIn.every((route) => {
+      const sourceBounds = diagram.nodes[route.sourceNodeId]?.bounds
+      const sourceClusterId = directClusterContainingNode(diagram, route.sourceNodeId)
+      if (!sourceClusterId || sourceClusterId === targetClusterId ||
+        !isValidBounds(sourceBounds)) return false
+      return resolvedDirection === LayoutDirection.TopToBottom
+        ? sourceBounds.y + sourceBounds.height <= targetBounds.y
+        : sourceBounds.y >= targetBounds.y + targetBounds.height
+    })) continue
+
+    for (const initialRoute of initialFanIn) {
+      currentRoutes = effectiveRouteEdges(diagram)
+      const currentRoute = currentRoutes.find((route) => route.edgeId === initialRoute.edgeId)
+      const link = diagram.elements[initialRoute.edgeId]
+      if (!currentRoute || !link?.port2) continue
+      const targetPort = diagram.ports[link.port2]
+      if (!targetPort) continue
+      const currentRatio = targetPort.edgePosRatio ?? 50
+      if (targetPort.alignment === expectedAlignment &&
+        currentRatio > STRAIGHT_ROUTE_PORT_MARGIN_PERCENT &&
+        currentRatio < 100 - STRAIGHT_ROUTE_PORT_MARGIN_PERCENT) continue
+
+      const otherRatios = initialFanIn
+        .filter((route) => route.edgeId !== initialRoute.edgeId)
+        .map((route) => {
+          const otherLink = diagram.elements[route.edgeId]
+          return otherLink?.port2 ? diagram.ports![otherLink.port2] : undefined
+        })
+        .filter((port) => port?.alignment === expectedAlignment)
+        .map((port) => port!.edgePosRatio ?? 50)
+      const endpoint = currentRoute.polyline[currentRoute.polyline.length - 1]!
+      const entersFromRight = endpoint.x >= targetBounds.x + targetBounds.width / 2
+      const nearestRatio = otherRatios.length > 0 ? otherRatios[0]! : 50
+      const desiredRatio = entersFromRight
+        ? Math.min(85, Math.max(65, nearestRatio + 15))
+        : Math.max(15, Math.min(35, nearestRatio - 15))
+      const targetPoint = {
+        x: targetBounds.x + targetBounds.width * desiredRatio / 100,
+        y: resolvedDirection === LayoutDirection.TopToBottom
+          ? targetBounds.y
+          : targetBounds.y + targetBounds.height,
+      }
+      const approachY = targetPoint.y + (
+        resolvedDirection === LayoutDirection.TopToBottom
+          ? -BUS_ROUTE_MIN_LANE_GAP_PX
+          : BUS_ROUTE_MIN_LANE_GAP_PX
+      )
+      let anchorIndex = -1
+      for (let index = currentRoute.polyline.length - 2; index >= 0; index--) {
+        const point = currentRoute.polyline[index]!
+        const isBeforeTarget = resolvedDirection === LayoutDirection.TopToBottom
+          ? point.y <= approachY
+          : point.y >= approachY
+        if (isBeforeTarget) {
+          anchorIndex = index
+          break
+        }
+      }
+      if (anchorIndex < 0) continue
+
+      const fallbackPolyline = currentRoute.polyline.slice(0, anchorIndex + 1)
+      appendRoutePoint(fallbackPolyline, {
+        x: fallbackPolyline[fallbackPolyline.length - 1]!.x,
+        y: approachY,
+      })
+      appendRoutePoint(fallbackPolyline, { x: targetPoint.x, y: approachY })
+      appendRoutePoint(fallbackPolyline, targetPoint)
+      const candidatePolylines: Array<EdgeRoute['polyline']> = []
+      const anchor = currentRoute.polyline[anchorIndex]!
+      const previous = currentRoute.polyline[anchorIndex - 1]
+      if (previous?.y === anchor.y) {
+        const directPolyline = currentRoute.polyline.slice(0, anchorIndex)
+        appendRoutePoint(directPolyline, { x: targetPoint.x, y: anchor.y })
+        appendRoutePoint(directPolyline, targetPoint)
+        candidatePolylines.push(directPolyline)
+      }
+      candidatePolylines.push(fallbackPolyline)
+
+      const snapshot = {
+        alignment: targetPort.alignment,
+        ratio: targetPort.edgePosRatio,
+        polyline: link.axonizeRoutePolyline,
+        labelOffset: link.axonizeRouteLabelOffset,
+      }
+      targetPort.alignment = expectedAlignment
+      targetPort.edgePosRatio = desiredRatio
+      const baseRoutes = routeEdges(diagram as never, defaultLightTheme)
+      const baseCandidate = baseRoutes.find((route) => route.edgeId === currentRoute.edgeId)
+      if (!baseCandidate) {
+        restoreRouteAttachment(link, targetPort, snapshot)
+        continue
+      }
+      const baseMidpoint = routePolylineMidpoint(baseCandidate.polyline)
+      let accepted: {
+        polyline: EdgeRoute['polyline']
+        labelOffset: { x: number; y: number } | undefined
+      } | undefined
+      for (const polyline of candidatePolylines) {
+        const customMidpoint = routePolylineMidpoint(polyline)
+        const labelOffset = baseCandidate.labelBox
+          ? {
+              x: customMidpoint.x - baseMidpoint.x,
+              y: customMidpoint.y - baseMidpoint.y,
+            }
+          : undefined
+        const customRoute: EdgeRoute = {
+          ...baseCandidate,
+          polyline,
+          labelBox: baseCandidate.labelBox && labelOffset
+            ? {
+                ...baseCandidate.labelBox,
+                x: baseCandidate.labelBox.x + labelOffset.x,
+                y: baseCandidate.labelBox.y + labelOffset.y,
+              }
+            : baseCandidate.labelBox,
+        }
+        const candidateRoutes = baseRoutes.map((route) => {
+          if (route.edgeId === customRoute.edgeId) return customRoute
+          return effectiveRoute(diagram, route)
+        })
+        const isSafe = routeNodeIntersectionCount(customRoute, diagram) === 0 &&
+          routeLabelNodeIntersectionCount(customRoute, diagram) === 0 &&
+          routeCrossingCount(candidateRoutes) <= routeCrossingCount(currentRoutes) &&
+          routeOverlapCount(candidateRoutes) <= routeOverlapCount(currentRoutes) &&
+          routeLabelOverlapCount(candidateRoutes) <= routeLabelOverlapCount(currentRoutes)
+        if (isSafe) {
+          accepted = { polyline, labelOffset }
+          break
+        }
+      }
+
+      if (accepted) {
+        link.axonizeRoutePolyline = accepted.polyline
+        link.axonizeRouteLabelOffset = accepted.labelOffset
+      } else {
+        restoreRouteAttachment(link, targetPort, snapshot)
+      }
+    }
+  }
+}
+
+function effectiveRouteEdges(diagram: StructureDiagram): EdgeRoute[] {
+  return routeEdges(diagram as never, defaultLightTheme).map((route) =>
+    effectiveRoute(diagram, route)
+  )
+}
+
+function effectiveRoute(diagram: StructureDiagram, route: EdgeRoute): EdgeRoute {
+  const link = diagram.elements[route.edgeId]
+  const offset = link?.axonizeRouteLabelOffset
+  return {
+    ...route,
+    polyline: link?.axonizeRoutePolyline ?? route.polyline,
+    labelBox: route.labelBox && offset
+      ? {
+          ...route.labelBox,
+          x: route.labelBox.x + offset.x,
+          y: route.labelBox.y + offset.y,
+        }
+      : route.labelBox,
+  }
+}
+
+function appendRoutePoint(
+  polyline: EdgeRoute['polyline'],
+  point: EdgeRoute['polyline'][number]
+): void {
+  const previous = polyline[polyline.length - 1]
+  if (!previous || previous.x !== point.x || previous.y !== point.y) polyline.push(point)
+}
+
+function restoreRouteAttachment(
+  link: DiagramElement,
+  targetPort: DiagramPortRecord,
+  snapshot: {
+    alignment: PortAlignment | undefined
+    ratio: number | undefined
+    polyline: EdgeRoute['polyline'] | undefined
+    labelOffset: { x: number; y: number } | undefined
+  }
+): void {
+  targetPort.alignment = snapshot.alignment
+  targetPort.edgePosRatio = snapshot.ratio
+  link.axonizeRoutePolyline = snapshot.polyline
+  link.axonizeRouteLabelOffset = snapshot.labelOffset
 }
 
 /**
