@@ -107,6 +107,8 @@ const STRAIGHT_ROUTE_PORT_MARGIN_PERCENT = 10
 const BUS_ROUTE_LANE_GAP_PX = 20
 const BUS_ROUTE_MIN_LANE_GAP_PX = 8
 const BUS_ROUTE_CLUSTER_CLEARANCE_PX = 20
+const COMPACT_CLUSTER_GAP_PX = 80
+const COMPACT_CLUSTER_THRESHOLD_PX = 160
 
 type DiagramDisplay = {
   width: number
@@ -369,6 +371,7 @@ function repairFlowchartGeometry(
   const resolvedDirection = direction ?? LayoutDirection.TopToBottom
   repairMisplacedTerminalNodes(diagram, resolvedDirection)
   separateOverlappingRankNodes(diagram, resolvedDirection)
+  compactSinkLikeClusterGaps(diagram, resolvedDirection)
   makeRoomForForwardEdgeLabels(diagram, resolvedDirection)
 }
 
@@ -483,6 +486,98 @@ function separateOverlappingRankNodes(diagram: StructureDiagram, direction: stri
     for (const entry of rank) {
       setCrossStart(entry.bounds, horizontal, cursor)
       cursor += crossSize(entry.bounds, horizontal) + OVERLAPPING_NODE_GAP_PX
+    }
+  }
+}
+
+/**
+ * Compound layout shares ranks across otherwise independent branches. A long
+ * pipeline can therefore push a terminal sink cluster far below the consumer
+ * cluster that actually feeds it. Move only sink-like clusters with one
+ * predecessor cluster and no forward outgoing edges, and retain the move only
+ * when cluster and edge clearance do not regress.
+ */
+function compactSinkLikeClusterGaps(diagram: StructureDiagram, direction: string): void {
+  if (direction !== LayoutDirection.TopToBottom &&
+    direction !== LayoutDirection.BottomToTop) return
+  const clusters = Object.values(diagram.elements).filter((element) =>
+    element.type === ElementType.Cluster && element.memberNodeIds?.length
+  )
+
+  for (const cluster of clusters) {
+    const clusterBounds = diagram.nodes[cluster.id]?.bounds
+    if (!isValidBounds(clusterBounds)) continue
+    const memberIds = new Set(cluster.memberNodeIds)
+    if ([...memberIds].some((id) => diagram.elements[id]?.type === ElementType.Cluster)) continue
+    const currentRoutes = routeEdges(diagram as never, defaultLightTheme)
+    const incoming = currentRoutes.filter((route) =>
+      memberIds.has(route.targetNodeId) && !memberIds.has(route.sourceNodeId)
+    )
+    if (incoming.length === 0) continue
+    const routePredecessorIds = incoming.map((route) =>
+      directClusterContainingNode(diagram, route.sourceNodeId)
+    )
+    if (routePredecessorIds.some((id) => id === undefined)) continue
+    const predecessorIds = new Set(routePredecessorIds as string[])
+    if (predecessorIds.size !== 1) continue
+    const [predecessorId] = predecessorIds
+    const predecessorBounds = diagram.nodes[predecessorId!]?.bounds
+    if (!isValidBounds(predecessorBounds)) continue
+
+    const outgoing = currentRoutes.filter((route) =>
+      memberIds.has(route.sourceNodeId) && !memberIds.has(route.targetNodeId)
+    )
+    const hasForwardOutgoing = outgoing.some((route) => {
+      const targetBounds = diagram.nodes[route.targetNodeId]?.bounds
+      if (!isValidBounds(targetBounds)) return true
+      return direction === LayoutDirection.TopToBottom
+        ? targetBounds.y >= clusterBounds.y + clusterBounds.height
+        : targetBounds.y + targetBounds.height <= clusterBounds.y
+    })
+    if (hasForwardOutgoing) continue
+
+    const gap = direction === LayoutDirection.TopToBottom
+      ? clusterBounds.y - predecessorBounds.y - predecessorBounds.height
+      : predecessorBounds.y - clusterBounds.y - clusterBounds.height
+    if (gap <= COMPACT_CLUSTER_THRESHOLD_PX) continue
+    const deltaY = direction === LayoutDirection.TopToBottom
+      ? -(gap - COMPACT_CLUSTER_GAP_PX)
+      : gap - COMPACT_CLUSTER_GAP_PX
+    const candidateBounds = { ...clusterBounds, y: clusterBounds.y + deltaY }
+    const overlapsCluster = clusters.some((other) => {
+      if (other.id === cluster.id) return false
+      const bounds = diagram.nodes[other.id]?.bounds
+      return isValidBounds(bounds) && rectanglesOverlap(candidateBounds, bounds)
+    })
+    if (overlapsCluster) continue
+
+    const movedBounds = [cluster.id, ...memberIds]
+      .map((id) => diagram.nodes[id]?.bounds)
+      .filter((bounds): bounds is DiagramBounds => isValidBounds(bounds))
+    const currentNodeIntersections = currentRoutes.reduce(
+      (sum, route) => sum + routeNodeIntersectionCount(route, diagram),
+      0
+    )
+    const currentLabelIntersections = currentRoutes.reduce(
+      (sum, route) => sum + routeLabelNodeIntersectionCount(route, diagram),
+      0
+    )
+    for (const bounds of movedBounds) bounds.y += deltaY
+
+    const candidateRoutes = routeEdges(diagram as never, defaultLightTheme)
+    const isSafe = candidateRoutes.reduce(
+      (sum, route) => sum + routeNodeIntersectionCount(route, diagram),
+      0
+    ) <= currentNodeIntersections && candidateRoutes.reduce(
+      (sum, route) => sum + routeLabelNodeIntersectionCount(route, diagram),
+      0
+    ) <= currentLabelIntersections &&
+      routeCrossingCount(candidateRoutes) <= routeCrossingCount(currentRoutes) &&
+      routeOverlapCount(candidateRoutes) <= routeOverlapCount(currentRoutes) &&
+      routeLabelOverlapCount(candidateRoutes) <= routeLabelOverlapCount(currentRoutes)
+
+    if (!isSafe) {
+      for (const bounds of movedBounds) bounds.y -= deltaY
     }
   }
 }

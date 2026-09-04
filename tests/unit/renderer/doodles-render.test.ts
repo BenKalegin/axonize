@@ -480,6 +480,16 @@ flowchart TB
         INDEX[("Search engine<br/>shared index + filtered aliases<br/>workspace key")]
     end
 
+    subgraph SIDECAR["Independent enrichment pipeline"]
+        FETCH["Fetch worker<br/>loads source records"]
+        PREPARE["Request preparer<br/>groups content"]
+        CHUNK["Chunking service<br/>splits long text"]
+        BUILD["Index builder<br/>creates vectors"]
+        INGEST["Search ingest pipeline<br/>writes index documents"]
+        SEARCHDB[("Dedicated search store<br/>filtered workspace aliases")]
+        API["Search API<br/>lexical · vector · hybrid"]
+    end
+
     subgraph QUEUES["Document event queues"]
         QTEXT["app.rs.contentExtraction.queue"]
         QVECTOR["app.rs.semanticExtraction.queue"]
@@ -514,6 +524,7 @@ flowchart TB
     STREAM --> SEARCH
     OVERFLOW -.-> SEARCH
     SEARCH --> INDEX
+    STREAM --> FETCH --> PREPARE --> CHUNK --> BUILD --> INGEST --> SEARCHDB --> API
 
     ACTIVE -->|"text extraction enabled<br/>plus eligibility rules"| QTEXT
     CLOSED -.->|"not emitted after removal"| QTEXT
@@ -544,6 +555,8 @@ flowchart TB
     const routes = routeEdges(diagram as never, defaultLightTheme)
     const structure = diagram as typeof diagram & {
       elements: Record<string, {
+        id: string
+        type: ElementType
         sourceId?: string
         nodeId?: string
         port1?: string
@@ -579,6 +592,16 @@ flowchart TB
       expect(endpoint.x).toBeLessThan(syncBounds.x + syncBounds.width * 0.9)
     }
     layoutFor(diagram as never, { routes: effectiveRoutes }).edges().noNodeIntersection()
+
+    const clusterBounds = (sourceId: string) => {
+      const cluster = Object.values(structure.elements).find((element) =>
+        element.type === ElementType.Cluster && element.id === sourceId
+      )
+      return cluster ? structure.nodes[cluster.id]?.bounds : undefined
+    }
+    const workerBounds = clusterBounds('WORKERS')!
+    const storeBounds = clusterBounds('STORES')!
+    expect(storeBounds.y - workerBounds.y - workerBounds.height).toBeLessThanOrEqual(160)
 
     const customPolyline = syncRoutes
       .map((route) => structure.elements[route.edgeId]?.axonizeRoutePolyline)
