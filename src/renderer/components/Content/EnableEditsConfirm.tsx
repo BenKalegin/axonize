@@ -1,4 +1,4 @@
-import { useEffect } from 'react'
+import { Dialog, DialogHeader, DialogBody, DialogFooter } from '@/components/primitives'
 
 interface EnableEditsConfirmProps {
   onConfirm: () => void
@@ -6,33 +6,28 @@ interface EnableEditsConfirmProps {
 }
 
 export function EnableEditsConfirm({ onConfirm, onCancel }: EnableEditsConfirmProps) {
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
-        e.preventDefault()
-        onCancel()
-      }
-    }
-    window.addEventListener('keydown', onKey)
-    return () => window.removeEventListener('keydown', onKey)
-  }, [onCancel])
-
   return (
-    <div
-      className="agent-confirm-overlay"
-      onMouseDown={(e) => { if (e.target === e.currentTarget) onCancel() }}
+    <Dialog
+      open={true}
+      onClose={onCancel}
+      className="agent-confirm-dialog"
+      overlayClassName="agent-confirm-overlay"
     >
-      <div className="agent-confirm-dialog">
-        <div className="agent-confirm-title">Allow edits for this session?</div>
-        <div className="agent-confirm-body">
-          The agent will be able to Write, Edit, MultiEdit, and run Bash commands inside the vault.
-          This can modify or delete files.
-        </div>
-        <div className="agent-confirm-actions">
-          <button className="toolbar-btn" onClick={onCancel}>Cancel</button>
-          <button className="toolbar-btn active" onClick={onConfirm}>Allow edits</button>
-        </div>
-      </div>
-    </div>
+      <DialogHeader className="agent-confirm-title">
+        Allow edits for this session?
+      </DialogHeader>
+      <DialogBody className="agent-confirm-body">
+        The agent will be able to Write, Edit, MultiEdit, and run Bash commands inside the vault.
+        This can modify or delete files.
+      </DialogBody>
+      <DialogFooter className="agent-confirm-actions">
+        <button className="toolbar-btn" onClick={onCancel}>
+          Cancel
+        </button>
+        <button className="toolbar-btn active" onClick={onConfirm}>
+          Allow edits
+        </button>
+      </DialogFooter>
+    </Dialog>
   )
 }

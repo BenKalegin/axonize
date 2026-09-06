@@ -75,6 +75,29 @@ export async function deleteAgentSession(vaultPath: string, sessionId: string): 
   await rm(sessionDir(vaultPath, sessionId), { recursive: true, force: true })
 }
 
+export async function deleteAgentTurns(
+  vaultPath: string,
+  sessionId: string,
+  turnIds: string[]
+): Promise<void> {
+  for (const turnId of turnIds) {
+    const filePath = turnFilePath(vaultPath, sessionId, turnId)
+    try {
+      await unlink(filePath)
+    } catch {
+      // user turns aren't persisted as files; ignore ENOENT
+    }
+  }
+  try {
+    const remaining = await readdir(sessionDir(vaultPath, sessionId))
+    if (remaining.length === 0) {
+      await rm(sessionDir(vaultPath, sessionId), { recursive: true, force: true })
+    }
+  } catch {
+    // session dir already gone
+  }
+}
+
 export async function promoteAgentTurn(filePath: string, targetPath: string): Promise<void> {
   const content = await readFile(filePath, 'utf-8')
   const match = content.match(FRONTMATTER_BOUNDARY_RE)

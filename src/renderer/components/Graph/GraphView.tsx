@@ -167,9 +167,22 @@ function LensSelector() {
   )
 }
 
+function SemanticToggle({ vaultPath }: { vaultPath: string }) {
+  const { semanticEnabled, setSemanticEnabled } = useGraphStore()
+  return (
+    <button
+      className={`graph-semantic-toggle${semanticEnabled ? '' : ' graph-semantic-toggle--off'}`}
+      onClick={() => setSemanticEnabled(vaultPath, !semanticEnabled)}
+      title={semanticEnabled ? 'Disable auto-indexing (semantic index + RAG) for this vault' : 'Enable auto-indexing for this vault'}
+    >
+      Auto-Indexing: {semanticEnabled ? 'On' : 'Off'}
+    </button>
+  )
+}
+
 export function GraphView() {
   const containerRef = useRef<HTMLDivElement>(null)
-  const { cards, progress, increaseDepth, decreaseDepth, ensureLoaded, buildIndex, setProgress } = useGraphStore()
+  const { cards, progress, increaseDepth, decreaseDepth, ensureLoaded, buildIndex, setProgress, semanticEnabled } = useGraphStore()
   const { vaultPath } = useVaultStore()
   const [estimate, setEstimate] = useState<SemanticEstimateResult | null>(null)
   const [estimating, setEstimating] = useState(false)
@@ -242,10 +255,11 @@ export function GraphView() {
   const hasCards = cards.length > 0
 
   // Show staleness banner when index exists but is stale
-  const showStalenessBanner = hasCards && staleness?.isStale && !progress
+  const showStalenessBanner = hasCards && semanticEnabled && staleness?.isStale && !progress
 
   // Build message for empty state based on staleness
   const getEmptyStateMessage = () => {
+    if (!semanticEnabled) return 'Auto-indexing is disabled for this vault.'
     if (!staleness || !staleness.reason) return 'No semantic index. Click to build.'
     if (staleness.reason === 'no-index') return 'No semantic index yet. Click to build.'
     if (staleness.reason === 'version-mismatch') return 'Index version outdated. Rebuild required.'
@@ -258,6 +272,7 @@ export function GraphView() {
 
   return (
     <div className="graph-view" data-testid={TEST_IDS.GRAPH_VIEW}>
+      {vaultPath && <SemanticToggle vaultPath={vaultPath} />}
       {hasCards && <DepthControls />}
       {hasCards && <ProcessingIndicator progress={progress} />}
       {hasCards && <LensSelector />}
@@ -282,7 +297,7 @@ export function GraphView() {
         {!progress && !hasCards && !estimate && (
           <div className="graph-empty-state graph-empty-state--interactive">
             <p>{getEmptyStateMessage()}</p>
-            {vaultPath && (
+            {vaultPath && semanticEnabled && (
               <button className="graph-build-btn" onClick={handleEstimate} disabled={estimating}>
                 {estimating ? 'Estimating...' : 'Build Semantic Index'}
               </button>

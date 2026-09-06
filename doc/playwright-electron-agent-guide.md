@@ -35,19 +35,19 @@ pnpm build
 2. Run Electron E2E:
 
 ```bash
-pnpm test:e2e:electron
+pnpm exec playwright test --project=electron
 ```
 
 3. Reproduce visually:
 
 ```bash
-pnpm test:e2e:headed
+pnpm exec playwright test --project=electron --headed
 ```
 
 4. Capture trace for difficult failures:
 
 ```bash
-pnpm test:e2e:debug
+pnpm exec playwright test --project=electron --headed --trace on
 ```
 
 ## Practical Debug Pattern
@@ -58,4 +58,3 @@ pnpm test:e2e:debug
 - visible behavior (DOM/UI expectation)
 - absence of runtime errors (`page.on('console')` / expected logs)
 4. Keep the spec as a regression test when fixing code.
-

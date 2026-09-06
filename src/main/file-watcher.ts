@@ -1,10 +1,11 @@
 import { watch, type FSWatcher } from 'fs'
-import { basename, extname } from 'path'
+import { basename } from 'path'
 import type { BrowserWindow } from 'electron'
+import { isVaultVisibleFile } from '../core/vault/data-file-types'
+import { pathContainsVaultIgnoredDir } from '../core/vault/ignored-dirs'
 import log from './logger'
 
 const DEBOUNCE_MS = 1000
-const IGNORED_DIRS = new Set(['.axonize', 'node_modules', '.git'])
 
 interface WatcherEntry {
   watcher: FSWatcher
@@ -14,12 +15,11 @@ interface WatcherEntry {
 const watchers = new Map<number, WatcherEntry>()
 
 function isIgnored(filename: string): boolean {
-  const parts = filename.split(/[\\/]/)
-  return parts.some((part) => IGNORED_DIRS.has(part))
+  return pathContainsVaultIgnoredDir(filename)
 }
 
-function isMarkdown(filename: string): boolean {
-  return extname(basename(filename)) === '.md'
+function isWatchedFile(filename: string): boolean {
+  return isVaultVisibleFile(basename(filename))
 }
 
 export function startWatching(vaultPath: string, win: BrowserWindow): void {
@@ -31,7 +31,7 @@ export function startWatching(vaultPath: string, win: BrowserWindow): void {
     entry.watcher = watch(vaultPath, { recursive: true }, (_eventType, filename) => {
       if (!filename) return
       if (isIgnored(filename)) return
-      if (!isMarkdown(filename)) return
+      if (!isWatchedFile(filename)) return
 
       if (entry.timer) clearTimeout(entry.timer)
       entry.timer = setTimeout(() => {

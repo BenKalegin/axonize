@@ -3,9 +3,11 @@ import remarkParse from 'remark-parse'
 import remarkGfm from 'remark-gfm'
 import type { Root, Content } from 'mdast'
 
+export type SectionKind = 'preamble' | 'heading' | 'mermaid' | 'table' | 'bpmn' | 'html' | 'interact' | 'vega'
+
 export interface MarkdownSection {
   id: string
-  kind: 'preamble' | 'heading' | 'mermaid'
+  kind: SectionKind
   depth: number
   title: string
   startLine: number
@@ -15,14 +17,28 @@ export interface MarkdownSection {
 
 const parser = unified().use(remarkParse).use(remarkGfm)
 
-const MERMAID_LANG = 'mermaid'
+const TABLE_SECTION_TITLE = 'Table'
+
+// Fenced code blocks whose language promotes them to their own atomic island.
+const FENCED_ISLANDS: ReadonlyArray<{ lang: string; kind: SectionKind; title: string }> = [
+  { lang: 'mermaid', kind: 'mermaid', title: 'Diagram' },
+  { lang: 'bpmn', kind: 'bpmn', title: 'BPMN' },
+  { lang: 'html', kind: 'html', title: 'HTML' },
+  { lang: 'interact', kind: 'interact', title: 'Interactive' },
+  { lang: 'vega-lite', kind: 'vega', title: 'Chart' }
+]
 
 interface RawGroup {
-  kind: 'preamble' | 'heading' | 'mermaid'
+  kind: SectionKind
   depth: number
   title: string
   startLine: number
   endLine: number
+}
+
+// Atomic groups represent a single AST node and never absorb following siblings.
+function isAtomicKind(kind: RawGroup['kind']): boolean {
+  return kind === 'table' || FENCED_ISLANDS.some((island) => island.kind === kind)
 }
 
 function nodeStartLine(node: Content): number {
@@ -33,8 +49,14 @@ function nodeEndLine(node: Content): number {
   return node.position?.end.line ?? 1
 }
 
-function isMermaidCodeBlock(node: Content): boolean {
-  return node.type === 'code' && (node as { lang?: string }).lang === MERMAID_LANG
+function fencedIsland(node: Content): { kind: SectionKind; title: string } | null {
+  if (node.type !== 'code') return null
+  const lang = (node as { lang?: string }).lang
+  return FENCED_ISLANDS.find((island) => island.lang === lang) ?? null
+}
+
+function isTableNode(node: Content): boolean {
+  return node.type === 'table'
 }
 
 function headingText(node: Content): string {
@@ -49,11 +71,24 @@ function groupAstNodes(children: Content[]): RawGroup[] {
   let current: RawGroup | null = null
 
   for (const node of children) {
-    if (isMermaidCodeBlock(node)) {
+    const island = fencedIsland(node)
+    if (island) {
       groups.push({
-        kind: 'mermaid',
+        kind: island.kind,
         depth: 0,
-        title: 'Diagram',
+        title: island.title,
+        startLine: nodeStartLine(node),
+        endLine: nodeEndLine(node)
+      })
+      current = null
+      continue
+    }
+
+    if (isTableNode(node)) {
+      groups.push({
+        kind: 'table',
+        depth: 0,
+        title: TABLE_SECTION_TITLE,
         startLine: nodeStartLine(node),
         endLine: nodeEndLine(node)
       })
@@ -82,7 +117,7 @@ function groupAstNodes(children: Content[]): RawGroup[] {
         endLine: nodeEndLine(node)
       }
       groups.push(current)
-    } else if (current.kind !== 'mermaid') {
+    } else if (!isAtomicKind(current.kind)) {
       current.endLine = nodeEndLine(node)
     }
   }

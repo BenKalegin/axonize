@@ -1,19 +1,28 @@
 import { useCallback } from 'react'
 import { TEST_IDS } from '@/lib/testids'
 import { useAgentStore } from '@/store/agent-store'
+import { AgentClearSessionButton } from './AgentClearSessionButton'
 
 interface AgentPromptComposerProps {
   sessionId: string
   vaultPath: string | null
+  onRequestEnableEdits: (sessionId: string) => void
 }
 
-export function AgentPromptComposer({ sessionId, vaultPath }: AgentPromptComposerProps) {
+export function AgentPromptComposer({ sessionId, vaultPath, onRequestEnableEdits }: AgentPromptComposerProps) {
   const value = useAgentStore((s) => s.promptDrafts[sessionId] ?? '')
   const isRunning = useAgentStore((s) => s.runningSessionId === sessionId)
   const error = useAgentStore((s) => (s.runningSessionId === sessionId ? s.error : null))
+  const allowEdits = useAgentStore((s) => s.sessions.find((x) => x.id === sessionId)?.allowEdits ?? false)
+  const hasContent = useAgentStore((s) => {
+    const session = s.sessions.find((x) => x.id === sessionId)
+    return session ? session.turns.length > 0 || session.claudeSessionId !== undefined : false
+  })
   const updatePromptDraft = useAgentStore((s) => s.updatePromptDraft)
   const sendPrompt = useAgentStore((s) => s.sendPrompt)
   const cancelPrompt = useAgentStore((s) => s.cancelPrompt)
+  const setAllowEdits = useAgentStore((s) => s.setAllowEdits)
+  const clearSession = useAgentStore((s) => s.clearSession)
 
   const canSend = !isRunning && value.trim().length > 0
 
@@ -22,6 +31,14 @@ export function AgentPromptComposer({ sessionId, vaultPath }: AgentPromptCompose
   const onChange = useCallback(
     (next: string) => updatePromptDraft(sessionId, next),
     [updatePromptDraft, sessionId]
+  )
+  const onToggleAllowEdits = useCallback(() => {
+    if (allowEdits) setAllowEdits(vaultPath, sessionId, false)
+    else onRequestEnableEdits(sessionId)
+  }, [allowEdits, setAllowEdits, vaultPath, sessionId, onRequestEnableEdits])
+  const onClear = useCallback(
+    () => clearSession(vaultPath, sessionId),
+    [clearSession, vaultPath, sessionId]
   )
 
   return (
@@ -33,14 +50,26 @@ export function AgentPromptComposer({ sessionId, vaultPath }: AgentPromptCompose
         value={value}
         onChange={(event) => onChange(event.target.value)}
         onKeyDown={(event) => {
-          if ((event.metaKey || event.ctrlKey) && event.key === 'Enter' && canSend) {
+          if (
+            event.key === 'Enter' &&
+            !event.shiftKey &&
+            !event.nativeEvent.isComposing &&
+            canSend
+          ) {
             event.preventDefault()
             onSend()
           }
         }}
       />
       <div className="agent-composer-footer">
-        <span className="agent-hint">Cmd/Ctrl + Enter to send</span>
+        <button
+          className={`agent-mode-pill${allowEdits ? ' enabled' : ''}`}
+          onClick={onToggleAllowEdits}
+          title={allowEdits ? 'Click to switch back to read-only' : 'Click to enable edits'}
+        >
+          {allowEdits ? '🔓 Edits enabled' : '🔒 Read-only'}
+        </button>
+        <AgentClearSessionButton hasContent={hasContent} onClear={onClear} />
         {error && <span className="agent-error">{error}</span>}
         {isRunning ? (
           <button className="toolbar-btn" onClick={onCancel}>Stop</button>

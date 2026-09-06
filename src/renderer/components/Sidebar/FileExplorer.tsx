@@ -133,11 +133,52 @@ interface RecentFile {
   openedAt: number
 }
 
+interface ModifiedFile {
+  path: string
+  modifiedAt: number
+}
+
+function basenameLabel(path: string): string {
+  const name = path.split('/').pop() ?? path
+  return name.endsWith('.md') ? name.slice(0, -3) : name
+}
+
+interface FilePathDropdownProps {
+  paths: string[]
+  selectedFile: string | null
+  emptyLabel: string
+  onSelect: (path: string) => void
+}
+
+function FilePathDropdown({ paths, selectedFile, emptyLabel, onSelect }: FilePathDropdownProps) {
+  if (paths.length === 0) {
+    return (
+      <div className="recent-files-dropdown">
+        <div className="recent-files-empty">{emptyLabel}</div>
+      </div>
+    )
+  }
+  return (
+    <div className="recent-files-dropdown">
+      {paths.map((path) => (
+        <button
+          key={path}
+          className={`recent-files-item${path === selectedFile ? ' recent-files-item--active' : ''}`}
+          onClick={() => onSelect(path)}
+          title={path}
+        >
+          {basenameLabel(path)}
+        </button>
+      ))}
+    </div>
+  )
+}
+
 const NAVIGATION_KEYS = new Set(['ArrowDown', 'ArrowUp', 'ArrowLeft', 'ArrowRight', 'Enter'])
 
 export function FileExplorer() {
   const { fileTree, vaultPath, excludedFolders } = useVaultStore()
-  const { selection, selectFile, canGoBack, canGoForward, goBack, goForward } = useEditorStore()
+  const { selection, selectFile } = useEditorStore()
   const selectedFile = selectedFilePath(selection)
   const { docs } = useGeneratedDocsStore()
   const [hiddenExpanded, setHiddenExpanded] = useState(false)
@@ -146,19 +187,28 @@ export function FileExplorer() {
   const [searchOpen, setSearchOpen] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
   const [collapsedPaths, setCollapsedPaths] = useState<Set<string>>(new Set())
+  const [initializedTreeKey, setInitializedTreeKey] = useState('')
   const [focusedPath, setFocusedPath] = useState<string | null>(null)
   const [recentFiles, setRecentFiles] = useState<RecentFile[]>([])
   const [recentOpen, setRecentOpen] = useState(false)
+  const [modifiedFiles, setModifiedFiles] = useState<ModifiedFile[]>([])
+  const [modifiedOpen, setModifiedOpen] = useState(false)
   const treeRef = useRef<HTMLDivElement>(null)
   const recentRef = useRef<HTMLDivElement>(null)
+  const modifiedRef = useRef<HTMLDivElement>(null)
 
-  // Collapse all folders by default, expand only ancestors of the selected file
-  const treeInitRef = useRef<string | null>(null)
+  const treeKey = useMemo(() => fileTree.map((e) => e.path).join('\n'), [fileTree])
+  const treeInitialized = fileTree.length === 0 || initializedTreeKey === treeKey
+
+  // Collapse all folders by default, expand only ancestors of the selected file.
+  // Until this state is initialized for a new tree, render directories as
+  // collapsed so a large restored vault cannot recursively render itself first.
   useEffect(() => {
-    if (fileTree.length === 0) return
-    const treeKey = fileTree.map(e => e.path).join('\n')
-    if (treeInitRef.current === treeKey) return
-    treeInitRef.current = treeKey
+    if (fileTree.length === 0) {
+      if (initializedTreeKey) setInitializedTreeKey('')
+      return
+    }
+    if (initializedTreeKey === treeKey) return
 
     const allDirs = collectAllDirPaths(fileTree as FileEntry[])
     const openDirs = selectedFile ? ancestorDirPaths(selectedFile, fileTree as FileEntry[]) : new Set<string>()
@@ -167,7 +217,8 @@ export function FileExplorer() {
       if (!openDirs.has(dir)) collapsed.add(dir)
     }
     setCollapsedPaths(collapsed)
-  }, [fileTree, selectedFile])
+    setInitializedTreeKey(treeKey)
+  }, [fileTree, initializedTreeKey, selectedFile, treeKey])
 
   // When the selected file changes (e.g. via hlink navigation), expand its
   // ancestor folders and focus the node so it scrolls into view.
@@ -218,6 +269,37 @@ export function FileExplorer() {
     return () => document.removeEventListener('mousedown', handleClickOutside)
   }, [recentOpen])
 
+  const handleModifiedToggle = useCallback(async () => {
+    if (modifiedOpen) {
+      setModifiedOpen(false)
+      return
+    }
+    if (!vaultPath) return
+    try {
+      const files = await window.axonize.file.getRecentlyModified(vaultPath)
+      setModifiedFiles(files)
+    } catch {
+      setModifiedFiles([])
+    }
+    setModifiedOpen(true)
+  }, [modifiedOpen, vaultPath])
+
+  const handleModifiedSelect = useCallback((path: string) => {
+    selectFile(path)
+    setModifiedOpen(false)
+  }, [selectFile])
+
+  useEffect(() => {
+    if (!modifiedOpen) return
+    const handleClickOutside = (e: MouseEvent) => {
+      if (modifiedRef.current && !modifiedRef.current.contains(e.target as Node)) {
+        setModifiedOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [modifiedOpen])
+
   const { visible, excluded } = useMemo(() => {
     const excludedSet = new Set(excludedFolders)
     const vis: typeof fileTree = []
@@ -243,8 +325,9 @@ export function FileExplorer() {
 
   const isExpanded = useCallback((path: string): boolean => {
     if (searchQuery) return true
+    if (!treeInitialized) return false
     return !collapsedPaths.has(path)
-  }, [searchQuery, collapsedPaths])
+  }, [searchQuery, treeInitialized, collapsedPaths])
 
   const handleToggle = useCallback((path: string) => {
     setCollapsedPaths(prev => {
@@ -349,28 +432,6 @@ export function FileExplorer() {
   return (
     <div className="file-explorer" data-testid={TEST_IDS.FILE_EXPLORER}>
       <div className="sidebar-header">
-        <div className="nav-buttons">
-          <button
-            className="toolbar-btn nav-btn"
-            onClick={goBack}
-            disabled={!canGoBack}
-            title="Go back"
-          >
-            <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
-              <path d="M8 1L3 6L8 11" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-            </svg>
-          </button>
-          <button
-            className="toolbar-btn nav-btn"
-            onClick={goForward}
-            disabled={!canGoForward}
-            title="Go forward"
-          >
-            <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
-              <path d="M4 1L9 6L4 11" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-            </svg>
-          </button>
-        </div>
         {searchOpen ? (
           <div className="file-search-inline">
             <input
@@ -401,35 +462,40 @@ export function FileExplorer() {
                 <button
                   className="toolbar-btn nav-btn"
                   onClick={handleRecentToggle}
-                  title="Recent files"
+                  title="Recently opened files"
                 >
                   <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
                     <circle cx="6" cy="6" r="5" stroke="currentColor" strokeWidth="1.2"/>
                     <path d="M6 3V6L8 7.5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"/>
                   </svg>
                 </button>
-                {recentOpen && recentFiles.length > 0 && (
-                  <div className="recent-files-dropdown">
-                    {recentFiles.map((rf) => {
-                      const name = rf.path.split('/').pop() ?? rf.path
-                      const displayName = name.endsWith('.md') ? name.slice(0, -3) : name
-                      return (
-                        <button
-                          key={rf.path}
-                          className={`recent-files-item${rf.path === selectedFile ? ' recent-files-item--active' : ''}`}
-                          onClick={() => handleRecentSelect(rf.path)}
-                          title={rf.path}
-                        >
-                          {displayName}
-                        </button>
-                      )
-                    })}
-                  </div>
+                {recentOpen && (
+                  <FilePathDropdown
+                    paths={recentFiles.map((rf) => rf.path)}
+                    selectedFile={selectedFile}
+                    emptyLabel="No recent files"
+                    onSelect={handleRecentSelect}
+                  />
                 )}
-                {recentOpen && recentFiles.length === 0 && (
-                  <div className="recent-files-dropdown">
-                    <div className="recent-files-empty">No recent files</div>
-                  </div>
+              </div>
+              <div ref={modifiedRef} className="recent-files-wrapper">
+                <button
+                  className="toolbar-btn nav-btn"
+                  onClick={handleModifiedToggle}
+                  title="Recently created or updated files"
+                >
+                  <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+                    <path d="M2 8.5V10H3.5L9 4.5L7.5 3L2 8.5Z" stroke="currentColor" strokeWidth="1.2" strokeLinejoin="round"/>
+                    <path d="M6.5 4L8 5.5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round"/>
+                  </svg>
+                </button>
+                {modifiedOpen && (
+                  <FilePathDropdown
+                    paths={modifiedFiles.map((mf) => mf.path)}
+                    selectedFile={selectedFile}
+                    emptyLabel="No files yet"
+                    onSelect={handleModifiedSelect}
+                  />
                 )}
               </div>
               <button

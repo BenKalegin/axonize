@@ -1,17 +1,9 @@
-import { readdir } from 'fs/promises'
+import { readdir, stat } from 'fs/promises'
 import { join, relative } from 'path'
+import { isVaultVisibleFile } from '../core/vault/data-file-types'
+import { isVaultIgnoredDirName } from '../core/vault/ignored-dirs'
 
-const IGNORED_DIRS = new Set([
-  '.axonize',
-  '.cache',
-  '.git',
-  '.next',
-  'build',
-  'coverage',
-  'dist',
-  'node_modules',
-  'out'
-])
+const RECENTLY_MODIFIED_MAX = 10
 
 export interface FileEntry {
   name: string
@@ -23,6 +15,58 @@ export interface FileEntry {
 
 export async function readVaultFiles(vaultPath: string): Promise<FileEntry[]> {
   return scanDirectory(vaultPath, vaultPath)
+}
+
+export async function listAllFiles(vaultPath: string): Promise<string[]> {
+  const result: string[] = []
+  await collectAllFiles(vaultPath, vaultPath, result)
+  return result
+}
+
+export interface ModifiedFile {
+  path: string
+  modifiedAt: number
+}
+
+export async function listRecentlyModifiedFiles(vaultPath: string): Promise<ModifiedFile[]> {
+  const files: ModifiedFile[] = []
+  await collectModifiedFiles(vaultPath, files)
+  return files
+    .sort((a, b) => b.modifiedAt - a.modifiedAt)
+    .slice(0, RECENTLY_MODIFIED_MAX)
+}
+
+async function collectModifiedFiles(dirPath: string, out: ModifiedFile[]): Promise<void> {
+  const entries = await readdir(dirPath, { withFileTypes: true })
+  for (const entry of entries) {
+    if (entry.name.startsWith('.')) continue
+    if (entry.isDirectory() && isVaultIgnoredDirName(entry.name)) continue
+    const fullPath = join(dirPath, entry.name)
+    if (entry.isDirectory()) {
+      await collectModifiedFiles(fullPath, out)
+    } else if (isVaultVisibleFile(entry.name)) {
+      const stats = await stat(fullPath)
+      out.push({ path: fullPath, modifiedAt: stats.mtimeMs })
+    }
+  }
+}
+
+async function collectAllFiles(
+  dirPath: string,
+  rootPath: string,
+  out: string[]
+): Promise<void> {
+  const entries = await readdir(dirPath, { withFileTypes: true })
+  for (const entry of entries) {
+    if (entry.name.startsWith('.')) continue
+    if (entry.isDirectory() && isVaultIgnoredDirName(entry.name)) continue
+    const fullPath = join(dirPath, entry.name)
+    if (entry.isDirectory()) {
+      await collectAllFiles(fullPath, rootPath, out)
+    } else {
+      out.push(relative(rootPath, fullPath))
+    }
+  }
 }
 
 async function scanDirectory(dirPath: string, rootPath: string): Promise<FileEntry[]> {
@@ -38,7 +82,7 @@ async function scanDirectory(dirPath: string, rootPath: string): Promise<FileEnt
     })
 
   for (const entry of sorted) {
-    if (entry.isDirectory() && IGNORED_DIRS.has(entry.name)) {
+    if (entry.isDirectory() && isVaultIgnoredDirName(entry.name)) {
       continue
     }
 
@@ -54,7 +98,7 @@ async function scanDirectory(dirPath: string, rootPath: string): Promise<FileEnt
         isDirectory: true,
         children
       })
-    } else if (entry.name.endsWith('.md')) {
+    } else if (isVaultVisibleFile(entry.name)) {
       result.push({
         name: entry.name,
         path: fullPath,

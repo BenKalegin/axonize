@@ -7,6 +7,7 @@ on:
 
 permissions:
   contents: write
+  packages: read
 
 jobs:
   release:
@@ -29,9 +30,13 @@ jobs:
         with:
           node-version: 20
           cache: pnpm
+          registry-url: https://npm.pkg.github.com
+          scope: '@benkalegin'
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Build application
         run: pnpm build:${{ matrix.os == 'windows-latest' && 'win' || 'mac' }}

@@ -1,6 +1,6 @@
 import { createRoot } from 'react-dom/client'
 import { App } from './App'
-import { useVaultStore } from './store/vault-store'
+import { useVaultStore, getCurrentVaultFromSession } from './store/vault-store'
 import { useEditorStore } from './store/editor-store'
 import { useGraphStore } from './store/graph-store'
 import { useZoomStore } from './store/zoom-store'
@@ -11,8 +11,28 @@ import { useLayoutStore } from './store/layout-store'
 import { useSemanticErrorsStore } from './store/semantic-errors-store'
 import './styles/global.css'
 import './styles/layout.css'
+import '@benkalegin/ui26/styles.css'
+import '@benkalegin/clouddiagram-editor/styles.css'
 import 'highlight.js/styles/github-dark.min.css'
 import 'katex/dist/katex.min.css'
+
+function stringifyError(reason: unknown): string {
+  if (reason instanceof Error) return reason.stack ?? reason.message
+  if (typeof reason === 'string') return reason
+  try {
+    return JSON.stringify(reason)
+  } catch {
+    return String(reason)
+  }
+}
+
+window.addEventListener('error', (event) => {
+  console.error('[renderer] Uncaught error:', stringifyError(event.error ?? event.message))
+})
+
+window.addEventListener('unhandledrejection', (event) => {
+  console.error('[renderer] Unhandled rejection:', stringifyError(event.reason))
+})
 
 // Expose stores on window for E2E testing
 declare global {
@@ -45,6 +65,13 @@ window.__stores = {
 
 const axonizeApi = window.axonize
 
+async function autoIndexVaultIfEnabled(vaultPath: string): Promise<void> {
+  const { enabled } = await axonizeApi.semantic.getSettings(vaultPath).catch(() => ({ enabled: true }))
+  if (enabled) {
+    useRagStore.getState().indexVault(vaultPath)
+  }
+}
+
 if (axonizeApi) {
 // Register index progress listener
 axonizeApi.rag.onIndexProgress((payload: unknown) => {
@@ -71,7 +98,7 @@ axonizeApi.vault.onFilesChanged(() => {
   const { vaultPath, loadFileTree } = useVaultStore.getState()
   if (!vaultPath) return
   loadFileTree(vaultPath).catch(() => {})
-  useRagStore.getState().indexVault(vaultPath)
+  autoIndexVaultIfEnabled(vaultPath).catch(() => {})
   // Semantic index is NOT auto-updated to prevent silent token usage
 })
 }
@@ -86,23 +113,25 @@ function getVaultFromHash(): string | null {
   return params.get('vault') ? decodeURIComponent(params.get('vault')!) : null
 }
 
-const requestedVault = getVaultFromHash()
+// Resolve the vault to auto-open on startup.
+// Priority:
+//   1. sessionStorage — survives webContents.reload() so each window keeps its
+//      own vault on cmd+R, even when other windows have opened other vaults
+//      (which mutates the shared "recent vaults" list).
+//   2. URL hash — set by createWindow(vaultPath) for "open in new window".
+//   3. recentVaults[0] — first-launch fallback to most-recently-used vault.
+function resolveStartupVault(recentTop: string | null): string | null {
+  return getCurrentVaultFromSession() ?? getVaultFromHash() ?? recentTop
+}
 
-if (axonizeApi && requestedVault) {
-  // Opened via "open in new window" — open the specified vault directly
-  useVaultStore.getState().loadRecentVaults().then(() => {
-    useVaultStore.getState().openRecentVault(requestedVault).then(() => {
-      useRagStore.getState().indexVault(requestedVault)
-    })
-  })
-} else if (axonizeApi) {
-  // Normal startup — auto-open the most recent vault
+if (axonizeApi) {
   useVaultStore.getState().loadRecentVaults().then(() => {
     const { recentVaults, openRecentVault } = useVaultStore.getState()
-    if (recentVaults.length > 0) {
-      const vaultPath = recentVaults[0].path
+    const recentTop = recentVaults.length > 0 ? recentVaults[0].path : null
+    const vaultPath = resolveStartupVault(recentTop)
+    if (vaultPath) {
       openRecentVault(vaultPath).then(() => {
-        useRagStore.getState().indexVault(vaultPath)
+        autoIndexVaultIfEnabled(vaultPath).catch(() => {})
       })
     }
   })

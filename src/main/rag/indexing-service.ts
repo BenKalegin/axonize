@@ -1,12 +1,20 @@
-import { readFile } from 'fs/promises'
+import { readFile, stat } from 'fs/promises'
 import { join } from 'path'
 import type { BrowserWindow } from 'electron'
 import { parseMarkdown } from '../../core/markdown/parser'
 import { extractBlocks } from '../../core/markdown/block-extractor'
 import { hashContent } from '../../core/integrity/file-hasher'
 import { readVaultFiles } from '../file-service'
-import { getMarkdownFiles } from '../../core/vault/file-tree'
+import { getDataFiles, getMarkdownFiles } from '../../core/vault/file-tree'
+import { dataFileKindOf } from '../../core/vault/data-file-types'
 import { blocksToChunks } from '../../core/rag/chunk-preparer'
+import {
+  buildDataSchemaCard,
+  dataSchemaBlockId,
+  DATA_SCHEMA_BLOCK_TYPE
+} from '../../core/rag/data-schema-card'
+import { DataShape } from '../../core/data/types'
+import { openDataFile, getRows } from '../data/data-file-service'
 import { getEmbeddingProvider } from './provider-factory'
 import {
   loadIndexState,
@@ -18,6 +26,21 @@ import {
 } from './embedding-store'
 import type { ChunkMeta, IndexProgress, RagIndexState } from '../../core/rag/types'
 import { getSettings } from '../settings-service'
+import log from '../logger'
+
+// Bump to force a full rebuild when the chunk format changes.
+// v2: synthetic data-file schema cards (.csv/.json/.jsonl) added to the index.
+const RAG_INDEX_VERSION = 2
+// Records embedded into a data-file schema card (never the raw file).
+const DATA_SAMPLE_RECORDS = 2
+const CONTENT_PREVIEW_CHARS = 200
+
+type EmbeddingProvider = Awaited<ReturnType<typeof getEmbeddingProvider>>
+
+interface EmbeddedChunks {
+  meta: ChunkMeta[]
+  rows: Float32Array[]
+}
 
 function isExcluded(relativePath: string, excludedFolders: string[]): boolean {
   return excludedFolders.some(
@@ -31,6 +54,111 @@ function sendProgress(window: BrowserWindow | null, progress: IndexProgress): vo
   }
 }
 
+/** Cheap change signature for data files — content is never read just to hash. */
+async function dataFileHash(fullPath: string): Promise<string> {
+  const s = await stat(fullPath)
+  return `${s.size}:${s.mtimeMs}`
+}
+
+async function embedMarkdownFile(
+  provider: EmbeddingProvider,
+  relativePath: string,
+  content: string
+): Promise<EmbeddedChunks> {
+  const ast = parseMarkdown(content)
+  const blocks = extractBlocks(ast, relativePath)
+  const chunks = blocksToChunks(blocks)
+  const meta: ChunkMeta[] = []
+  const rows: Float32Array[] = []
+  for (const chunk of chunks) {
+    rows.push(await provider.embed(chunk.content))
+    meta.push({
+      blockId: chunk.id,
+      filePath: chunk.filePath,
+      headingPath: chunk.headingPath,
+      blockType: chunk.blockType,
+      startLine: chunk.startLine,
+      endLine: chunk.endLine,
+      contentPreview: chunk.content.slice(0, CONTENT_PREVIEW_CHARS)
+    })
+  }
+  return { meta, rows }
+}
+
+async function embedDataFileCard(
+  provider: EmbeddingProvider,
+  vaultPath: string,
+  relativePath: string
+): Promise<EmbeddedChunks> {
+  const fullPath = join(vaultPath, relativePath)
+  try {
+    const info = await openDataFile(fullPath)
+    const samples =
+      info.shape === DataShape.Table
+        ? (await getRows(fullPath, 0, DATA_SAMPLE_RECORDS))
+            .filter((r) => r.error === null)
+            .map((r) => r.record)
+        : []
+    const card = buildDataSchemaCard(relativePath, info, samples)
+    const vector = await provider.embed(card)
+    return {
+      meta: [
+        {
+          blockId: dataSchemaBlockId(relativePath),
+          filePath: relativePath,
+          headingPath: [],
+          blockType: DATA_SCHEMA_BLOCK_TYPE,
+          startLine: 0,
+          endLine: 0,
+          contentPreview: card.slice(0, CONTENT_PREVIEW_CHARS)
+        }
+      ],
+      rows: [vector]
+    }
+  } catch (e) {
+    log.error(`rag: skipping data file "${relativePath}":`, e)
+    return { meta: [], rows: [] }
+  }
+}
+
+async function embedVaultFile(
+  provider: EmbeddingProvider,
+  vaultPath: string,
+  relativePath: string
+): Promise<EmbeddedChunks> {
+  if (dataFileKindOf(relativePath)) {
+    return embedDataFileCard(provider, vaultPath, relativePath)
+  }
+  const content = await readFile(join(vaultPath, relativePath), 'utf-8')
+  return embedMarkdownFile(provider, relativePath, content)
+}
+
+function concatVectors(dims: number, groups: Float32Array[][]): Float32Array {
+  const total = groups.reduce((n, g) => n + g.length, 0)
+  const out = new Float32Array(total * dims)
+  let offset = 0
+  for (const group of groups) {
+    for (const row of group) {
+      out.set(row, offset)
+      offset += dims
+    }
+  }
+  return out
+}
+
+async function indexableFiles(
+  vaultPath: string
+): Promise<{ mdFiles: { path: string; relativePath: string }[]; dataFiles: { path: string; relativePath: string }[] }> {
+  const settings = await getSettings()
+  const excluded = settings.excludedFolders ?? []
+  const fileTree = await readVaultFiles(vaultPath)
+  const notExcluded = (f: { relativePath: string }): boolean => !isExcluded(f.relativePath, excluded)
+  return {
+    mdFiles: getMarkdownFiles(fileTree).filter(notExcluded),
+    dataFiles: getDataFiles(fileTree).filter(notExcluded)
+  }
+}
+
 export async function incrementalReindex(
   vaultPath: string,
   window: BrowserWindow | null
@@ -38,19 +166,18 @@ export async function incrementalReindex(
   const provider = await getEmbeddingProvider()
   const state = await loadIndexState(vaultPath)
 
-  if (state && (state.modelId !== provider.modelId || state.dimensions !== provider.dimension)) {
+  if (
+    state &&
+    (state.version !== RAG_INDEX_VERSION ||
+      state.modelId !== provider.modelId ||
+      state.dimensions !== provider.dimension)
+  ) {
     return fullReindex(vaultPath, window)
   }
 
   sendProgress(window, { phase: 'scanning', current: 0, total: 0 })
 
-  const settings = await getSettings()
-  const excluded = settings.excludedFolders ?? []
-
-  const fileTree = await readVaultFiles(vaultPath)
-  const mdFiles = getMarkdownFiles(fileTree).filter(
-    (f) => !isExcluded(f.relativePath, excluded)
-  )
+  const { mdFiles, dataFiles } = await indexableFiles(vaultPath)
   const currentHashes: Record<string, string> = {}
   const changedFiles: string[] = []
   const removedFiles = new Set<string>(Object.keys(state?.fileHashes ?? {}))
@@ -60,8 +187,15 @@ export async function incrementalReindex(
     const hash = hashContent(content)
     currentHashes[file.relativePath] = hash
     removedFiles.delete(file.relativePath)
-
-    if (!state?.fileHashes[file.relativePath] || state.fileHashes[file.relativePath] !== hash) {
+    if (state?.fileHashes[file.relativePath] !== hash) {
+      changedFiles.push(file.relativePath)
+    }
+  }
+  for (const file of dataFiles) {
+    const hash = await dataFileHash(file.path)
+    currentHashes[file.relativePath] = hash
+    removedFiles.delete(file.relativePath)
+    if (state?.fileHashes[file.relativePath] !== hash) {
       changedFiles.push(file.relativePath)
     }
   }
@@ -93,48 +227,21 @@ export async function incrementalReindex(
 
   for (let idx = 0; idx < changedFiles.length; idx++) {
     const relPath = changedFiles[idx]
-    const fullPath = join(vaultPath, relPath)
     sendProgress(window, { phase: 'extracting', current: idx + 1, total: changedFiles.length, file: relPath })
-
-    const content = await readFile(fullPath, 'utf-8')
-    const ast = parseMarkdown(content)
-    const blocks = extractBlocks(ast, relPath)
-    const chunks = blocksToChunks(blocks)
-
     sendProgress(window, { phase: 'embedding', current: idx + 1, total: changedFiles.length, file: relPath })
 
-    for (const chunk of chunks) {
-      const vector = await provider.embed(chunk.content)
-      newMeta.push({
-        blockId: chunk.id,
-        filePath: chunk.filePath,
-        headingPath: chunk.headingPath,
-        blockType: chunk.blockType,
-        startLine: chunk.startLine,
-        endLine: chunk.endLine,
-        contentPreview: chunk.content.slice(0, 200)
-      })
-      newVectorRows.push(vector)
-    }
+    const embedded = await embedVaultFile(provider, vaultPath, relPath)
+    newMeta.push(...embedded.meta)
+    newVectorRows.push(...embedded.rows)
   }
 
   const finalMeta = [...keptMeta, ...newMeta]
-  const finalVectors = new Float32Array(finalMeta.length * dims)
-  let offset = 0
-
-  for (const row of keptVectorRows) {
-    finalVectors.set(row, offset)
-    offset += dims
-  }
-  for (const row of newVectorRows) {
-    finalVectors.set(row, offset)
-    offset += dims
-  }
+  const finalVectors = concatVectors(dims, [keptVectorRows, newVectorRows])
 
   sendProgress(window, { phase: 'saving', current: 0, total: 1 })
 
   const newState: RagIndexState = {
-    version: 1,
+    version: RAG_INDEX_VERSION,
     modelId: provider.modelId,
     dimensions: dims,
     chunkCount: finalMeta.length,
@@ -157,57 +264,34 @@ export async function fullReindex(
 
   sendProgress(window, { phase: 'scanning', current: 0, total: 0 })
 
-  const settings = await getSettings()
-  const excluded = settings.excludedFolders ?? []
-
-  const fileTree = await readVaultFiles(vaultPath)
-  const mdFiles = getMarkdownFiles(fileTree).filter(
-    (f) => !isExcluded(f.relativePath, excluded)
-  )
+  const { mdFiles, dataFiles } = await indexableFiles(vaultPath)
+  const allFiles = [...mdFiles, ...dataFiles]
   const fileHashes: Record<string, string> = {}
   const allMeta: ChunkMeta[] = []
   const allVectorRows: Float32Array[] = []
 
-  for (let idx = 0; idx < mdFiles.length; idx++) {
-    const file = mdFiles[idx]
-    sendProgress(window, { phase: 'extracting', current: idx + 1, total: mdFiles.length, file: file.relativePath })
+  for (let idx = 0; idx < allFiles.length; idx++) {
+    const file = allFiles[idx]
+    sendProgress(window, { phase: 'extracting', current: idx + 1, total: allFiles.length, file: file.relativePath })
 
-    const content = await readFile(file.path, 'utf-8')
-    fileHashes[file.relativePath] = hashContent(content)
+    fileHashes[file.relativePath] = dataFileKindOf(file.relativePath)
+      ? await dataFileHash(file.path)
+      : hashContent(await readFile(file.path, 'utf-8'))
 
-    const ast = parseMarkdown(content)
-    const blocks = extractBlocks(ast, file.relativePath)
-    const chunks = blocksToChunks(blocks)
+    sendProgress(window, { phase: 'embedding', current: idx + 1, total: allFiles.length, file: file.relativePath })
 
-    sendProgress(window, { phase: 'embedding', current: idx + 1, total: mdFiles.length, file: file.relativePath })
-
-    for (const chunk of chunks) {
-      const vector = await provider.embed(chunk.content)
-      allMeta.push({
-        blockId: chunk.id,
-        filePath: chunk.filePath,
-        headingPath: chunk.headingPath,
-        blockType: chunk.blockType,
-        startLine: chunk.startLine,
-        endLine: chunk.endLine,
-        contentPreview: chunk.content.slice(0, 200)
-      })
-      allVectorRows.push(vector)
-    }
+    const embedded = await embedVaultFile(provider, vaultPath, file.relativePath)
+    allMeta.push(...embedded.meta)
+    allVectorRows.push(...embedded.rows)
   }
 
   const dims = provider.dimension
-  const finalVectors = new Float32Array(allMeta.length * dims)
-  let offset = 0
-  for (const row of allVectorRows) {
-    finalVectors.set(row, offset)
-    offset += dims
-  }
+  const finalVectors = concatVectors(dims, [allVectorRows])
 
   sendProgress(window, { phase: 'saving', current: 0, total: 1 })
 
   const state: RagIndexState = {
-    version: 1,
+    version: RAG_INDEX_VERSION,
     modelId: provider.modelId,
     dimensions: dims,
     chunkCount: allMeta.length,
@@ -245,12 +329,7 @@ export async function purgeFolder(
     }
   }
 
-  const finalVectors = new Float32Array(keptMeta.length * dims)
-  let offset = 0
-  for (const row of keptVectorRows) {
-    finalVectors.set(row, offset)
-    offset += dims
-  }
+  const finalVectors = concatVectors(dims, [keptVectorRows])
 
   const fileHashes = { ...state.fileHashes }
   for (const key of Object.keys(fileHashes)) {
@@ -302,45 +381,17 @@ export async function reindexFile(
   }
 
   const fullPath = join(vaultPath, filePath)
-  const content = await readFile(fullPath, 'utf-8')
-  const fileHash = hashContent(content)
+  const fileHash = dataFileKindOf(filePath)
+    ? await dataFileHash(fullPath)
+    : hashContent(await readFile(fullPath, 'utf-8'))
 
   sendProgress(window, { phase: 'extracting', current: 1, total: 1, file: filePath })
-
-  const ast = parseMarkdown(content)
-  const blocks = extractBlocks(ast, filePath)
-  const chunks = blocksToChunks(blocks)
-
   sendProgress(window, { phase: 'embedding', current: 1, total: 1, file: filePath })
 
-  const newMeta: ChunkMeta[] = []
-  const newVectorRows: Float32Array[] = []
+  const embedded = await embedVaultFile(provider, vaultPath, filePath)
 
-  for (const chunk of chunks) {
-    const vector = await provider.embed(chunk.content)
-    newMeta.push({
-      blockId: chunk.id,
-      filePath: chunk.filePath,
-      headingPath: chunk.headingPath,
-      blockType: chunk.blockType,
-      startLine: chunk.startLine,
-      endLine: chunk.endLine,
-      contentPreview: chunk.content.slice(0, 200)
-    })
-    newVectorRows.push(vector)
-  }
-
-  const finalMeta = [...keptMeta, ...newMeta]
-  const finalVectors = new Float32Array(finalMeta.length * dims)
-  let offset = 0
-  for (const row of keptVectorRows) {
-    finalVectors.set(row, offset)
-    offset += dims
-  }
-  for (const row of newVectorRows) {
-    finalVectors.set(row, offset)
-    offset += dims
-  }
+  const finalMeta = [...keptMeta, ...embedded.meta]
+  const finalVectors = concatVectors(dims, [keptVectorRows, embedded.rows])
 
   sendProgress(window, { phase: 'saving', current: 0, total: 1 })
 
@@ -348,7 +399,7 @@ export async function reindexFile(
   fileHashes[filePath] = fileHash
 
   const newState: RagIndexState = {
-    version: 1,
+    version: RAG_INDEX_VERSION,
     modelId: provider.modelId,
     dimensions: dims,
     chunkCount: finalMeta.length,

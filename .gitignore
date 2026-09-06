@@ -1,6 +1,7 @@
 node_modules/
 out/
 dist/
+tmp-pack/
 .semantic/
 .axonize/
 *.log
@@ -9,3 +10,7 @@ test-results/
 playwright-report/
 .idea/
 *.tsbuildinfo
+# Claude Code: ignore user-private settings, allow team-shared workflow files
+.claude/*
+!.claude/skills/
+!.claude/commands/

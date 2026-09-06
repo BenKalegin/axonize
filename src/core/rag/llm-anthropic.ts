@@ -66,7 +66,7 @@ export class AnthropicProvider extends LLMProvider {
     // If response contains tool uses, return structured content
     if (data.stop_reason === 'tool_use') {
       return {
-        content: data.content as any, // Return full content blocks
+        content: data.content, // Return full content blocks
         model: data.model,
         usage: {
           inputTokens: data.usage.input_tokens,

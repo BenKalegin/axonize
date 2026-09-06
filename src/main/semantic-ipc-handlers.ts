@@ -7,6 +7,8 @@ import {
   estimateSemanticBuild,
   detectStaleness,
   loadCards,
+  loadSemanticSettings,
+  saveSemanticSettings,
   SEMANTIC_VERSION
 } from './semantic/decomposition-service'
 import { loadSummaryVectors } from './semantic/summary-embeddings'
@@ -57,6 +59,11 @@ function findRelatedDocs(
 
 export function registerSemanticIpcHandlers(): void {
   ipcMain.handle('semantic:build', async (_event, payload: { vaultPath: string }) => {
+    const settings = await loadSemanticSettings(payload.vaultPath)
+    if (!settings.enabled) {
+      log.info('[semantic] IPC: build skipped, disabled for', payload.vaultPath)
+      return { cardCount: 0 }
+    }
     log.info('[semantic] IPC: build requested for', payload.vaultPath)
     const win = BrowserWindow.getFocusedWindow()
     try {
@@ -70,6 +77,10 @@ export function registerSemanticIpcHandlers(): void {
   })
 
   ipcMain.handle('semantic:incremental', async (_event, payload: { vaultPath: string }) => {
+    const settings = await loadSemanticSettings(payload.vaultPath)
+    if (!settings.enabled) {
+      return { cardCount: 0 }
+    }
     log.info('[semantic] IPC: incremental requested for', payload.vaultPath)
     const win = BrowserWindow.getFocusedWindow()
     try {
@@ -80,6 +91,14 @@ export function registerSemanticIpcHandlers(): void {
       log.error('[semantic] Incremental failed:', err)
       throw err
     }
+  })
+
+  ipcMain.handle('semantic:getSettings', async (_event, payload: { vaultPath: string }) => {
+    return loadSemanticSettings(payload.vaultPath)
+  })
+
+  ipcMain.handle('semantic:setEnabled', async (_event, payload: { vaultPath: string; enabled: boolean }) => {
+    await saveSemanticSettings(payload.vaultPath, { enabled: payload.enabled })
   })
 
   ipcMain.handle('semantic:load', async (_event, payload: { vaultPath: string }) => {

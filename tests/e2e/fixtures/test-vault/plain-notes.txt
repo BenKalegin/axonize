@@ -1,0 +1,5 @@
+Plain text fixture
+
+This file should render without markdown section editing controls.
+
+- A leading dash stays plain text.

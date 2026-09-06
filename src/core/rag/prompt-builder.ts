@@ -1,4 +1,5 @@
 import type { LLMMessage, SearchResult } from './types'
+import { DIAGRAM_BLOCKS_INSTRUCTION } from '../../main/prompts/diagram-prompts'
 
 const SYSTEM_PROMPT = `You are a helpful assistant that answers questions about a documentation vault.
 Begin your response with: <!-- title: A Short Descriptive Title -->
@@ -7,7 +8,9 @@ For example: [source:docs/guide.md:42]
 
 When citing, use the file path and start line from the provided context blocks.
 If you cannot answer from the provided context, say so clearly.
-Be concise and accurate. Prefer direct quotes when relevant.`
+Be concise and accurate. Prefer direct quotes when relevant.
+
+${DIAGRAM_BLOCKS_INSTRUCTION}`
 
 export function buildRAGPrompt(question: string, results: SearchResult[]): LLMMessage[] {
   const contextBlocks = results

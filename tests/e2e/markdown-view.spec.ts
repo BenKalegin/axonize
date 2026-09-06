@@ -40,4 +40,25 @@ test.describe('Markdown View', () => {
     const listItems = content.markdownView.locator('li')
     await expect(listItems).toHaveCount(3)
   })
+
+  test('should render text files read-only', async ({ page }) => {
+    const explorer = new FileExplorerPage(page)
+    const content = new ContentPage(page)
+
+    await explorer.clickFile('plain-notes.txt')
+    await expect(content.textFileView).toBeVisible()
+    await expect(content.textFileView).toContainText('Plain text fixture')
+    await expect(content.markdownView).toHaveCount(0)
+    await expect(page.getByTitle('Add section')).toHaveCount(0)
+  })
+
+  test('should open explicit text links from markdown', async ({ page }) => {
+    const explorer = new FileExplorerPage(page)
+    const content = new ContentPage(page)
+
+    await explorer.clickFile('welcome.md')
+    await content.markdownView.getByRole('link', { name: 'plain notes' }).click()
+    await expect(content.textFileView).toBeVisible()
+    await expect(content.textFileView).toContainText('Plain text fixture')
+  })
 })

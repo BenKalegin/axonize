@@ -70,9 +70,12 @@ export function VisualMermaidEditorModal({
     )
   }, [])
 
+  // Layout persistence (x-axonize frontmatter overlay) is intentionally disabled.
+  // The next iteration moves to a hint-based persistence model — see
+  // docs/todo/doodles/p2-axonize-integration.md.
   const handleApply = useCallback(() => {
-    onApply(updateMermaidLayout(markdown, nodes))
-  }, [markdown, nodes, onApply])
+    onApply(markdown)
+  }, [markdown, onApply])
 
   const nodesById = useMemo(() => new Map(nodes.map((node) => [node.id, node])), [nodes])
 

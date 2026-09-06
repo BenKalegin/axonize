@@ -4,14 +4,19 @@ import elkLayouts from '@mermaid-js/layout-elk'
 import { TEST_IDS } from '@/lib/testids'
 import { useEditorStore, ViewMode, selectedFilePath } from '@/store/editor-store'
 import { useVaultStore } from '@/store/vault-store'
+import { useGraphStore } from '@/store/graph-store'
 import { splitSections, type MarkdownSection } from '@/lib/section-splitter'
+import { handleCodeFileReferenceClick, isDocLink, resolveDocLink } from '@/lib/doc-link'
 import { SectionBlock } from './SectionBlock'
 import { SectionInsert } from './SectionInsert'
 import { ConflictDialog } from './ConflictDialog'
+import { FindInFileBar } from './FindInFileBar'
+import { FrontmatterTable } from './FrontmatterTable'
 
 mermaid.registerLayoutLoaders(elkLayouts)
 mermaid.initialize({
   startOnLoad: false,
+  securityLevel: 'loose', // Enable click links in diagrams (safe for local vault content)
   theme: 'base',
   themeVariables: {
     background: '#1e1e2e',
@@ -70,6 +75,32 @@ declare global {
 }
 
 const FRONTMATTER_RE = /^---\n[\s\S]*?\n---\n/
+const EXPLICIT_LINK_EXTENSIONS = new Set(['.md', '.markdown', '.txt', '.csv', '.json', '.jsonl', '.bpmn'])
+
+/** When picking the nearest heading above the viewport, allow this many px of slack below scrollTop */
+const NEAREST_HEADING_TOLERANCE_PX = 100
+
+function findNearestHeadingId(): string | null {
+  const scrollContainer = document.querySelector('.content-scroll')
+  if (!scrollContainer) return null
+
+  const headings = scrollContainer.querySelectorAll('h1[id], h2[id], h3[id], h4[id], h5[id], h6[id]')
+  const scrollTop = scrollContainer.scrollTop
+  const containerTop = scrollContainer.getBoundingClientRect().top
+  let nearestId: string | null = null
+  let nearestDistance = Infinity
+
+  for (const heading of headings) {
+    const relativeTop = heading.getBoundingClientRect().top - containerTop + scrollTop
+    if (relativeTop > scrollTop + NEAREST_HEADING_TOLERANCE_PX) continue
+    const distance = Math.abs(relativeTop - scrollTop)
+    if (distance < nearestDistance) {
+      nearestDistance = distance
+      nearestId = heading.getAttribute('id')
+    }
+  }
+  return nearestId
+}
 
 function hashSimple(str: string): string {
   let h = 0
@@ -90,6 +121,13 @@ function normalizePath(path: string): string {
   return (isAbsolute ? '/' : '') + stack.join('/')
 }
 
+function hasExplicitFileExtension(path: string): boolean {
+  const lastSegment = path.split('/').pop() ?? path
+  const dot = lastSegment.lastIndexOf('.')
+  if (dot === -1) return false
+  return EXPLICIT_LINK_EXTENSIONS.has(lastSegment.slice(dot).toLowerCase())
+}
+
 export const MarkdownView = React.memo(function MarkdownView() {
   const {
     selection,
@@ -102,11 +140,31 @@ export const MarkdownView = React.memo(function MarkdownView() {
   const presentationMode = viewMode === ViewMode.Presentation
   const { vaultPath, fileTree } = useVaultStore()
 
+  const fileDir = selectedFile ? selectedFile.replace(/\/[^/]+$/, '') : undefined
+
   const [sections, setSections] = useState<MarkdownSection[]>([])
   const [rawContent, setRawContent] = useState('')
   const [frontmatter, setFrontmatter] = useState('')
   const [fileHash, setFileHash] = useState('')
   const [conflict, setConflict] = useState<{ sectionId: string; newMarkdown: string } | null>(null)
+  const [findOpen, setFindOpen] = useState(false)
+  const contentRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent): void => {
+      if ((e.metaKey || e.ctrlKey) && e.key === 'f') {
+        e.preventDefault()
+        setFindOpen(true)
+      }
+    }
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [])
+
+  // Close (and clear highlights) when switching files
+  useEffect(() => {
+    setFindOpen(false)
+  }, [selectedFile])
 
   const rawContentRef = useRef(rawContent)
   rawContentRef.current = rawContent
@@ -131,9 +189,9 @@ export const MarkdownView = React.memo(function MarkdownView() {
   useEffect(() => {
     if (!selectedFile) return
     let cancelled = false
-    loadFile(selectedFile).then(() => {
-      if (cancelled) return
-    })
+    loadFile(selectedFile)
+      .then(() => { if (cancelled) return })
+      .catch(() => {})
     return () => {
       cancelled = true
     }
@@ -146,7 +204,9 @@ export const MarkdownView = React.memo(function MarkdownView() {
         ? filePath.slice(vaultPath.length + 1)
         : filePath
       window.axonize.rag.reindexFile(vaultPath, relative).catch(() => {})
-      window.axonize.semantic.incremental(vaultPath).catch(() => {})
+      if (useGraphStore.getState().semanticEnabled) {
+        window.axonize.semantic.incremental(vaultPath).catch(() => {})
+      }
     },
     [vaultPath]
   )
@@ -179,7 +239,12 @@ export const MarkdownView = React.memo(function MarkdownView() {
     async (sectionId: string, newMarkdown: string) => {
       if (!selectedFile) return
 
-      const diskContent = await window.axonize.file.read(selectedFile)
+      let diskContent: string
+      try {
+        diskContent = await window.axonize.file.read(selectedFile)
+      } catch {
+        return
+      }
       const diskHash = hashSimple(diskContent)
 
       if (diskHash !== fileHashRef.current) {
@@ -249,15 +314,33 @@ export const MarkdownView = React.memo(function MarkdownView() {
   const handleLinkClick = useCallback(
     (e: React.MouseEvent) => {
       const anchor = (e.target as HTMLElement).closest('a')
-      if (!anchor) return
+      if (!anchor) {
+        // Vault files cited as inline code navigate too (common in agent answers)
+        handleCodeFileReferenceClick(e, vaultPath, selectFile)
+        return
+      }
 
-      const href = anchor.getAttribute('href')
+      // SVG anchors use xlink:href, HTML anchors use href
+      const href = anchor.getAttribute('href') ?? anchor.getAttribute('xlink:href')
       if (!href) return
 
       if (href.startsWith('http://') || href.startsWith('https://'))
         return
 
       e.preventDefault()
+
+      // Persist the visible section to history before navigating so back returns there
+      const headingId = findNearestHeadingId()
+      if (headingId) useEditorStore.getState().updateCurrentHash(headingId)
+
+      if (isDocLink(href)) {
+        if (vaultPath) {
+          void resolveDocLink(href, vaultPath).then((path) => {
+            if (path) selectFile(path)
+          })
+        }
+        return
+      }
 
       if (href.startsWith('#')) {
         if (selectedFile) selectFile(`${selectedFile}${href}`)
@@ -271,7 +354,7 @@ export const MarkdownView = React.memo(function MarkdownView() {
       if (!cleanHref) return
 
       const hash = href.includes('#') ? href.slice(href.indexOf('#')) : ''
-      const target = cleanHref.endsWith('.md') ? cleanHref : `${cleanHref}.md`
+      const target = hasExplicitFileExtension(cleanHref) ? cleanHref : `${cleanHref}.md`
       const fullPath = target.startsWith('/') ? target : `${currentDir}/${target}`
 
       selectFile(`${normalizePath(fullPath)}${hash}`)
@@ -291,19 +374,43 @@ export const MarkdownView = React.memo(function MarkdownView() {
         {prevSlide && (
           <div className="presentation-adjacent presentation-adjacent--prev" style={{ opacity: ADJACENT_OPACITY }}>
             {prevSlide.map((s) => (
-              <SectionBlock key={s.id} section={s} onSave={handleSave} onLinkClick={handleLinkClick} />
+              <SectionBlock
+                key={s.id}
+                section={s}
+                onSave={handleSave}
+                onLinkClick={handleLinkClick}
+                fileDir={fileDir}
+                vaultPath={vaultPath}
+                filePath={selectedFile}
+              />
             ))}
           </div>
         )}
         <div className="presentation-current">
           {currentSlide.map((s) => (
-            <SectionBlock key={s.id} section={s} onSave={handleSave} onLinkClick={handleLinkClick} />
+            <SectionBlock
+              key={s.id}
+              section={s}
+              onSave={handleSave}
+              onLinkClick={handleLinkClick}
+              fileDir={fileDir}
+              vaultPath={vaultPath}
+              filePath={selectedFile}
+            />
           ))}
         </div>
         {nextSlide && (
           <div className="presentation-adjacent presentation-adjacent--next" style={{ opacity: ADJACENT_OPACITY }}>
             {nextSlide.map((s) => (
-              <SectionBlock key={s.id} section={s} onSave={handleSave} onLinkClick={handleLinkClick} />
+              <SectionBlock
+                key={s.id}
+                section={s}
+                onSave={handleSave}
+                onLinkClick={handleLinkClick}
+                fileDir={fileDir}
+                vaultPath={vaultPath}
+                filePath={selectedFile}
+              />
             ))}
           </div>
         )}
@@ -312,7 +419,15 @@ export const MarkdownView = React.memo(function MarkdownView() {
   }
 
   return (
-    <div className="markdown-view" data-testid={TEST_IDS.MARKDOWN_VIEW}>
+    <div className="markdown-view" data-testid={TEST_IDS.MARKDOWN_VIEW} ref={contentRef}>
+      {findOpen && (
+        <FindInFileBar
+          container={contentRef.current}
+          contentVersion={rawContent}
+          onClose={() => setFindOpen(false)}
+        />
+      )}
+      {frontmatter && <FrontmatterTable raw={frontmatter} />}
       {sections.length === 0 && (
         <SectionInsert afterLine={0} onInsert={handleInsert} />
       )}
@@ -322,6 +437,9 @@ export const MarkdownView = React.memo(function MarkdownView() {
             section={section}
             onSave={handleSave}
             onLinkClick={handleLinkClick}
+            fileDir={fileDir}
+            vaultPath={vaultPath}
+            filePath={selectedFile}
           />
           <SectionInsert
             afterLine={section.endLine}

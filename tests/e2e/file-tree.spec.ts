@@ -25,6 +25,11 @@ test.describe('File Tree', () => {
     await expect(explorer.nodeLabelByPath('architecture.md')).toBeVisible()
   })
 
+  test('should show text files', async ({ page }) => {
+    const explorer = new FileExplorerPage(page)
+    await expect(explorer.nodeLabelByPath('plain-notes.txt')).toBeVisible()
+  })
+
   test('should show directories', async ({ page }) => {
     const explorer = new FileExplorerPage(page)
     await expect(explorer.nodeLabelByPath('notes')).toBeVisible()
@@ -32,6 +37,7 @@ test.describe('File Tree', () => {
 
   test('should show nested files', async ({ page }) => {
     const explorer = new FileExplorerPage(page)
+    await explorer.clickFile('notes')
     await expect(explorer.nodeLabelByPath('notes/daily.md')).toBeVisible()
     await expect(explorer.nodeLabelByPath('notes/ideas.md')).toBeVisible()
   })

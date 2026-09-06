@@ -1,5 +1,5 @@
 import {BrowserWindow, dialog, ipcMain} from 'electron'
-import {readVaultFiles} from './file-service'
+import {readVaultFiles, listAllFiles, listRecentlyModifiedFiles} from './file-service'
 import {mkdir, readFile, writeFile, rename, unlink} from 'fs/promises'
 import {join} from 'path'
 import {addRecentVault, getRecentVaults, removeRecentVault} from './recent-vaults-service'
@@ -10,18 +10,24 @@ import {registerLLMIpcHandlers} from './llm-ipc-handlers'
 import {registerAgentIpcHandlers} from './agent-ipc-handlers'
 import {registerAgentHistoryIpcHandlers} from './agent-history-ipc-handlers'
 import {registerGitIpcHandlers} from './git-ipc-handlers'
+import {registerVaultIconIpcHandlers} from './vault-icon-ipc-handlers'
+import {registerClipboardIpcHandlers} from './clipboard-ipc-handlers'
+import {registerDataIpcHandlers} from './data/data-ipc-handlers'
+import {registerProseIpcHandlers} from './prose/prose-ipc-handlers'
 import {startWatching, stopWatching} from './file-watcher'
+import {vaultNameFromPath} from '../core/vault/name'
 import log from './logger'
 
-const DOC_SLUGS = new Set(['doc', 'docs'])
+const TEMP_SUFFIX = '.tmp'
 
-function vaultNameFromPath(p: string): string {
-  const parts = p.split('/').filter(Boolean)
-  const last = parts.at(-1) || p
-  if (DOC_SLUGS.has(last.toLowerCase()) && parts.length >= 2) {
-    return parts.at(-2)!
-  }
-  return last
+// Per-vault mutation queues to prevent concurrent write races on recent-files.json
+const recentFilesQueues = new Map<string, Promise<void>>()
+
+function enqueueRecentFiles<T>(vaultPath: string, work: () => Promise<T>): Promise<T> {
+  const prev = recentFilesQueues.get(vaultPath) ?? Promise.resolve()
+  const next = prev.then(work, work)
+  recentFilesQueues.set(vaultPath, next.then(() => undefined, () => undefined))
+  return next
 }
 
 export function registerIpcHandlers(): void {
@@ -43,12 +49,53 @@ export function registerIpcHandlers(): void {
     return vaultPath
   })
 
+  ipcMain.handle('vault:createNew', async (event) => {
+    const win = BrowserWindow.fromWebContents(event.sender)
+    if (!win) return null
+    const result = await dialog.showSaveDialog(win, {
+      title: 'Create New Vault',
+      buttonLabel: 'Create',
+      defaultPath: 'New Vault',
+      properties: ['createDirectory', 'showOverwriteConfirmation']
+    })
+    if (result.canceled || !result.filePath) return null
+    const vaultPath = result.filePath
+    try {
+      await mkdir(vaultPath, { recursive: false })
+    } catch (e) {
+      const err = e as NodeJS.ErrnoException
+      if (err.code === 'EEXIST') throw new Error('A folder with that name already exists')
+      throw e
+    }
+    await addRecentVault(vaultPath, vaultNameFromPath(vaultPath))
+    setCurrentVaultPath(vaultPath, event.sender.id)
+    return vaultPath
+  })
+
   ipcMain.handle('vault:readFiles', async (event, vaultPath: string) => {
     try {
       setCurrentVaultPath(vaultPath, event.sender.id)
       return readVaultFiles(vaultPath)
     } catch (e) {
       log.error('vault:readFiles failed:', e)
+      throw e
+    }
+  })
+
+  ipcMain.handle('vault:listAllFiles', async (_event, vaultPath: string) => {
+    try {
+      return listAllFiles(vaultPath)
+    } catch (e) {
+      log.error('vault:listAllFiles failed:', e)
+      throw e
+    }
+  })
+
+  ipcMain.handle('vault:getRecentlyModifiedFiles', async (_event, vaultPath: string) => {
+    try {
+      return listRecentlyModifiedFiles(vaultPath)
+    } catch (e) {
+      log.error('vault:getRecentlyModifiedFiles failed:', e)
       throw e
     }
   })
@@ -128,19 +175,25 @@ export function registerIpcHandlers(): void {
   })
 
   ipcMain.handle('vault:addRecentFile', async (_event, vaultPath: string, filePath: string) => {
-    const jsonPath = join(vaultPath, '.axonize', 'recent-files.json')
-    let entries: Array<{ path: string; openedAt: number }> = []
-    try {
-      const data = await readFile(jsonPath, 'utf-8')
-      entries = JSON.parse(data)
-    } catch { /* no file yet */ }
+    // Use queue to prevent concurrent writes from multiple windows clobbering each other
+    return enqueueRecentFiles(vaultPath, async () => {
+      const jsonPath = join(vaultPath, '.axonize', 'recent-files.json')
+      const tempPath = `${jsonPath}${TEMP_SUFFIX}`
+      let entries: Array<{ path: string; openedAt: number }> = []
+      try {
+        const data = await readFile(jsonPath, 'utf-8')
+        entries = JSON.parse(data)
+      } catch { /* no file yet */ }
 
-    entries = entries.filter((e) => e.path !== filePath)
-    entries.unshift({ path: filePath, openedAt: Date.now() })
-    entries = entries.slice(0, RECENT_FILES_MAX)
+      entries = entries.filter((e) => e.path !== filePath)
+      entries.unshift({ path: filePath, openedAt: Date.now() })
+      entries = entries.slice(0, RECENT_FILES_MAX)
 
-    await mkdir(join(vaultPath, '.axonize'), { recursive: true })
-    await writeFile(jsonPath, JSON.stringify(entries, null, 2), 'utf-8')
+      await mkdir(join(vaultPath, '.axonize'), { recursive: true })
+      // Atomic write: write to temp file then rename
+      await writeFile(tempPath, JSON.stringify(entries, null, 2), 'utf-8')
+      await rename(tempPath, jsonPath)
+    })
   })
 
   registerRAGIpcHandlers()
@@ -150,4 +203,8 @@ export function registerIpcHandlers(): void {
   registerAgentIpcHandlers()
   registerAgentHistoryIpcHandlers()
   registerGitIpcHandlers()
+  registerVaultIconIpcHandlers()
+  registerClipboardIpcHandlers()
+  registerDataIpcHandlers()
+  registerProseIpcHandlers()
 }

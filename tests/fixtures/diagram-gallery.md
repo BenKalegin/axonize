@@ -110,6 +110,163 @@ erDiagram
     }
 ```
 
+## Mermaid Gantt Chart
+
+```mermaid
+gantt
+    title Diagram Editing Milestones
+    dateFormat  YYYY-MM-DD
+    section Authoring
+    Draft gallery examples      :done,    draft, 2026-04-01, 2026-04-03
+    Review Mermaid coverage     :active,  review, 2026-04-04, 2026-04-05
+    section Rendering
+    Validate visual editor flow :         visual, 2026-04-06, 2026-04-08
+    Ship gallery fixture        :         ship,   2026-04-09, 2026-04-10
+```
+
+## Mermaid Pie Chart
+
+```mermaid
+pie showData
+    title Diagram Block Coverage
+    "Mermaid" : 15
+    "PlantUML" : 1
+    "Graphviz" : 1
+    "D2" : 1
+    "BPMN" : 1
+```
+
+## Mermaid User Journey
+
+```mermaid
+journey
+    title Diagram Authoring Journey
+    section Draft
+      Write markdown diagram: 5: User
+      Ask AI for a revision: 4: User, AI Agent
+    section Edit
+      Open visual editor: 5: User
+      Adjust node spacing: 4: User, CloudDiagram
+    section Save
+      Persist updated metadata: 5: Axonize
+```
+
+## Mermaid Git Graph
+
+```mermaid
+gitGraph
+   commit id: "draft"
+   branch visual-editor
+   checkout visual-editor
+   commit id: "layout"
+   checkout main
+   commit id: "docs"
+   merge visual-editor id: "sync"
+```
+
+## Mermaid Mindmap
+
+```mermaid
+mindmap
+  root((Nature))
+    Mammals
+      Dogs
+        Labrador
+        Husky
+      Cats
+        Siamese
+        Persian
+    Insects
+      Ants
+        Fire Ant
+        Carpenter Ant
+      Butterflies
+        Monarch
+        Swallowtail
+    Birds
+      Eagles
+        Bald Eagle
+        Golden Eagle
+      Parrots
+        Macaw
+        Cockatoo
+    Reptiles
+      Snakes
+        Python
+        Cobra
+      Lizards
+        Gecko
+        Iguana
+```
+
+## Mermaid Timeline
+
+```mermaid
+timeline
+    title Diagram Roadmap
+    2026 Q1 : Markdown gallery
+            : Mermaid renderer
+    2026 Q2 : Visual editor metadata
+            : AI diagram edits
+    2026 Q3 : Export workflows
+            : Collaboration review
+```
+
+## Mermaid Quadrant Chart
+
+```mermaid
+quadrantChart
+    title Diagram Feature Priorities
+    x-axis Low effort --> High effort
+    y-axis Low impact --> High impact
+    quadrant-1 Strategic bets
+    quadrant-2 Major investments
+    quadrant-3 Fill-ins
+    quadrant-4 Quick wins
+    Visual editor: [0.72, 0.86]
+    Markdown preview: [0.25, 0.78]
+    Export formats: [0.58, 0.52]
+    Theme presets: [0.22, 0.38]
+```
+
+## Mermaid Requirement Diagram
+
+```mermaid
+requirementDiagram
+    requirement render_gallery {
+        id: RD-1
+        text: Diagram gallery examples render in Axonize
+        risk: medium
+        verifymethod: test
+    }
+
+    element markdown_view {
+        type: component
+    }
+
+    markdown_view - satisfies -> render_gallery
+```
+
+## Mermaid Block Diagram
+
+```mermaid
+block-beta
+  columns 3
+  draft["Draft"] review["Review"] save["Save"]
+  draft --> review
+  review --> save
+```
+
+## Mermaid XY Chart
+
+```mermaid
+xychart-beta
+    title "Diagram Render Checks"
+    x-axis [Class, Flow, Sequence, State, ER]
+    y-axis "Checks" 0 --> 5
+    bar [5, 5, 5, 5, 5]
+```
+
 ## PlantUML Sequence Diagram
 
 ```plantuml
@@ -153,4 +310,141 @@ CloudDiagram -> Markdown: writes x-axonize metadata
     <bpmn:endEvent id="done" name="Saved" />
   </bpmn:process>
 </bpmn:definitions>
+```
+
+## AWS Deployment Diagram
+
+```mermaid
+---
+x-axonize:
+  version: 1
+  editor: clouddiagram
+  layout:
+    nodes:
+      Users: { x: 60, y: 320, width: 120, height: 60 }
+      Route53: { x: 260, y: 140, width: 160, height: 60 }
+      CloudFront: { x: 260, y: 240, width: 180, height: 60 }
+      WAF: { x: 260, y: 340, width: 140, height: 60 }
+      ALB: { x: 520, y: 140, width: 200, height: 60 }
+      APIGW: { x: 520, y: 280, width: 180, height: 60 }
+      Cognito: { x: 520, y: 420, width: 160, height: 60 }
+      APIService: { x: 800, y: 60, width: 180, height: 60 }
+      WorkerService: { x: 800, y: 180, width: 200, height: 60 }
+      AuthService: { x: 800, y: 300, width: 180, height: 60 }
+      SchedulerService: { x: 800, y: 420, width: 220, height: 60 }
+      RDS_Primary: { x: 1080, y: 60, width: 200, height: 60 }
+      RDS_Replica: { x: 1080, y: 180, width: 220, height: 60 }
+      DynamoDB: { x: 1080, y: 300, width: 160, height: 60 }
+      ElastiCache: { x: 1080, y: 420, width: 220, height: 60 }
+      S3_Assets: { x: 1080, y: 540, width: 180, height: 60 }
+      S3_Backups: { x: 1080, y: 660, width: 180, height: 60 }
+      SQS: { x: 1360, y: 160, width: 140, height: 60 }
+      SNS: { x: 1360, y: 280, width: 140, height: 60 }
+      EventBridge: { x: 1360, y: 400, width: 180, height: 60 }
+      LambdaProcessor: { x: 1600, y: 100, width: 220, height: 60 }
+      LambdaAuthorizer: { x: 1600, y: 240, width: 220, height: 60 }
+      LambdaNotifier: { x: 1600, y: 380, width: 200, height: 60 }
+      SecretsManager: { x: 1880, y: 80, width: 220, height: 60 }
+      ParameterStore: { x: 1880, y: 200, width: 220, height: 60 }
+      KMS: { x: 1880, y: 320, width: 140, height: 60 }
+      ECR: { x: 1880, y: 440, width: 140, height: 60 }
+      CloudWatch: { x: 2140, y: 160, width: 180, height: 60 }
+      XRay: { x: 2140, y: 300, width: 160, height: 60 }
+      NATGateway: { x: 2140, y: 440, width: 200, height: 60 }
+      IGW: { x: 2140, y: 560, width: 220, height: 60 }
+---
+flowchart LR
+    subgraph Internet["Internet"]
+        Users(["Users"])
+    end
+    subgraph Edge["Edge"]
+        Route53["Route 53"]
+        CloudFront["CloudFront CDN"]
+        WAF["AWS WAF"]
+    end
+    subgraph Ingress["Ingress"]
+        ALB["App Load Balancer"]
+        APIGW["API Gateway"]
+        Cognito["Cognito"]
+    end
+    subgraph Compute["ECS Cluster — us-east-1"]
+        APIService["API Service"]
+        WorkerService["Worker Service"]
+        AuthService["Auth Service"]
+        SchedulerService["Scheduler Service"]
+    end
+    subgraph Data["Data"]
+        RDS_Primary[("RDS Primary")]
+        RDS_Replica[("RDS Read Replica")]
+        DynamoDB[("DynamoDB")]
+        ElastiCache[("ElastiCache / Redis")]
+        S3_Assets[("S3 — Assets")]
+        S3_Backups[("S3 — Backups")]
+    end
+    subgraph Messaging["Messaging"]
+        SQS["SQS"]
+        SNS["SNS"]
+        EventBridge["EventBridge"]
+    end
+    subgraph Serverless["Serverless"]
+        LambdaProcessor["Lambda Processor"]
+        LambdaAuthorizer["Lambda Authorizer"]
+        LambdaNotifier["Lambda Notifier"]
+    end
+    subgraph Security["Security and DevOps"]
+        SecretsManager["Secrets Manager"]
+        ParameterStore["Parameter Store"]
+        KMS["KMS"]
+        ECR["ECR"]
+    end
+    subgraph Observability["Observability"]
+        CloudWatch["CloudWatch"]
+        XRay["X-Ray"]
+    end
+    subgraph Network["Network"]
+        NATGateway["NAT Gateway"]
+        IGW["Internet Gateway"]
+    end
+
+    Users --> Route53
+    Route53 --> CloudFront
+    CloudFront --> WAF
+    WAF --> ALB
+    WAF --> APIGW
+    ALB --> APIService
+    ALB --> AuthService
+    APIGW --> LambdaAuthorizer
+    APIGW --> LambdaProcessor
+    Cognito -.-> AuthService
+    APIService --> RDS_Primary
+    APIService --> ElastiCache
+    APIService --> DynamoDB
+    APIService --> S3_Assets
+    APIService --> SQS
+    WorkerService --> SQS
+    WorkerService --> RDS_Primary
+    WorkerService --> S3_Backups
+    AuthService --> Cognito
+    AuthService --> RDS_Primary
+    SchedulerService --> EventBridge
+    EventBridge --> LambdaProcessor
+    EventBridge --> LambdaNotifier
+    SQS --> LambdaProcessor
+    SNS --> LambdaNotifier
+    LambdaProcessor --> DynamoDB
+    LambdaProcessor --> S3_Backups
+    LambdaProcessor --> SNS
+    RDS_Primary --> RDS_Replica
+    APIService --> SecretsManager
+    WorkerService --> SecretsManager
+    SecretsManager --> KMS
+    ParameterStore --> KMS
+    ECR --> APIService
+    ECR --> WorkerService
+    ECR --> AuthService
+    ECR --> SchedulerService
+    APIService --> CloudWatch
+    WorkerService --> CloudWatch
+    LambdaProcessor --> XRay
+    NATGateway --> IGW
 ```

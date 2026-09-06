@@ -1,0 +1,175 @@
+/*
+ * spreadsheet-editor — self-contained styles.
+ * Uses CSS custom properties with fallbacks so the component works standalone
+ * (no host theme required) and inherits host colors when present.
+ *
+ * Honored variables: --sse-bg, --sse-bg-surface, --sse-bg-overlay, --sse-border,
+ *   --sse-text, --sse-text-muted, --sse-accent, --sse-font-mono.
+ * Hosts can re-map these to their own design tokens if desired.
+ */
+
+.sse-root {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  background: var(--sse-bg, #ffffff);
+  color: var(--sse-text, #1f2328);
+  font-size: 13px;
+}
+
+.sse-header {
+  flex: 0 0 auto;
+  height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 0 12px 0 16px;
+  border-bottom: 1px solid var(--sse-border, #d0d7de);
+  background: var(--sse-bg-surface, #f6f8fa);
+}
+
+.sse-title {
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.sse-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.sse-divider {
+  width: 1px;
+  height: 20px;
+  background: var(--sse-border, #d0d7de);
+  margin: 0 4px;
+}
+
+.sse-btn {
+  appearance: none;
+  border: 1px solid var(--sse-border, #d0d7de);
+  background: var(--sse-bg, #ffffff);
+  color: var(--sse-text, #1f2328);
+  padding: 4px 10px;
+  font-size: 12px;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.sse-btn:hover:not(:disabled) {
+  background: var(--sse-bg-overlay, #eaeef2);
+}
+
+.sse-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.sse-btn--primary {
+  background: var(--sse-accent, #0969da);
+  border-color: var(--sse-accent, #0969da);
+  color: #ffffff;
+}
+
+.sse-btn--primary:hover:not(:disabled) {
+  filter: brightness(1.05);
+  background: var(--sse-accent, #0969da);
+}
+
+.sse-grid {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  outline: none;
+  background: var(--sse-bg, #ffffff);
+  font-family: var(--sse-font-mono, ui-monospace, SFMono-Regular, Menlo, monospace);
+}
+
+.sse-grid:focus {
+  box-shadow: inset 0 0 0 2px var(--sse-accent, #0969da);
+}
+
+.sse-row {
+  display: flex;
+  align-items: stretch;
+}
+
+.sse-row-header {
+  flex: 0 0 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--sse-bg-surface, #f6f8fa);
+  color: var(--sse-text-muted, #6e7781);
+  border-right: 1px solid var(--sse-border, #d0d7de);
+  border-bottom: 1px solid var(--sse-border, #d0d7de);
+  font-size: 11px;
+  user-select: none;
+}
+
+.sse-row--header .sse-cell {
+  font-weight: 600;
+  background: var(--sse-bg-surface, #f6f8fa);
+  color: var(--sse-text, #1f2328);
+}
+
+.sse-row--align .sse-row-header {
+  background: var(--sse-bg, #ffffff);
+  border-bottom: none;
+}
+
+.sse-align-toggle {
+  flex: 1 1 0;
+  min-width: 0;
+  padding: 2px 0;
+  border: none;
+  border-right: 1px solid var(--sse-border, #d0d7de);
+  background: var(--sse-bg, #ffffff);
+  color: var(--sse-text-muted, #6e7781);
+  font-size: 11px;
+  cursor: pointer;
+}
+
+.sse-align-toggle:hover {
+  background: var(--sse-bg-overlay, #eaeef2);
+  color: var(--sse-text, #1f2328);
+}
+
+.sse-cell {
+  flex: 1 1 0;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  padding: 6px 8px;
+  border-right: 1px solid var(--sse-border, #d0d7de);
+  border-bottom: 1px solid var(--sse-border, #d0d7de);
+  color: var(--sse-text, #1f2328);
+  cursor: cell;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.sse-cell--header {
+  cursor: pointer;
+}
+
+.sse-cell--selected {
+  box-shadow: inset 0 0 0 2px var(--sse-accent, #0969da);
+  background: color-mix(in srgb, var(--sse-accent, #0969da) 12%, var(--sse-bg, #ffffff));
+}
+
+.sse-cell-input {
+  width: 100%;
+  margin: -6px -8px;
+  padding: 6px 8px;
+  border: none;
+  outline: none;
+  background: var(--sse-bg, #ffffff);
+  color: var(--sse-text, #1f2328);
+  font: inherit;
+}

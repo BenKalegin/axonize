@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react'
-import { useLayoutStore, type RightPanelId } from '@/store/layout-store'
+import { useLayoutStore, RightPanelId } from '@/store/layout-store'
 
 interface RightActivityItem {
   id: RightPanelId
@@ -25,8 +25,8 @@ const RelatedIcon = () => (
 )
 
 const RIGHT_ACTIVITY_ITEMS: RightActivityItem[] = [
-  { id: 'properties', label: 'Properties', icon: <PropertiesIcon /> },
-  { id: 'related', label: 'Related', icon: <RelatedIcon /> }
+  { id: RightPanelId.Properties, label: 'Properties', icon: <PropertiesIcon /> },
+  { id: RightPanelId.Related, label: 'Related', icon: <RelatedIcon /> }
 ]
 
 export function RightActivityBar() {

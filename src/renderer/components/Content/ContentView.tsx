@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
+import { useState, useEffect, useRef, useCallback, useMemo, type ComponentType } from 'react'
 import { TEST_IDS } from '@/lib/testids'
 import {
   useEditorStore,
@@ -10,6 +10,9 @@ import { useVaultStore } from '@/store/vault-store'
 import { useRagStore } from '@/store/rag-store'
 import { useGeneratedDocsStore } from '@/store/generated-docs-store'
 import { MarkdownView } from './MarkdownView'
+import { BpmnFileView } from './BpmnFileView'
+import { DataFileView } from './data/DataFileView'
+import { TextFileView } from './TextFileView'
 import { RAGAnswerView } from './RAGAnswerView'
 import { GeneratedDocHeader } from './GeneratedDocHeader'
 import { SourcesList } from './SourcesList'
@@ -18,8 +21,24 @@ import { GraphView } from '../Graph/GraphView'
 import { WelcomeScreen } from './WelcomeScreen'
 import { ZoomControls } from './ZoomControls'
 import { AgentTurnHeader } from './AgentTurnHeader'
+import { DiffView } from './DiffView'
 
 const ZOOM_STEPS = [50, 67, 80, 90, 100, 110, 125, 150, 175, 200]
+
+/** Dedicated viewers by file extension; everything else renders as markdown. */
+const EXTENSION_VIEWERS: Record<string, ComponentType> = {
+  '.bpmn': BpmnFileView,
+  '.txt': TextFileView,
+  '.csv': DataFileView,
+  '.json': DataFileView,
+  '.jsonl': DataFileView
+}
+
+function viewerForFile(filePath: string): ComponentType | null {
+  const dot = filePath.lastIndexOf('.')
+  if (dot === -1) return null
+  return EXTENSION_VIEWERS[filePath.slice(dot).toLowerCase()] ?? null
+}
 
 export function ContentView() {
   const viewMode = useEditorStore((s) => s.viewMode)
@@ -29,6 +48,7 @@ export function ContentView() {
   const presentationNext = useEditorStore((s) => s.presentationNext)
   const presentationPrev = useEditorStore((s) => s.presentationPrev)
   const setViewMode = useEditorStore((s) => s.setViewMode)
+  const diffPreviewFile = useEditorStore((s) => s.diffPreviewFile)
   const selectedFile = selectedFilePath(selection)
   const presentationMode = viewMode === ViewMode.Presentation
   const isGraph = viewMode === ViewMode.Graph
@@ -133,6 +153,17 @@ export function ContentView() {
     }
   }, [presentationMode, presentationNext, presentationPrev])
 
+  const FileViewer = useMemo(
+    () => (selectedFile && !isAgentTurn ? viewerForFile(selectedFile) : null),
+    [selectedFile, isAgentTurn]
+  )
+
+  useEffect(() => {
+    if (FileViewer && viewMode === ViewMode.Presentation) {
+      setViewMode(ViewMode.Markdown)
+    }
+  }, [FileViewer, setViewMode, viewMode])
+
   const generatedDoc = useMemo(
     () => (selectedFile && !isAgentTurn) ? docs.find((d) => d.filePath === selectedFile) ?? null : null,
     [selectedFile, docs, isAgentTurn]
@@ -140,10 +171,18 @@ export function ContentView() {
 
   const showZoom = vaultPath && !isGraph && (
     lastResponse ||
-    (viewMode === ViewMode.Markdown && selectedFile)
+    (viewMode === ViewMode.Markdown && selectedFile) ||
+    !!diffPreviewFile
   )
 
   const renderBody = () => {
+    if (diffPreviewFile) {
+      return (
+        <div className="content-scroll" ref={scrollRef}>
+          <DiffView />
+        </div>
+      )
+    }
     if (vaultPath && isGraph) return <GraphView />
     return (
       <div className="content-scroll" ref={scrollRef}>
@@ -163,15 +202,19 @@ export function ContentView() {
             <MarkdownView />
           </>
         ) : selectedFile ? (
-          <>
-            {generatedDoc && (
-              <GeneratedDocHeader doc={generatedDoc} onMakePermanent={() => setPermanentDoc(generatedDoc)} />
-            )}
-            <MarkdownView />
-            {generatedDoc && generatedDoc.sources.length > 0 && (
-              <SourcesList sources={generatedDoc.sources} />
-            )}
-          </>
+          FileViewer ? (
+            <FileViewer />
+          ) : (
+            <>
+              {generatedDoc && (
+                <GeneratedDocHeader doc={generatedDoc} onMakePermanent={() => setPermanentDoc(generatedDoc)} />
+              )}
+              <MarkdownView />
+              {generatedDoc && generatedDoc.sources.length > 0 && (
+                <SourcesList sources={generatedDoc.sources} />
+              )}
+            </>
+          )
         ) : (
           <div className="empty-state" data-testid={TEST_IDS.EMPTY_STATE}>
             <p>Select a file to view</p>

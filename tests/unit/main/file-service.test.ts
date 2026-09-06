@@ -17,10 +17,10 @@ afterEach(async () => {
 })
 
 describe('readVaultFiles', () => {
-  it('returns markdown files from normal vault folders', async () => {
+  it('returns viewable document files from normal vault folders', async () => {
     await mkdir(join(root, 'doc'), { recursive: true })
     await writeFile(join(root, 'doc', 'diagram-gallery.md'), '# Diagram gallery\n')
-    await writeFile(join(root, 'notes.txt'), 'not markdown\n')
+    await writeFile(join(root, 'notes.txt'), 'plain text\n')
 
     const files = await readVaultFiles(root)
 
@@ -34,6 +34,10 @@ describe('readVaultFiles', () => {
             isDirectory: false
           })
         ]
+      }),
+      expect.objectContaining({
+        name: 'notes.txt',
+        isDirectory: false
       })
     ])
   })

@@ -7,14 +7,16 @@ import { PropertiesPanel } from './Sidebar/PropertiesPanel'
 import { RelatedDocsPanel } from './Sidebar/RelatedDocsPanel'
 import { ContentView } from './Content/ContentView'
 import { CommandPalette } from './Command/CommandPalette'
-import { useLayoutStore, ACTIVITY_BAR_WIDTH } from '@/store/layout-store'
+import { useLayoutStore, ACTIVITY_BAR_WIDTH, RightPanelId } from '@/store/layout-store'
 import { useVaultStore } from '@/store/vault-store'
 import { useAgentBootstrap } from '@/store/agent-store'
+import { useLintBootstrap } from '@/store/lint-store'
 
 export function Shell() {
   const { activePanelId, activeRightPanelId, sidePanelWidth, rightPanelWidth } = useLayoutStore()
   const vaultPath = useVaultStore((s) => s.vaultPath)
   useAgentBootstrap(vaultPath)
+  useLintBootstrap()
 
   const rightPanelW = activeRightPanelId ? `${rightPanelWidth}px` : '0px'
 
@@ -38,8 +40,8 @@ export function Shell() {
       </main>
       {activeRightPanelId && (
         <aside className="right-sidebar" data-testid={TEST_IDS.RIGHT_SIDEBAR}>
-          {activeRightPanelId === 'properties' && <PropertiesPanel />}
-          {activeRightPanelId === 'related' && <RelatedDocsPanel />}
+          {activeRightPanelId === RightPanelId.Properties && <PropertiesPanel />}
+          {activeRightPanelId === RightPanelId.Related && <RelatedDocsPanel />}
         </aside>
       )}
       <RightActivityBar />

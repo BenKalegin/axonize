@@ -4,7 +4,8 @@ import type { AgentEventBody, AgentEventPayload } from '../../preload'
 import { AgentTurnKind, AgentTurnRole } from '@core/agent/turn-kinds'
 import { AgentEventKind } from '@core/agent/event-kinds'
 import type { AgentTurnMeta } from '@core/agent/history-types'
-import { classifyTurn, makePreview } from '@/lib/agent-turn-classifier'
+import { classifyTurn, makePreview, summarizeUserPrompt } from '@/lib/agent-turn-classifier'
+import { selectedFilePath, useEditorStore } from './editor-store'
 
 export interface AgentTurn {
   id: string
@@ -21,6 +22,7 @@ export interface AgentTurn {
 export interface AgentSession {
   id: string
   name: string
+  summary?: string
   turns: AgentTurn[]
   createdAt: number
   updatedAt: number
@@ -46,6 +48,8 @@ interface AgentStore {
   hydrate: (vaultPath: string | null) => Promise<void>
   createSession: (vaultPath: string | null) => void
   deleteSession: (vaultPath: string | null, sessionId: string) => Promise<void>
+  deleteTurnPair: (vaultPath: string | null, sessionId: string, userTurnId: string) => Promise<void>
+  clearSession: (vaultPath: string | null, sessionId: string) => Promise<void>
   selectSession: (sessionId: string) => void
   toggleSessionCollapsed: (vaultPath: string | null, sessionId: string) => void
   setAllowEdits: (vaultPath: string | null, sessionId: string, allowEdits: boolean) => void
@@ -64,6 +68,7 @@ const TOOL_TRACE_MAX = 20
 const TOOL_ERROR_PREVIEW_MAX_CHARS = 120
 const TOOL_INPUT_VALUE_MAX_CHARS = 80
 const EMPTY_ASSISTANT_RESPONSE = '(empty response)'
+const SESSION_SUMMARY_PREVIEW_MAX_CHARS = 600
 
 function storageKeyV4(vaultPath: string | null): string {
   return `${STORAGE_PREFIX_V4}:${vaultPath ?? '__global__'}`
@@ -75,6 +80,20 @@ function storageKeyV3(vaultPath: string | null): string {
 
 function storageKeyV2(vaultPath: string | null): string {
   return `${STORAGE_PREFIX_V2}:${vaultPath ?? '__global__'}`
+}
+
+function activeFilePathForAgent(vaultPath: string | null): string | undefined {
+  if (!vaultPath) return undefined
+  const selectedFile = selectedFilePath(useEditorStore.getState().selection)
+  if (!selectedFile) return undefined
+
+  const normalizedVaultPath = vaultPath.endsWith('/') ? vaultPath.slice(0, -1) : vaultPath
+  const vaultPrefix = `${normalizedVaultPath}/`
+  if (selectedFile.startsWith(vaultPrefix)) {
+    return selectedFile.slice(vaultPrefix.length)
+  }
+  if (selectedFile.startsWith('/')) return undefined
+  return selectedFile
 }
 
 function emptySession(index: number): AgentSession {
@@ -101,7 +120,7 @@ function deriveNameFromSession(session: AgentSession, fallbackIndex: number): st
     (turn) => turn.role === AgentTurnRole.User && (turn.content ?? '').trim().length > 0
   )
   if (firstUserTurn?.content) {
-    return clip(firstUserTurn.content)
+    return summarizeUserPrompt(firstUserTurn.content, SESSION_NAME_MAX_CHARS) || `Session ${fallbackIndex}`
   }
   return `Session ${fallbackIndex}`
 }
@@ -322,6 +341,15 @@ function summarizeInput(input: Record<string, unknown>): string {
   return ''
 }
 
+async function deleteHistoryDirIgnoreMissing(vaultPath: string | null, sessionId: string): Promise<void> {
+  if (!vaultPath) return
+  try {
+    await window.axonize.agentHistory.deleteSession(vaultPath, sessionId)
+  } catch {
+    // session dir may not exist yet for sessions with no assistant turns
+  }
+}
+
 function buildInMemoryErrorTurn(content: string, toolTrace: string[]): AgentTurn {
   return {
     id: crypto.randomUUID(),
@@ -383,6 +411,37 @@ export const useAgentStore = create<AgentStore>((set, get) => {
     filePath: meta.filePath
   })
 
+  const refineSessionSummary = (
+    vaultPath: string | null,
+    sessionId: string,
+    userPrompt: string,
+    assistantPreview: string
+  ): void => {
+    const session = get().sessions.find((s) => s.id === sessionId)
+    if (!session) return
+    const prevTitle = session.summary ?? session.name
+
+    void window.axonize.llm
+      .summarizeSession({
+        prevTitle,
+        userPrompt,
+        assistantPreview: assistantPreview.slice(0, SESSION_SUMMARY_PREVIEW_MAX_CHARS)
+      })
+      .then((summary) => {
+        const trimmed = summary.trim()
+        if (!trimmed) return
+        const current = get().sessions.find((s) => s.id === sessionId)
+        if (!current || current.summary === trimmed) return
+        const sessions = updateSession(get().sessions, sessionId, (s) => ({ ...s, summary: trimmed }))
+        set({ sessions })
+        persist(vaultPath, { sessions, selectedSessionId: get().selectedSessionId })
+      })
+      .catch((e) => {
+        const message = e instanceof Error ? e.message : String(e)
+        console.warn('Session title refinement failed:', message)
+      })
+  }
+
   const handleDoneEvent = async (vaultPath: string | null, sessionId: string): Promise<void> => {
     const finalText = get().streamingText.trim() || EMPTY_ASSISTANT_RESPONSE
     const session = get().sessions.find((s) => s.id === sessionId)
@@ -396,17 +455,19 @@ export const useAgentStore = create<AgentStore>((set, get) => {
     }
 
     try {
+      const userPrompt = lastUserPromptOf(session)
       const meta = await window.axonize.agentHistory.save(vaultPath, {
         sessionId,
         turnId: crypto.randomUUID(),
         role: AgentTurnRole.Assistant,
-        prompt: clip(lastUserPromptOf(session), PROMPT_SNIPPET_MAX_CHARS),
+        prompt: clip(userPrompt, PROMPT_SNIPPET_MAX_CHARS),
         answer: finalText,
         toolTrace
       })
       const sessions = appendTurn(sessionId, buildSavedTurn(meta, finalText, toolTrace))
       set({ sessions, streamingText: '', toolTrace: [] })
       persist(vaultPath, { sessions, selectedSessionId: get().selectedSessionId })
+      refineSessionSummary(vaultPath, sessionId, userPrompt, finalText)
     } catch (e) {
       const message = e instanceof Error ? e.message : String(e)
       set({ error: `Failed to save agent response: ${message}`, streamingText: '', toolTrace: [] })
@@ -465,13 +526,61 @@ export const useAgentStore = create<AgentStore>((set, get) => {
       const selectedSessionId = ensureSelection(sessions, currentSelected === sessionId ? null : currentSelected)
       set({ sessions, selectedSessionId, error: null })
       persist(vaultPath, { sessions, selectedSessionId })
+      await deleteHistoryDirIgnoreMissing(vaultPath, sessionId)
+    },
+
+    deleteTurnPair: async (vaultPath, sessionId, userTurnId) => {
+      const session = get().sessions.find((s) => s.id === sessionId)
+      if (!session) return
+      const startIdx = session.turns.findIndex((t) => t.id === userTurnId)
+      if (startIdx < 0 || session.turns[startIdx].role !== AgentTurnRole.User) return
+
+      const idsToDelete: string[] = [userTurnId]
+      for (let i = startIdx + 1; i < session.turns.length; i++) {
+        if (session.turns[i].role === AgentTurnRole.User) break
+        idsToDelete.push(session.turns[i].id)
+      }
+      const idSet = new Set(idsToDelete)
+
+      const sessions = updateSession(get().sessions, sessionId, (s) => ({
+        ...s,
+        turns: s.turns.filter((t) => !idSet.has(t.id)),
+        updatedAt: Date.now()
+      }))
+      set({ sessions, error: null })
+      persist(vaultPath, { sessions, selectedSessionId: get().selectedSessionId })
+
       if (vaultPath) {
         try {
-          await window.axonize.agentHistory.deleteSession(vaultPath, sessionId)
-        } catch {
-          // file may not exist yet for sessions with no assistant turns
+          await window.axonize.agentHistory.deleteTurns(vaultPath, sessionId, idsToDelete)
+        } catch (e) {
+          const message = e instanceof Error ? e.message : String(e)
+          console.warn('Failed to delete agent turn files:', message)
         }
       }
+    },
+
+    clearSession: async (vaultPath, sessionId) => {
+      const wasRunning = get().runningSessionId === sessionId
+      if (wasRunning) window.axonize.agent.cancel(sessionId)
+
+      const sessions = updateSession(get().sessions, sessionId, (session) => ({
+        ...session,
+        turns: [],
+        claudeSessionId: undefined,
+        updatedAt: Date.now()
+      }))
+      const nextDrafts = { ...get().promptDrafts }
+      delete nextDrafts[sessionId]
+
+      set({
+        sessions,
+        promptDrafts: nextDrafts,
+        error: null,
+        ...(wasRunning ? { runningSessionId: null, streamingText: '', toolTrace: [] } : {})
+      })
+      persist(vaultPath, { sessions, selectedSessionId: get().selectedSessionId })
+      await deleteHistoryDirIgnoreMissing(vaultPath, sessionId)
     },
 
     selectSession: (sessionId) => {
@@ -540,6 +649,7 @@ export const useAgentStore = create<AgentStore>((set, get) => {
         prompt,
         vaultPath: vaultPath ?? '',
         allowEdits: session.allowEdits,
+        activeFilePath: activeFilePathForAgent(vaultPath),
         claudeSessionId: session.claudeSessionId
       })
     },

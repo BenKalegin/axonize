@@ -1,6 +1,6 @@
 {
   "name": "axonize",
-  "version": "0.1.2",
+  "version": "0.3.3",
   "productName": "Axonize",
   "description": "Semantic Document Operating System",
   "main": "./out/main/index.js",
@@ -20,14 +20,20 @@
   },
   "dependencies": {
     "@anthropic-ai/claude-agent-sdk": "^0.2.81",
+    "@benkalegin/clouddiagram-editor": "^0.2.15",
+    "@benkalegin/doodles-api": "^0.3.15",
+    "@benkalegin/doodles-core": "^0.3.14",
+    "@benkalegin/ui26": "^0.1.4",
     "@mermaid-js/layout-elk": "^0.2.0",
     "@openai/codex-sdk": "^0.116.0",
+    "@tanstack/react-virtual": "^3.14.2",
     "@xenova/transformers": "^2.17.2",
-    "clouddiagram-editor": "file:../clouddiagram/react/clouddiagram-editor-0.1.0.tgz",
     "d3-force": "^3.0.0",
     "electron-log": "^5.4.3",
     "github-slugger": "^2.0.0",
     "highlight.js": "^11.11.1",
+    "katex": "^0.16.37",
+    "lowlight": "^3.3.0",
     "mermaid": "^11.12.3",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
@@ -51,6 +57,7 @@
     "productName": "Axonize",
     "files": [
       "out/**/*",
+      "resources/**/*",
       "package.json"
     ],
     "directories": {
@@ -61,7 +68,7 @@
         "nsis",
         "portable"
       ],
-      "icon": null
+      "icon": "resources/icon.ico"
     },
     "mac": {
       "target": [
@@ -69,7 +76,7 @@
         "zip"
       ],
       "category": "public.app-category.productivity",
-      "icon": null
+      "icon": "resources/icon.icns"
     }
   },
   "pnpm": {
@@ -78,13 +85,13 @@
       "esbuild",
       "sharp",
       "protobufjs"
-      ],
+    ],
     "overrides": {
       "esbuild@<=0.24.2": ">=0.25.0",
       "flatted@<3.4.0": ">=3.4.0",
       "flatted@<=3.4.1": ">=3.4.2",
-      "brace-expansion@<1.1.13": ">=1.1.13",
-      "brace-expansion@>=2.0.0 <2.0.3": ">=2.0.3",
+      "brace-expansion@<1.1.13": ">=1.1.13 <2.0.0",
+      "brace-expansion@>=2.0.0 <2.0.3": ">=2.0.3 <3.0.0",
       "brace-expansion@>=4.0.0 <5.0.5": ">=5.0.5",
       "picomatch@>=4.0.0 <4.0.4": ">=4.0.4",
       "lodash-es@>=4.0.0 <=4.17.23": ">=4.18.0",
@@ -98,6 +105,7 @@
       "electron@<39.8.5": ">=39.8.5",
       "dompurify@<=3.3.3": ">=3.4.0",
       "@xmldom/xmldom@<0.8.13": ">=0.8.13",
+      "@xmldom/xmldom": "~0.8.13",
       "uuid@<14.0.0": ">=14.0.0",
       "postcss@<8.5.10": ">=8.5.10",
       "protobufjs@<7.5.5": ">=7.5.5",

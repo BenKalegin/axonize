@@ -24,6 +24,7 @@ export const TEST_IDS = {
   // Content views
   CONTENT_VIEW: 'content-view',
   MARKDOWN_VIEW: 'markdown-view',
+  TEXT_FILE_VIEW: 'text-file-view',
   GRAPH_VIEW: 'graph-view',
   EMPTY_STATE: 'empty-state',
 
@@ -47,9 +48,17 @@ export const TEST_IDS = {
   RECENT_VAULT_ITEM: 'recent-vault-item',
   RECENT_VAULT_REMOVE: 'recent-vault-remove',
 
-  // Vault Dropdown
+  // Vault Menu (split-button popover)
+  VAULT_MENU_TRIGGER: 'vault-menu-trigger',
+  VAULT_MENU_CHEVRON: 'vault-menu-chevron',
   VAULT_DROPDOWN: 'vault-dropdown',
   VAULT_DROPDOWN_ITEM: 'vault-dropdown-item',
+  VAULT_MENU_NEW: 'vault-menu-new',
+  VAULT_MENU_OPEN: 'vault-menu-open',
+  VAULT_MENU_OPEN_WINDOW: 'vault-menu-open-window',
+  VAULT_MENU_ICON_EDIT: 'vault-menu-icon-edit',
+  VAULT_MENU_ICON_PROMPT: 'vault-menu-icon-prompt',
+  VAULT_MENU_ICON_GENERATE: 'vault-menu-icon-generate',
 
   // Command Palette
   COMMAND_PALETTE: 'command-palette',
@@ -67,6 +76,7 @@ export const TEST_IDS = {
   INDEX_STATUS: 'index-status',
   RAG_ANSWER_VIEW: 'rag-answer-view',
   RAG_SOURCE_LINK: 'rag-source-link',
+  AUTO_INDEX_TOGGLE: 'auto-index-toggle',
 
   // Layout
   ACTIVITY_BAR: 'activity-bar',
@@ -85,6 +95,8 @@ export const TEST_IDS = {
   AGENT_SESSION_ITEM: 'agent-session-item',
   AGENT_SESSION_TOGGLE: 'agent-session-toggle',
   AGENT_DELETE_SESSION_BTN: 'agent-delete-session-btn',
+  AGENT_CLEAR_SESSION_BTN: 'agent-clear-session-btn',
+  AGENT_CLEAR_SESSION_CONFIRM_BTN: 'agent-clear-session-confirm-btn',
   AGENT_PROMPT_INPUT: 'agent-prompt-input',
   AGENT_SEND_PROMPT_BTN: 'agent-send-prompt-btn',
   AGENT_TURN: 'agent-turn',
@@ -149,6 +161,8 @@ export const TEST_IDS = {
   SECTION_CANCEL_BTN: 'section-cancel-btn',
   SECTION_AI_BTN: 'section-ai-btn',
   SECTION_VISUAL_EDIT_BTN: 'section-visual-edit-btn',
+  SECTION_TABLE_VISUAL_EDIT_BTN: 'section-table-visual-edit-btn',
+  SECTION_RENDERER_SELECT: 'section-renderer-select',
   MERMAID_VISUAL_EDITOR: 'mermaid-visual-editor',
   SECTION_LLM_INPUT: 'section-llm-input',
   CONFLICT_DIALOG: 'conflict-dialog',
@@ -159,12 +173,22 @@ export const TEST_IDS = {
   OUTLINE_PANEL: 'outline-panel',
   OUTLINE_HEADING: 'outline-heading',
 
+  // Diff Preview
+  DIFF_VIEW: 'diff-view',
+  DIFF_PREVIEW_BACK_BTN: 'diff-preview-back-btn',
+
   // Git Panel
   GIT_PANEL: 'git-panel',
   GIT_FILE_ROW: 'git-file-row',
   GIT_COMMIT_INPUT: 'git-commit-input',
   GIT_COMMIT_BTN: 'git-commit-btn',
   GIT_SUGGEST_BTN: 'git-suggest-btn',
+  GIT_DISCARD_BTN: 'git-discard-btn',
+  GIT_DISCARD_ALL_BTN: 'git-discard-all-btn',
+
+  // Lint Panel
+  LINT_PANEL: 'lint-panel',
+  LINT_ISSUE_ROW: 'lint-issue-row',
 
   // Related Docs Panel
   RELATED_DOCS_PANEL: 'related-docs-panel',

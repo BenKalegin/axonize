@@ -47,14 +47,20 @@ Shared pure logic lives in **`src/core/`** and is imported by both main and rend
 
 **Agent** → `agent-store` → `window.axonize.agent.start()` → main runs `@anthropic-ai/claude-agent-sdk` with vault MCP bridge → streams `agent:event` IPC messages back to renderer.
 
-### clouddiagram-editor (local package)
+### clouddiagram-editor (GitHub Packages)
 
-Sourced from `../clouddiagram/react/`. To pick up changes:
+Consumed as `@benkalegin/clouddiagram-editor` from GitHub Packages (`https://npm.pkg.github.com`). The `.npmrc` at the repo root points the `@benkalegin` scope at GHP and reads `${NODE_AUTH_TOKEN}` for auth.
+
+**One-time auth setup** (every contributor / fresh machine):
 ```bash
-cd ../clouddiagram/react && pnpm build:lib && pnpm build:editor:types && npm pack
-cd - && pnpm install
+gh auth refresh -s read:packages    # write:packages too if you publish from local
 ```
-The `.tgz` path in `package.json` is `file:../clouddiagram/react/clouddiagram-editor-0.1.0.tgz`.
+After that, `pnpm install` works as long as `NODE_AUTH_TOKEN` is set when running it:
+```bash
+NODE_AUTH_TOKEN=$(gh auth token) pnpm install
+```
+
+To consume a new clouddiagram-editor version: bump the dep in `package.json` (e.g. `"@benkalegin/clouddiagram-editor": "^0.1.1"`), then run the install command above.
 
 ## Code Style & Architecture
 
@@ -68,6 +74,8 @@ The `.tgz` path in `package.json` is `file:../clouddiagram/react/clouddiagram-ed
   - **DIP** — depend on abstractions (interfaces/types), not concrete implementations; inject dependencies via constructor params.
 - **Abstraction.** Use interfaces, type aliases, and helper functions to hide implementation details. Prefer composition over inheritance.
 - **Typecheck must pass.** Run `pnpm typecheck` after every change.
+- **Never commit or push unless explicitly asked.** Wait for the user to review changes and request a commit.
+- **Commit messages: one line.** Use a single concise line. Only use a second line if the change is genuinely large and one line cannot summarize it — and even then, no blank separator line and no trailers (no `Co-Authored-By`, no "Generated with..."). Keep `git log --oneline` readable.
 - **No magic numbers.** Every numeric literal (timeouts, sizes, thresholds, opacities, etc.) must be a named constant with a descriptive name. Group related constants together at the top of the file. The only exceptions are `0`, `1`, `-1`, and simple arithmetic identities.
 - **No fallbacks.** Never add fallback logic, backward-compatibility shims, or degraded-mode code paths. If a feature requires a capability, send the command and let it fail — do not silently fall back to an older mechanism.
 
@@ -83,3 +91,53 @@ The `.tgz` path in `package.json` is `file:../clouddiagram/react/clouddiagram-ed
 - **`SEMANTIC_VERSION`** in `src/main/semantic/decomposition-service.ts` controls when a full rebuild of the semantic index is required. When the vault's stored version is less than `SEMANTIC_VERSION`, the incremental update automatically triggers a full rebuild.
 - **Increment `SEMANTIC_VERSION`** whenever you change the semantic schema: new `CardKind` values, new/changed decomposition prompt levels, new fields on `SemanticCard`, changes to `SemanticIndexState` shape, or changes to the summary-embedding storage format.
 - Never change the decomposition algorithm or card structure without bumping the version.
+
+## Releasing
+
+### Cut an axonize release
+
+CI (`.github/workflows/release.yml`) runs on `v*` tag pushes, builds Mac (arm64 dmg+zip) and Windows (installer + portable), and uploads them to a draft GitHub Release.
+
+```bash
+# 1. Bump version in package.json (e.g. 0.2.0 -> 0.2.1)
+# 2. Commit, push
+git add package.json && git commit -m "Bump version to X.Y.Z" && git push
+
+# 3. Tag and push tag
+git tag vX.Y.Z && git push origin vX.Y.Z
+
+# 4. Watch CI
+gh run watch $(gh run list --workflow=release.yml --limit=1 --json databaseId --jq '.[0].databaseId')
+
+# 5. When green, publish the draft
+gh release edit vX.Y.Z --draft=false
+```
+
+If a tag is already published and you need to retag (e.g. CI failed and you fixed it on `main`):
+```bash
+git tag -d vX.Y.Z && git push origin :vX.Y.Z      # delete locally + remotely
+git tag vX.Y.Z && git push origin vX.Y.Z          # re-tag at HEAD
+```
+
+### Publish a new clouddiagram-editor version
+
+In `../clouddiagram/`:
+```bash
+# 1. Bump react/package.json version (e.g. 0.1.0 -> 0.1.1)
+# 2. Commit, push
+git add react/package.json && git commit -m "Bump clouddiagram-editor to X.Y.Z" && git push
+
+# 3. Tag with editor-vX.Y.Z (separate from any other tags in the repo) and push
+git tag editor-vX.Y.Z && git push origin editor-vX.Y.Z
+
+# 4. Watch the publish workflow
+gh run watch $(gh run list --workflow=publish.yml --limit=1 --json databaseId --jq '.[0].databaseId')
+```
+
+Then in axonize, bump the dep version in `package.json` and run `NODE_AUTH_TOKEN=$(gh auth token) pnpm install`.
+
+### Common pitfalls
+
+- **`Forbidden - 403` from `npm.pkg.github.com`** — your `gh` token lacks the `read:packages` scope. Run `gh auth refresh -s read:packages`.
+- **CI fails at "Install dependencies" with a missing transitive dep** — pnpm CI is strict (no hoisting). The package needs to be added as a *direct* dep in the relevant `package.json`, not just relied on as a transitive.
+- **CI fails at electron-builder plist parsing with `mimeType "undefined"`** — `@xmldom/xmldom@0.9.x` regression; pin via `pnpm.overrides` to `~0.8.13`.

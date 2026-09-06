@@ -13,3 +13,4 @@ This is a sample vault for testing.
 Check out the [[architecture]] document for details.
 Try the [[diagram-gallery]] document for diagram rendering fixtures.
 See also [getting started](getting-started.md).
+Read the [plain notes](plain-notes.txt).

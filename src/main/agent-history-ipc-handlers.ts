@@ -2,6 +2,7 @@ import { ipcMain } from 'electron'
 import {
   saveAgentTurn,
   deleteAgentSession,
+  deleteAgentTurns,
   promoteAgentTurn,
   cleanupExpiredAgentTurns
 } from './agent-history-service'
@@ -28,6 +29,18 @@ export function registerAgentHistoryIpcHandlers(): void {
         await deleteAgentSession(args.vaultPath, args.sessionId)
       } catch (e) {
         log.error('agent-history:deleteSession failed:', e)
+        throw e
+      }
+    }
+  )
+
+  ipcMain.handle(
+    'agent-history:deleteTurns',
+    async (_event, args: { vaultPath: string; sessionId: string; turnIds: string[] }) => {
+      try {
+        await deleteAgentTurns(args.vaultPath, args.sessionId, args.turnIds)
+      } catch (e) {
+        log.error('agent-history:deleteTurns failed:', e)
         throw e
       }
     }

@@ -1,5 +1,13 @@
 import { contextBridge, ipcRenderer } from 'electron'
-import type { CardKind, StalenessInfo } from '../core/semantic/types'
+import { homedir } from 'os'
+import type { CardKind, StalenessInfo, SemanticIndexSettings } from '../core/semantic/types'
+import type {
+  DataRowResult,
+  DataSearchResult,
+  DataSessionInfo,
+  JsonNodeSummary
+} from '../core/data/types'
+import type { FieldFilter } from '../core/data/row-query'
 import type {
   AgentTurnMeta,
   SaveAgentTurnPayload
@@ -84,8 +92,14 @@ export interface AgentStartPayload {
   prompt: string
   vaultPath: string
   allowEdits: boolean
+  activeFilePath?: string
   claudeSessionId?: string
   systemPrompt?: string
+}
+
+export interface RewriteSectionContext {
+  vaultPath?: string | null
+  filePath?: string | null
 }
 
 export type AgentEventBody =
@@ -102,20 +116,38 @@ export interface AgentEventPayload {
   event: AgentEventBody
 }
 
+export interface OpenWindowInfo {
+  windowId: number
+  vaultPath: string | null
+  vaultName: string | null
+  isCurrent: boolean
+}
+
 export interface AxonizeAPI {
+  // Captured once at preload time so the renderer can render `~`-prefixed paths
+  // without an async round-trip.
+  homeDir: string
   window: {
     setTitle: (vaultName: string | null) => Promise<void>
     openNew: (vaultPath?: string) => Promise<void>
+    setVault: (vaultPath: string | null) => Promise<void>
+    listOpen: () => Promise<OpenWindowInfo[]>
+    focus: (windowId: number) => Promise<void>
   }
   vault: {
     open: () => Promise<string | null>
+    createNew: () => Promise<string | null>
     readFiles: (vaultPath: string) => Promise<unknown[]>
+    listAllFiles: (vaultPath: string) => Promise<string[]>
     getRecent: () => Promise<RecentVault[]>
     addRecent: (path: string, name: string) => Promise<void>
     removeRecent: (path: string) => Promise<void>
     startWatch: (path: string) => Promise<void>
     stopWatch: () => Promise<void>
     onFilesChanged: (callback: () => void) => () => void
+    readIcon: (vaultPath: string) => Promise<string | null>
+    writeIcon: (vaultPath: string, svg: string) => Promise<void>
+    generateIcon: (vaultPath: string, prompt: string) => Promise<string>
   }
   file: {
     read: (filePath: string) => Promise<string>
@@ -124,6 +156,15 @@ export interface AxonizeAPI {
     delete: (filePath: string) => Promise<void>
     getRecent: (vaultPath: string) => Promise<Array<{ path: string; openedAt: number }>>
     addRecent: (vaultPath: string, filePath: string) => Promise<void>
+    getRecentlyModified: (vaultPath: string) => Promise<Array<{ path: string; modifiedAt: number }>>
+  }
+  data: {
+    open: (filePath: string) => Promise<DataSessionInfo>
+    rows: (filePath: string, offset: number, limit: number) => Promise<DataRowResult[]>
+    node: (filePath: string, path: Array<string | number>, offset: number, limit: number) => Promise<JsonNodeSummary[]>
+    search: (filePath: string, text: string) => Promise<DataSearchResult>
+    query: (filePath: string, filters: FieldFilter[], select: string[] | undefined, offset: number, limit: number) => Promise<{ rows: DataRowResult[]; totalMatches: number }>
+    close: (filePath: string) => Promise<void>
   }
   rag: {
     indexVault: (vaultPath: string) => Promise<{ chunkCount: number }>
@@ -143,12 +184,21 @@ export interface AxonizeAPI {
     staleness: (vaultPath: string) => Promise<StalenessInfo>
     distances: (vaultPath: string, anchorCardId: string, targetLevel?: number) => Promise<Record<string, number>>
     relatedDocs: (vaultPath: string, filePath: string, k?: number) => Promise<RelatedDoc[]>
+    getSettings: (vaultPath: string) => Promise<SemanticIndexSettings>
+    setEnabled: (vaultPath: string, enabled: boolean) => Promise<void>
     onProgress: (callback: (payload: unknown) => void) => () => void
     onError: (callback: (payload: unknown) => void) => () => void
     onErrorsClear: (callback: () => void) => () => void
   }
   llm: {
-    rewriteSection: (section: string, instruction: string) => Promise<string>
+    rewriteSection: (section: string, instruction: string, context?: RewriteSectionContext) => Promise<string>
+    summarizeSession: (payload: { prevTitle: string; userPrompt: string; assistantPreview: string }) => Promise<string>
+  }
+  prose: {
+    refactor: (payload: { content: string; findingsSummary?: string }) => Promise<string>
+  }
+  clipboard: {
+    writeTextAndHtml: (text: string, html: string) => Promise<void>
   }
   agent: {
     start: (payload: AgentStartPayload) => void
@@ -164,12 +214,15 @@ export interface AxonizeAPI {
     root: (cwd: string) => Promise<string | null>
     status: (cwd: string) => Promise<GitFileStatus[]>
     diff: (cwd: string, staged: boolean) => Promise<string>
+    diffFile: (cwd: string, filePath: string, staged: boolean) => Promise<string>
     stage: (cwd: string, filePath: string) => Promise<void>
     unstage: (cwd: string, filePath: string) => Promise<void>
     stageAll: (cwd: string) => Promise<void>
     unstageAll: (cwd: string) => Promise<void>
     commit: (cwd: string, message: string) => Promise<void>
     suggestCommitMessage: (cwd: string) => Promise<string>
+    discard: (cwd: string, filePath: string, untracked: boolean) => Promise<boolean>
+    discardAll: (cwd: string, count: number) => Promise<boolean>
   }
   generatedDocs: {
     save: (vaultPath: string, title: string, query: string, answer: string, sources: GeneratedDocSource[]) => Promise<GeneratedDocMeta>
@@ -183,19 +236,26 @@ export interface AxonizeAPI {
   agentHistory: {
     save: (vaultPath: string, payload: SaveAgentTurnPayload) => Promise<AgentTurnMeta>
     deleteSession: (vaultPath: string, sessionId: string) => Promise<void>
+    deleteTurns: (vaultPath: string, sessionId: string, turnIds: string[]) => Promise<void>
     promote: (filePath: string, targetPath: string) => Promise<void>
     cleanup: (vaultPath: string) => Promise<number>
   }
 }
 
 const api: AxonizeAPI = {
+  homeDir: homedir(),
   window: {
     setTitle: (vaultName: string | null) => ipcRenderer.invoke('window:setTitle', vaultName),
-    openNew: (vaultPath?: string) => ipcRenderer.invoke('window:openNew', vaultPath)
+    openNew: (vaultPath?: string) => ipcRenderer.invoke('window:openNew', vaultPath),
+    setVault: (vaultPath: string | null) => ipcRenderer.invoke('window:setVault', vaultPath),
+    listOpen: () => ipcRenderer.invoke('window:listOpen'),
+    focus: (windowId: number) => ipcRenderer.invoke('window:focus', windowId)
   },
   vault: {
     open: () => ipcRenderer.invoke('vault:open'),
+    createNew: () => ipcRenderer.invoke('vault:createNew'),
     readFiles: (vaultPath: string) => ipcRenderer.invoke('vault:readFiles', vaultPath),
+    listAllFiles: (vaultPath: string) => ipcRenderer.invoke('vault:listAllFiles', vaultPath),
     getRecent: () => ipcRenderer.invoke('vault:getRecent'),
     addRecent: (path: string, name: string) => ipcRenderer.invoke('vault:addRecent', path, name),
     removeRecent: (path: string) => ipcRenderer.invoke('vault:removeRecent', path),
@@ -207,7 +267,12 @@ const api: AxonizeAPI = {
       return () => {
         ipcRenderer.removeListener('vault:filesChanged', listener)
       }
-    }
+    },
+    readIcon: (vaultPath: string) => ipcRenderer.invoke('vault:readIcon', vaultPath),
+    writeIcon: (vaultPath: string, svg: string) =>
+      ipcRenderer.invoke('vault:writeIcon', vaultPath, svg),
+    generateIcon: (vaultPath: string, prompt: string) =>
+      ipcRenderer.invoke('vault:generateIcon', vaultPath, prompt)
   },
   file: {
     read: (filePath: string) => ipcRenderer.invoke('file:read', filePath),
@@ -215,7 +280,19 @@ const api: AxonizeAPI = {
     rename: (oldPath: string, newPath: string) => ipcRenderer.invoke('file:rename', oldPath, newPath),
     delete: (filePath: string) => ipcRenderer.invoke('file:delete', filePath),
     getRecent: (vaultPath: string) => ipcRenderer.invoke('vault:getRecentFiles', vaultPath),
-    addRecent: (vaultPath: string, filePath: string) => ipcRenderer.invoke('vault:addRecentFile', vaultPath, filePath)
+    addRecent: (vaultPath: string, filePath: string) => ipcRenderer.invoke('vault:addRecentFile', vaultPath, filePath),
+    getRecentlyModified: (vaultPath: string) => ipcRenderer.invoke('vault:getRecentlyModifiedFiles', vaultPath)
+  },
+  data: {
+    open: (filePath: string) => ipcRenderer.invoke('data:open', filePath),
+    rows: (filePath: string, offset: number, limit: number) =>
+      ipcRenderer.invoke('data:rows', filePath, offset, limit),
+    node: (filePath: string, path: Array<string | number>, offset: number, limit: number) =>
+      ipcRenderer.invoke('data:node', filePath, path, offset, limit),
+    search: (filePath: string, text: string) => ipcRenderer.invoke('data:search', filePath, text),
+    query: (filePath: string, filters: FieldFilter[], select: string[] | undefined, offset: number, limit: number) =>
+      ipcRenderer.invoke('data:query', filePath, filters, select, offset, limit),
+    close: (filePath: string) => ipcRenderer.invoke('data:close', filePath)
   },
   rag: {
     indexVault: (vaultPath: string) => ipcRenderer.invoke('rag:indexVault', { vaultPath }),
@@ -243,6 +320,10 @@ const api: AxonizeAPI = {
       ipcRenderer.invoke('semantic:distances', { vaultPath, anchorCardId, targetLevel }),
     relatedDocs: (vaultPath: string, filePath: string, k?: number) =>
       ipcRenderer.invoke('semantic:relatedDocs', { vaultPath, filePath, k }),
+    getSettings: (vaultPath: string): Promise<SemanticIndexSettings> =>
+      ipcRenderer.invoke('semantic:getSettings', { vaultPath }),
+    setEnabled: (vaultPath: string, enabled: boolean) =>
+      ipcRenderer.invoke('semantic:setEnabled', { vaultPath, enabled }),
     onProgress: (callback: (payload: unknown) => void) => {
       const listener = (_event: unknown, payload: unknown) => callback(payload)
       ipcRenderer.on('semantic:progress', listener)
@@ -266,8 +347,18 @@ const api: AxonizeAPI = {
     }
   },
   llm: {
-    rewriteSection: (section: string, instruction: string) =>
-      ipcRenderer.invoke('llm:rewriteSection', { section, instruction })
+    rewriteSection: (section: string, instruction: string, context?: RewriteSectionContext) =>
+      ipcRenderer.invoke('llm:rewriteSection', { section, instruction, ...context }),
+    summarizeSession: (payload: { prevTitle: string; userPrompt: string; assistantPreview: string }) =>
+      ipcRenderer.invoke('llm:summarizeSession', payload)
+  },
+  prose: {
+    refactor: (payload: { content: string; findingsSummary?: string }) =>
+      ipcRenderer.invoke('prose:refactor', payload)
+  },
+  clipboard: {
+    writeTextAndHtml: (text: string, html: string) =>
+      ipcRenderer.invoke('clipboard:writeTextAndHtml', text, html)
   },
   agent: {
     start: (payload: AgentStartPayload) => ipcRenderer.send('agent:start', payload),
@@ -289,12 +380,18 @@ const api: AxonizeAPI = {
     root: (cwd: string) => ipcRenderer.invoke('git:root', { cwd }),
     status: (cwd: string) => ipcRenderer.invoke('git:status', { cwd }),
     diff: (cwd: string, staged: boolean) => ipcRenderer.invoke('git:diff', { cwd, staged }),
+    diffFile: (cwd: string, filePath: string, staged: boolean) =>
+      ipcRenderer.invoke('git:diffFile', { cwd, filePath, staged }),
     stage: (cwd: string, filePath: string) => ipcRenderer.invoke('git:stage', { cwd, filePath }),
     unstage: (cwd: string, filePath: string) => ipcRenderer.invoke('git:unstage', { cwd, filePath }),
     stageAll: (cwd: string) => ipcRenderer.invoke('git:stageAll', { cwd }),
     unstageAll: (cwd: string) => ipcRenderer.invoke('git:unstageAll', { cwd }),
     commit: (cwd: string, message: string) => ipcRenderer.invoke('git:commit', { cwd, message }),
-    suggestCommitMessage: (cwd: string) => ipcRenderer.invoke('git:suggestCommitMessage', { cwd })
+    suggestCommitMessage: (cwd: string) => ipcRenderer.invoke('git:suggestCommitMessage', { cwd }),
+    discard: (cwd: string, filePath: string, untracked: boolean) =>
+      ipcRenderer.invoke('git:discard', { cwd, filePath, untracked }),
+    discardAll: (cwd: string, count: number) =>
+      ipcRenderer.invoke('git:discardAll', { cwd, count })
   },
   generatedDocs: {
     save: (vaultPath: string, title: string, query: string, answer: string, sources: GeneratedDocSource[]) =>
@@ -317,6 +414,8 @@ const api: AxonizeAPI = {
       ipcRenderer.invoke('agent-history:save', { vaultPath, payload }),
     deleteSession: (vaultPath: string, sessionId: string) =>
       ipcRenderer.invoke('agent-history:deleteSession', { vaultPath, sessionId }),
+    deleteTurns: (vaultPath: string, sessionId: string, turnIds: string[]) =>
+      ipcRenderer.invoke('agent-history:deleteTurns', { vaultPath, sessionId, turnIds }),
     promote: (filePath: string, targetPath: string) =>
       ipcRenderer.invoke('agent-history:promote', { filePath, targetPath }),
     cleanup: (vaultPath: string) =>
