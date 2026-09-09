@@ -620,6 +620,60 @@ flowchart TB
     expect(svg).toContain(`d="${customPath}"`)
   })
 
+  it('aligns external LR targets with cluster rows and separates route buses', async () => {
+    const source = `
+flowchart LR
+    subgraph NOTES["Lessons"]
+        N1["Transport details<br/>native format batching"]
+        N2["Soft limits ignored<br/>requires hard stops"]
+        N3["Prompt hints backfire<br/>measured outcomes win"]
+        N4["Retrieval has a ceiling<br/>surface quality matters"]
+        N5["Ranking needs width<br/>tight selection loses context"]
+    end
+
+    R1["Release A: Native operations"]
+    R2["Release B: Guarded data"]
+
+    N1 --> R2
+    N2 --> R1
+    N3 --> R2
+    N4 --> R2
+    N5 --> R1
+`.trim()
+
+    const diagram = await importMermaidFlowchartWithAxonizeLayout(source)
+    const structure = diagram as typeof diagram & {
+      elements: Record<string, {
+        sourceId?: string
+        axonizeRoutePolyline?: Array<{ x: number; y: number }>
+      }>
+      nodes: Record<string, { bounds?: { x: number; y: number; width: number; height: number } }>
+    }
+    const nodeBounds = (sourceId: string) => {
+      const element = Object.values(structure.elements).find((item) => item.sourceId === sourceId)!
+      return structure.nodes[element.id]!.bounds!
+    }
+    const centerY = (bounds: { y: number; height: number }) => bounds.y + bounds.height / 2
+    const sourceRows = ['N1', 'N2'].map((id) => nodeBounds(id)).sort((left, right) =>
+      left.y - right.y
+    )
+    const targetRows = ['R1', 'R2'].map((id) => nodeBounds(id)).sort((left, right) =>
+      left.y - right.y
+    )
+
+    expect(centerY(targetRows[0]!)).toBeCloseTo(centerY(sourceRows[0]!), 5)
+    expect(centerY(targetRows[1]!)).toBeCloseTo(centerY(sourceRows[1]!), 5)
+
+    const routes = routeEdges(diagram as never, defaultLightTheme).map((route) => ({
+      ...route,
+      polyline: structure.elements[route.edgeId]?.axonizeRoutePolyline ?? route.polyline,
+    }))
+    const busRoutes = routes.filter((route) => route.polyline.length === 4)
+    const verticalLanes = busRoutes.map((route) => route.polyline[1]!.x)
+    expect(new Set(verticalLanes).size).toBe(busRoutes.length)
+    layoutFor(diagram as never, { routes }).edges().noNodeIntersection()
+  })
+
   it('keeps a long ontology branch clear of an aligned intermediate node border', async () => {
     const source = `
 flowchart TD

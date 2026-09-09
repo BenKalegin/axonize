@@ -228,7 +228,7 @@ export async function importMermaidFlowchartWithAxonizeLayout(source: string): P
   avoidSameTargetRouteCrossings(diagram)
   straightenSingleIncomingRoutes(diagram)
   expandDisplayToFitNodes(diagram)
-  separateOverlappingTopBottomRouteBuses(diagram, direction)
+  separateOverlappingRouteBuses(diagram, direction)
   repairTopBottomFanInCornerAttachments(diagram, direction)
   return diagram
 }
@@ -371,6 +371,7 @@ function repairFlowchartGeometry(
   const resolvedDirection = direction ?? LayoutDirection.TopToBottom
   repairMisplacedTerminalNodes(diagram, resolvedDirection)
   separateOverlappingRankNodes(diagram, resolvedDirection)
+  alignExternalTargetsWithClusterRows(diagram, resolvedDirection)
   compactSinkLikeClusterGaps(diagram, resolvedDirection)
   makeRoomForForwardEdgeLabels(diagram, resolvedDirection)
 }
@@ -487,6 +488,90 @@ function separateOverlappingRankNodes(diagram: StructureDiagram, direction: stri
       setCrossStart(entry.bounds, horizontal, cursor)
       cursor += crossSize(entry.bounds, horizontal) + OVERLAPPING_NODE_GAP_PX
     }
+  }
+}
+
+/**
+ * Filigree can place unclustered LR terminal nodes one row above the cluster
+ * that feeds them. Align those targets with the cluster's leading rows so they
+ * read as destinations beside the list rather than as detached headings.
+ */
+function alignExternalTargetsWithClusterRows(
+  diagram: StructureDiagram,
+  direction: string
+): void {
+  if (direction !== LayoutDirection.LeftToRight &&
+    direction !== LayoutDirection.RightToLeft) return
+  const routes = routeEdges(diagram as never, defaultLightTheme)
+  const outgoingNodeIds = new Set(routes.map((route) => route.sourceNodeId))
+  const groups = new Map<string, DiagramNodeEntry[]>()
+
+  for (const entry of classNodeEntries(diagram)) {
+    if (outgoingNodeIds.has(entry.element.id) ||
+      directClusterContainingNode(diagram, entry.element.id)) continue
+    const incoming = routes.filter((route) => route.targetNodeId === entry.element.id)
+    if (incoming.length === 0) continue
+    const sourceClusterIds = incoming.map((route) =>
+      directClusterContainingNode(diagram, route.sourceNodeId)
+    )
+    if (sourceClusterIds.some((id) => id === undefined) ||
+      new Set(sourceClusterIds).size !== 1) continue
+    const sourceClusterId = sourceClusterIds[0]!
+    const sourceClusterBounds = diagram.nodes[sourceClusterId]?.bounds
+    if (!isValidBounds(sourceClusterBounds)) continue
+    const isBeyondCluster = direction === LayoutDirection.LeftToRight
+      ? entry.bounds.x >= sourceClusterBounds.x + sourceClusterBounds.width
+      : entry.bounds.x + entry.bounds.width <= sourceClusterBounds.x
+    if (!isBeyondCluster) continue
+    const group = groups.get(sourceClusterId) ?? []
+    group.push(entry)
+    groups.set(sourceClusterId, group)
+  }
+
+  for (const [sourceClusterId, targets] of groups) {
+    if (targets.length < 2) continue
+    const cluster = diagram.elements[sourceClusterId]
+    const sourceRows = (cluster?.memberNodeIds ?? [])
+      .map((id) => {
+        const element = diagram.elements[id]
+        const bounds = diagram.nodes[id]?.bounds
+        return element?.type === ElementType.ClassNode && isValidBounds(bounds)
+          ? { element, bounds }
+          : undefined
+      })
+      .filter((entry): entry is DiagramNodeEntry => entry !== undefined)
+      .sort((left, right) => left.bounds.y - right.bounds.y)
+    targets.sort((left, right) => left.bounds.y - right.bounds.y)
+    if (sourceRows.length < targets.length) continue
+    const originalYs = targets.map(({ bounds }) => bounds.y)
+    const currentRoutes = routeEdges(diagram as never, defaultLightTheme)
+    targets.forEach(({ bounds }, index) => {
+      const sourceBounds = sourceRows[index]!.bounds
+      bounds.y = sourceBounds.y + (sourceBounds.height - bounds.height) / 2
+    })
+
+    const entries = classNodeEntries(diagram)
+    const hasOverlap = entries.some((left, leftIndex) => entries.some((right, rightIndex) =>
+      rightIndex > leftIndex && rectanglesOverlap(left.bounds, right.bounds)
+    ))
+    const candidateRoutes = routeEdges(diagram as never, defaultLightTheme)
+    const isSafe = !hasOverlap && candidateRoutes.reduce(
+      (sum, route) => sum + routeNodeIntersectionCount(route, diagram),
+      0
+    ) <= currentRoutes.reduce(
+      (sum, route) => sum + routeNodeIntersectionCount(route, diagram),
+      0
+    ) && candidateRoutes.reduce(
+      (sum, route) => sum + routeLabelNodeIntersectionCount(route, diagram),
+      0
+    ) <= currentRoutes.reduce(
+      (sum, route) => sum + routeLabelNodeIntersectionCount(route, diagram),
+      0
+    ) && routeCrossingCount(candidateRoutes) <= routeCrossingCount(currentRoutes) &&
+      routeOverlapCount(candidateRoutes) <= routeOverlapCount(currentRoutes) &&
+      routeLabelOverlapCount(candidateRoutes) <= routeLabelOverlapCount(currentRoutes)
+
+    if (!isSafe) targets.forEach(({ bounds }, index) => { bounds.y = originalYs[index]! })
   }
 }
 
@@ -1282,19 +1367,20 @@ function alignedTargetPortRatio(
 }
 
 /**
- * Parallel cross-cluster TB routes share the same midpoint, so their long
- * horizontal sections can collapse into one ambiguous bus. Give the
- * overlapping routes separate channel lanes and move their labels with them.
+ * Parallel cross-cluster routes share the same midpoint, so their long middle
+ * sections can collapse into one ambiguous bus. Give the overlapping routes
+ * separate channel lanes and move their labels with them.
  * Candidate lane orders are accepted only when they reduce overlap without
  * adding crossings, label collisions, or node intersections; the node layout
  * and port assignments remain unchanged.
  */
-function separateOverlappingTopBottomRouteBuses(
+function separateOverlappingRouteBuses(
   diagram: StructureDiagram,
   direction: string | undefined
 ): void {
   const resolvedDirection = direction ?? LayoutDirection.TopToBottom
-  if (resolvedDirection !== LayoutDirection.TopToBottom &&
+  const horizontalFlow = isHorizontalDirection(resolvedDirection)
+  if (!horizontalFlow && resolvedDirection !== LayoutDirection.TopToBottom &&
     resolvedDirection !== LayoutDirection.BottomToTop) return
   if (!diagram.ports) return
 
@@ -1308,17 +1394,26 @@ function separateOverlappingTopBottomRouteBuses(
     const targetPort = diagram.ports[link.port2]
     const expectedSourceAlignment = resolvedDirection === LayoutDirection.TopToBottom
       ? PortAlignment.Bottom
-      : PortAlignment.Top
+      : resolvedDirection === LayoutDirection.BottomToTop
+        ? PortAlignment.Top
+        : resolvedDirection === LayoutDirection.LeftToRight
+          ? PortAlignment.Right
+          : PortAlignment.Left
     const expectedTargetAlignment = resolvedDirection === LayoutDirection.TopToBottom
       ? PortAlignment.Top
-      : PortAlignment.Bottom
+      : resolvedDirection === LayoutDirection.BottomToTop
+        ? PortAlignment.Bottom
+        : resolvedDirection === LayoutDirection.LeftToRight
+          ? PortAlignment.Left
+          : PortAlignment.Right
     if (sourcePort?.alignment !== expectedSourceAlignment ||
       targetPort?.alignment !== expectedTargetAlignment) continue
 
     const sourceClusterId = directClusterContainingNode(diagram, route.sourceNodeId)
     const targetClusterId = directClusterContainingNode(diagram, route.targetNodeId)
-    if (!sourceClusterId || !targetClusterId || sourceClusterId === targetClusterId) continue
-    const key = `${sourceClusterId}\u0000${targetClusterId}`
+    if (!sourceClusterId || sourceClusterId === targetClusterId ||
+      (!horizontalFlow && !targetClusterId)) continue
+    const key = `${sourceClusterId}\u0000${targetClusterId ?? '__external__'}`
     const group = routeGroups.get(key) ?? []
     group.push(route)
     routeGroups.set(key, group)
@@ -1334,18 +1429,35 @@ function separateOverlappingTopBottomRouteBuses(
     )
     if (affectedIds.size < 2) continue
 
-    const [sourceClusterId, targetClusterId] = key.split('\u0000')
+    const [sourceClusterId, targetGroupId] = key.split('\u0000')
     const sourceClusterBounds = diagram.nodes[sourceClusterId!]?.bounds
-    const targetClusterBounds = diagram.nodes[targetClusterId!]?.bounds
-    if (!isValidBounds(sourceClusterBounds) || !isValidBounds(targetClusterBounds)) continue
+    const targetClusterBounds = targetGroupId === '__external__'
+      ? undefined
+      : diagram.nodes[targetGroupId!]?.bounds
+    if (!isValidBounds(sourceClusterBounds) ||
+      (!horizontalFlow && !isValidBounds(targetClusterBounds))) continue
 
     const affected = workingRoutes.filter((route) => affectedIds.has(route.edgeId))
     const sourceBoundary = resolvedDirection === LayoutDirection.TopToBottom
       ? sourceClusterBounds.y + sourceClusterBounds.height
-      : sourceClusterBounds.y
+      : resolvedDirection === LayoutDirection.BottomToTop
+        ? sourceClusterBounds.y
+        : resolvedDirection === LayoutDirection.LeftToRight
+          ? sourceClusterBounds.x + sourceClusterBounds.width
+          : sourceClusterBounds.x
     const targetBoundary = resolvedDirection === LayoutDirection.TopToBottom
-      ? targetClusterBounds.y
-      : targetClusterBounds.y + targetClusterBounds.height
+      ? targetClusterBounds!.y
+      : resolvedDirection === LayoutDirection.BottomToTop
+        ? targetClusterBounds!.y + targetClusterBounds!.height
+        : resolvedDirection === LayoutDirection.LeftToRight
+          ? targetClusterBounds?.x ?? Math.min(...group.map((route) =>
+              route.polyline[route.polyline.length - 1]!.x
+            ))
+          : targetClusterBounds
+            ? targetClusterBounds.x + targetClusterBounds.width
+            : Math.max(...group.map((route) =>
+                route.polyline[route.polyline.length - 1]!.x
+              ))
     const laneMin = Math.min(sourceBoundary, targetBoundary) + BUS_ROUTE_CLUSTER_CLEARANCE_PX
     const laneMax = Math.max(sourceBoundary, targetBoundary) - BUS_ROUTE_CLUSTER_CLEARANCE_PX
     const availableLaneGap = (laneMax - laneMin) / (affected.length - 1)
@@ -1354,7 +1466,9 @@ function separateOverlappingTopBottomRouteBuses(
     const laneSpan = laneGap * (affected.length - 1)
 
     const originalCenter = affected.reduce(
-      (sum, route) => sum + route.polyline[1]!.y,
+      (sum, route) => sum + (horizontalFlow
+        ? route.polyline[1]!.x
+        : route.polyline[1]!.y),
       0
     ) / affected.length
     const center = Math.min(
@@ -1365,14 +1479,23 @@ function separateOverlappingTopBottomRouteBuses(
       center + (index - (affected.length - 1) / 2) * laneGap
     )
 
-    const routeOrders = [
-      [...affected].sort(compareRouteSourceX),
-      [...affected].sort(compareRouteTargetX),
+    const routeOrders = horizontalFlow
+      ? [
+          [...affected].sort(compareRouteSourceY),
+          [...affected].sort(compareRouteTargetY),
+        ]
+      : [
+          [...affected].sort(compareRouteSourceX),
+          [...affected].sort(compareRouteTargetX),
     ]
     let bestRoutes: EdgeRoute[] | undefined
-    let bestOverlaps = routeOverlapCount(workingRoutes)
-    let bestCrossings = routeCrossingCount(workingRoutes)
-    let bestLabelOverlaps = routeLabelOverlapCount(workingRoutes)
+    const originalOverlaps = routeOverlapCount(workingRoutes)
+    const originalCrossings = routeCrossingCount(workingRoutes)
+    const originalLabelOverlaps = routeLabelOverlapCount(workingRoutes)
+    const maxCrossings = horizontalFlow ? Number.POSITIVE_INFINITY : originalCrossings
+    let bestOverlaps = Number.POSITIVE_INFINITY
+    let bestCrossings = Number.POSITIVE_INFINITY
+    let bestLabelOverlaps = Number.POSITIVE_INFINITY
     const tried = new Set<string>()
 
     for (const order of routeOrders) {
@@ -1384,7 +1507,11 @@ function separateOverlappingTopBottomRouteBuses(
 
         const candidateRoutes = workingRoutes.map((route) => {
           const lane = laneByEdge.get(route.edgeId)
-          return lane === undefined ? route : routeWithHorizontalLane(route, lane)
+          return lane === undefined
+            ? route
+            : horizontalFlow
+              ? routeWithVerticalLane(route, lane)
+              : routeWithHorizontalLane(route, lane)
         })
         const candidateAffected = candidateRoutes.filter((route) => affectedIds.has(route.edgeId))
         if (candidateAffected.some((route) =>
@@ -1396,9 +1523,13 @@ function separateOverlappingTopBottomRouteBuses(
         const overlaps = routeOverlapCount(candidateRoutes)
         const crossings = routeCrossingCount(candidateRoutes)
         const labelOverlaps = routeLabelOverlapCount(candidateRoutes)
-        if (overlaps >= bestOverlaps ||
-          crossings > bestCrossings ||
-          labelOverlaps > bestLabelOverlaps) continue
+        if (overlaps >= originalOverlaps ||
+          crossings > maxCrossings ||
+          labelOverlaps > originalLabelOverlaps) continue
+        if (bestRoutes && (crossings > bestCrossings ||
+          (crossings === bestCrossings && overlaps > bestOverlaps) ||
+          (crossings === bestCrossings && overlaps === bestOverlaps &&
+            labelOverlaps >= bestLabelOverlaps))) continue
         bestRoutes = candidateRoutes
         bestOverlaps = overlaps
         bestCrossings = crossings
@@ -1446,10 +1577,40 @@ function compareRouteTargetX(left: EdgeRoute, right: EdgeRoute): number {
     left.polyline[0]!.x - right.polyline[0]!.x
 }
 
+function compareRouteSourceY(left: EdgeRoute, right: EdgeRoute): number {
+  return left.polyline[0]!.y - right.polyline[0]!.y ||
+    left.polyline[left.polyline.length - 1]!.y - right.polyline[right.polyline.length - 1]!.y
+}
+
+function compareRouteTargetY(left: EdgeRoute, right: EdgeRoute): number {
+  return left.polyline[left.polyline.length - 1]!.y -
+    right.polyline[right.polyline.length - 1]!.y ||
+    left.polyline[0]!.y - right.polyline[0]!.y
+}
+
 function routeWithHorizontalLane(route: EdgeRoute, y: number): EdgeRoute {
   const source = route.polyline[0]!
   const target = route.polyline[route.polyline.length - 1]!
   const polyline = [source, { x: source.x, y }, { x: target.x, y }, target]
+  const midpoint = routePolylineMidpoint(polyline)
+  const labelBox = route.labelBox
+    ? {
+        ...route.labelBox,
+        x: midpoint.x - route.labelBox.width / 2,
+        y: midpoint.y - route.labelBox.height / 2,
+      }
+    : undefined
+  return {
+    ...route,
+    polyline,
+    labelBox,
+  }
+}
+
+function routeWithVerticalLane(route: EdgeRoute, x: number): EdgeRoute {
+  const source = route.polyline[0]!
+  const target = route.polyline[route.polyline.length - 1]!
+  const polyline = [source, { x, y: source.y }, { x, y: target.y }, target]
   const midpoint = routePolylineMidpoint(polyline)
   const labelBox = route.labelBox
     ? {
