@@ -61,6 +61,11 @@ export function OutlinePanel() {
   const presentationMode = viewMode === ViewMode.Presentation
   const [headings, setHeadings] = useState<HeadingEntry[]>([])
   const [activeSlug, setActiveSlug] = useState<string | null>(null)
+  const [fileChangeVersion, setFileChangeVersion] = useState(0)
+
+  useEffect(() => window.axonize.vault.onFilesChanged(() => {
+    setFileChangeVersion((version) => version + 1)
+  }), [])
 
   // In presentation mode, derive active slug from presentationIndex
   useEffect(() => {
@@ -87,7 +92,7 @@ export function OutlinePanel() {
       if (!cancelled) setHeadings([])
     })
     return () => { cancelled = true }
-  }, [filePath])
+  }, [filePath, fileChangeVersion])
 
   useEffect(() => {
     if (!headings.length) return
