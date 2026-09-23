@@ -104,6 +104,7 @@ const EDGE_LABEL_NODE_CLEARANCE_PX = 16
 const DISPLAY_BOUNDS_MARGIN_PX = 48
 const TERMINAL_NODE_RANK_GAP_PX = 80
 const CENTER_PORT_RATIO_PERCENT = 50
+const FAN_OUT_PORT_SPAN_PERCENT = 100
 const STRAIGHT_ROUTE_PORT_MARGIN_PERCENT = 10
 const BUS_ROUTE_LANE_GAP_PX = 20
 const BUS_ROUTE_MIN_LANE_GAP_PX = 8
@@ -220,7 +221,43 @@ async function renderFlowchartWithDoodles(source: string, theme: ThemeTokens): P
   const diagram = await importMermaidFlowchartWithAxonizeLayout(source)
   const svg = renderSvg(diagram as never, { theme })
   const withShapes = patchUnsupportedFlowchartShapes(svg, diagram as StructureDiagram)
-  return patchFlowchartEdgeRoutes(withShapes, diagram as StructureDiagram)
+  const withRoutes = patchFlowchartEdgeRoutes(withShapes, diagram as StructureDiagram)
+  return fitFlowchartSvgToContent(withRoutes, diagram as StructureDiagram)
+}
+
+function flowchartContentBounds(diagram: StructureDiagram): DiagramBounds | undefined {
+  const boxes = Object.values(diagram.elements)
+    .filter((element) => element.type === ElementType.ClassNode || element.type === ElementType.Cluster)
+    .map((element) => diagram.nodes[element.id]?.bounds)
+    .filter((bounds): bounds is DiagramBounds => isValidBounds(bounds))
+  const points = boxes.flatMap((bounds) => [
+    { x: bounds.x, y: bounds.y },
+    { x: bounds.x + bounds.width, y: bounds.y + bounds.height },
+  ])
+  for (const route of effectiveRouteEdges(diagram)) {
+    points.push(...route.polyline)
+    if (route.labelBox) {
+      const { x, y, width, height } = route.labelBox
+      points.push({ x, y }, { x: x + width, y: y + height })
+    }
+  }
+  if (points.length === 0) return undefined
+  const x = Math.min(...points.map((point) => point.x)) - SVG_PADDING
+  const y = Math.min(...points.map((point) => point.y)) - SVG_PADDING
+  const right = Math.max(...points.map((point) => point.x)) + SVG_PADDING
+  const bottom = Math.max(...points.map((point) => point.y)) + SVG_PADDING
+  return { x, y, width: right - x, height: bottom - y }
+}
+
+// Inline diagrams occupy their painted content, not the editor's canvas size.
+// Measure after route repair so outer loops and relocated labels remain visible.
+function fitFlowchartSvgToContent(svg: string, diagram: StructureDiagram): string {
+  const bounds = flowchartContentBounds(diagram)
+  if (!bounds) return svg
+  return svg.replace(/^<svg\b[^>]*>/, (root) => root
+    .replace(/\bviewBox="[^"]*"/, `viewBox="${bounds.x} ${bounds.y} ${bounds.width} ${bounds.height}"`)
+    .replace(/\bwidth="[^"]*"/, `width="${bounds.width}"`)
+    .replace(/\bheight="[^"]*"/, `height="${bounds.height}"`))
 }
 
 export async function importMermaidFlowchartWithAxonizeLayout(source: string): Promise<Diagram> {
@@ -384,6 +421,7 @@ function repairFlowchartGeometry(
   const resolvedDirection = direction ?? LayoutDirection.TopToBottom
   repairMisplacedTerminalNodes(diagram, resolvedDirection)
   separateOverlappingRankNodes(diagram, resolvedDirection)
+  centerSharedFanOutNodes(diagram, resolvedDirection)
   alignExternalTargetsWithClusterRows(diagram, resolvedDirection)
   compactSinkLikeClusterGaps(diagram, resolvedDirection)
   makeRoomForForwardEdgeLabels(diagram, resolvedDirection)
@@ -403,6 +441,86 @@ function classNodeEntries(diagram: StructureDiagram): DiagramNodeEntry[] {
 function isHorizontalDirection(direction: string): boolean {
   return direction === LayoutDirection.LeftToRight ||
     direction === LayoutDirection.RightToLeft
+}
+
+// A single-parent branch point should not inherit one child's column when its
+// parent already sits midway between the children. Leave compound placement
+// alone, and accept a move only when it preserves node and route clearance.
+function centerSharedFanOutNodes(diagram: StructureDiagram, direction: string): void {
+  if (Object.values(diagram.elements).some((element) => element.type === ElementType.Cluster)) return
+  const horizontal = isHorizontalDirection(direction)
+  const entries = classNodeEntries(diagram)
+  for (const entry of entries) {
+    const routes = routeEdges(diagram as never, defaultLightTheme)
+    const center = sharedFanOutCenter(diagram, entry, routes, direction)
+    if (center === undefined) continue
+    const original = crossStart(entry.bounds, horizontal)
+    const before = flowchartRouteConflicts(diagram, routes)
+    setCrossStart(entry.bounds, horizontal, center - crossSize(entry.bounds, horizontal) / 2)
+    const ports = balanceForwardFanOutPorts(diagram, entry.element.id, routes, direction)
+    const overlaps = entries.some((other) => other !== entry && rectanglesOverlap(entry.bounds, other.bounds))
+    const after = flowchartRouteConflicts(diagram, routeEdges(diagram as never, defaultLightTheme))
+    if (overlaps || after.some((count, index) => count > before[index]!)) {
+      setCrossStart(entry.bounds, horizontal, original)
+      for (const { port, ratio } of ports) port.edgePosRatio = ratio
+    }
+  }
+}
+
+function balanceForwardFanOutPorts(
+  diagram: StructureDiagram,
+  sourceId: string,
+  routes: EdgeRoute[],
+  direction: string
+): Array<{ port: DiagramPortRecord; ratio: number | undefined }> {
+  const horizontal = isHorizontalDirection(direction)
+  const outgoing = routes.filter((route) => route.sourceNodeId === sourceId)
+    .sort((left, right) => crossCenter(diagram.nodes[left.targetNodeId]!.bounds, horizontal) -
+      crossCenter(diagram.nodes[right.targetNodeId]!.bounds, horizontal))
+  const ports = outgoing.map((route) => {
+    const portId = diagram.elements[route.edgeId]?.port1
+    return portId ? diagram.ports?.[portId] : undefined
+  })
+  if (ports.some((port) => !port || port.alignment !== FLOW_PORT_ALIGNMENTS[direction]?.source)) return []
+  return ports.map((port, index) => {
+    const snapshot = { port: port!, ratio: port!.edgePosRatio }
+    port!.edgePosRatio = (index + 1 / 2) * FAN_OUT_PORT_SPAN_PERCENT / ports.length
+    return snapshot
+  })
+}
+
+function sharedFanOutCenter(
+  diagram: StructureDiagram,
+  entry: DiagramNodeEntry,
+  routes: EdgeRoute[],
+  direction: string
+): number | undefined {
+  const incoming = routes.filter((route) => route.targetNodeId === entry.element.id)
+  const outgoing = routes.filter((route) => route.sourceNodeId === entry.element.id)
+  if (incoming.length !== 1 || outgoing.length <= 1) return undefined
+  const parent = diagram.nodes[incoming[0]!.sourceNodeId]?.bounds
+  const children = outgoing.map((route) => diagram.nodes[route.targetNodeId]?.bounds)
+  if (!isValidBounds(parent) || children.some((bounds) => !isValidBounds(bounds))) return undefined
+  if (forwardRankGap(parent, entry.bounds, direction) === undefined ||
+    children.some((bounds) => forwardRankGap(entry.bounds, bounds, direction) === undefined)) return undefined
+  if (outgoing.some((edge) => routes.filter((route) => route.targetNodeId === edge.targetNodeId).length !== 1)) return undefined
+  const horizontal = isHorizontalDirection(direction)
+  const rank = primaryStart(children[0]!, horizontal)
+  if (children.some((bounds) => Math.abs(primaryStart(bounds, horizontal) - rank) > SAME_RANK_TOLERANCE_PX)) return undefined
+  const centers = children.map((bounds) => crossCenter(bounds, horizontal))
+  const center = (Math.min(...centers) + Math.max(...centers)) / 2
+  if (Math.abs(crossCenter(parent, horizontal) - center) > SAME_RANK_TOLERANCE_PX) return undefined
+  return center
+}
+
+function flowchartRouteConflicts(diagram: StructureDiagram, routes: EdgeRoute[]): number[] {
+  return [
+    routes.reduce((sum, route) => sum + routeNodeIntersectionCount(route, diagram), 0),
+    routes.reduce((sum, route) => sum + routeLabelNodeIntersectionCount(route, diagram), 0),
+    routeCrossingCount(routes),
+    routeOverlapCount(routes),
+    routeLabelOverlapCount(routes),
+  ]
 }
 
 /**
