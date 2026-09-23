@@ -864,6 +864,40 @@ graph LR
     expect(svg).toContain('update index status')
   })
 
+  it('keeps the final edge of an aligned LR chain direct', async () => {
+    const source = `
+flowchart LR
+    SRC[Source service] --> STREAM[(Event stream)]
+    STREAM --> ADAPTER[Queue adapter]
+    ADAPTER --> QUEUE[(Work queue)]
+    QUEUE --> TRIGGER[Trigger worker]
+    TRIGGER --> WORKFLOW[Per-item workflow]
+`.trim()
+
+    const diagram = await importMermaidFlowchartWithAxonizeLayout(source)
+    const routes = routeEdges(diagram as never, defaultLightTheme)
+    const layout = layoutFor(diagram as never, { routes })
+
+    layout.nodes(
+      'Source service',
+      'Event stream',
+      'Queue adapter',
+      'Work queue',
+      'Trigger worker',
+      'Per-item workflow'
+    )
+      .orderedLeftToRight()
+      .sameRow()
+    layout.edge({
+      fromText: 'Trigger worker',
+      toText: 'Per-item workflow',
+    })
+      .hasSourceAlignment(PortAlignment.Right)
+      .hasTargetAlignment(PortAlignment.Left)
+      .polylineLengthAtMost(2)
+    layout.edges().noNodeIntersection()
+  })
+
   it('removes an unnecessary dogleg from an aligned single-input target', async () => {
     const source = `
 %%{init: {'flowchart':{'curve':'basis','htmlLabels':true}}}%%

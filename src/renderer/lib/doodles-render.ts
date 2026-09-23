@@ -103,6 +103,7 @@ const OVERLAPPING_NODE_GAP_PX = 60
 const EDGE_LABEL_NODE_CLEARANCE_PX = 16
 const DISPLAY_BOUNDS_MARGIN_PX = 48
 const TERMINAL_NODE_RANK_GAP_PX = 80
+const CENTER_PORT_RATIO_PERCENT = 50
 const STRAIGHT_ROUTE_PORT_MARGIN_PERCENT = 10
 const BUS_ROUTE_LANE_GAP_PX = 20
 const BUS_ROUTE_MIN_LANE_GAP_PX = 8
@@ -162,6 +163,18 @@ type DiagramNodeEntry = {
 type DiagramPortRecord = {
   alignment?: PortAlignment
   edgePosRatio?: number
+}
+
+type FlowPortAlignments = {
+  source: PortAlignment
+  target: PortAlignment
+}
+
+const FLOW_PORT_ALIGNMENTS: Readonly<Record<string, FlowPortAlignments>> = {
+  [LayoutDirection.LeftToRight]: { source: PortAlignment.Right, target: PortAlignment.Left },
+  [LayoutDirection.RightToLeft]: { source: PortAlignment.Left, target: PortAlignment.Right },
+  [LayoutDirection.TopToBottom]: { source: PortAlignment.Bottom, target: PortAlignment.Top },
+  [LayoutDirection.BottomToTop]: { source: PortAlignment.Top, target: PortAlignment.Bottom },
 }
 
 type StructureDiagram = Diagram & {
@@ -395,9 +408,10 @@ function isHorizontalDirection(direction: string): boolean {
 /**
  * A terminal sink with one predecessor cannot be a graph back-edge. If the
  * layout nevertheless places it behind that predecessor, restore the terminal
- * rank and align it with the end of the main chain. Multi-input sinks and
- * compound diagrams are left to the layout engine because their placement has
- * more than one valid interpretation.
+ * rank, align it with the end of the main chain, and reorient the edge ports to
+ * the declared flow direction. Multi-input sinks and compound diagrams are
+ * left to the layout engine because their placement has more than one valid
+ * interpretation.
  */
 function repairMisplacedTerminalNodes(diagram: StructureDiagram, direction: string): void {
   if (Object.values(diagram.elements).some((element) => element.type === ElementType.Cluster)) {
@@ -437,7 +451,32 @@ function repairMisplacedTerminalNodes(diagram: StructureDiagram, direction: stri
       bounds.x = predecessorBounds.x + (predecessorBounds.width - bounds.width) / 2
       bounds.y = predecessorBounds.y - bounds.height - TERMINAL_NODE_RANK_GAP_PX
     }
+    alignTerminalEdgeWithFlow(diagram, predecessors[0]!, element.id, direction)
   }
+}
+
+function alignTerminalEdgeWithFlow(
+  diagram: StructureDiagram,
+  sourceNodeId: string,
+  targetNodeId: string,
+  direction: string
+): void {
+  if (!diagram.ports) return
+  const link = Object.values(diagram.elements).find((element) => {
+    if (element.type !== ElementType.ClassLink || !element.port1 || !element.port2) return false
+    return diagram.elements[element.port1]?.nodeId === sourceNodeId &&
+      diagram.elements[element.port2]?.nodeId === targetNodeId
+  })
+  if (!link?.port1 || !link.port2) return
+  const sourcePort = diagram.ports[link.port1]
+  const targetPort = diagram.ports[link.port2]
+  const alignments = FLOW_PORT_ALIGNMENTS[direction]
+  if (!sourcePort || !targetPort || !alignments) return
+
+  sourcePort.alignment = alignments.source
+  targetPort.alignment = alignments.target
+  sourcePort.edgePosRatio = CENTER_PORT_RATIO_PERCENT
+  targetPort.edgePosRatio = CENTER_PORT_RATIO_PERCENT
 }
 
 /**
