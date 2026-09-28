@@ -97,6 +97,7 @@ const AxonizeFlowchartShape = {
 type AxonizeFlowchartShape =
   (typeof AxonizeFlowchartShape)[keyof typeof AxonizeFlowchartShape]
 const ROUTE_OBSTACLE_CLEARANCE_PX = 8
+const ROUTE_ENDPOINT_INTERIOR_INSET_PX = 1
 const PORT_RATIO_STEP = 5
 const SAME_RANK_TOLERANCE_PX = 1
 const OVERLAPPING_NODE_GAP_PX = 60
@@ -424,7 +425,74 @@ function repairFlowchartGeometry(
   centerSharedFanOutNodes(diagram, resolvedDirection)
   alignExternalTargetsWithClusterRows(diagram, resolvedDirection)
   compactSinkLikeClusterGaps(diagram, resolvedDirection)
+  compactLeftToRightTerminalClusters(diagram, resolvedDirection)
   makeRoomForForwardEdgeLabels(diagram, resolvedDirection)
+}
+
+// Independent compound pipelines need not consume consecutive horizontal
+// slots. Shift a terminal leaf group as a unit, preserving its internal layout.
+function compactLeftToRightTerminalClusters(diagram: StructureDiagram, direction: string): void {
+  if (direction !== LayoutDirection.LeftToRight) return
+  const clusters = Object.values(diagram.elements).filter((element) =>
+    element.type === ElementType.Cluster && element.memberNodeIds?.length &&
+    !directClusterContainingNode(diagram, element.id)
+  ).sort((left, right) => diagram.nodes[left.id]!.bounds.x - diagram.nodes[right.id]!.bounds.x)
+  for (const cluster of clusters) {
+    const ids = new Set([cluster.id, ...cluster.memberNodeIds!])
+    if (cluster.memberNodeIds!.some((id) => diagram.elements[id]?.type === ElementType.Cluster)) continue
+    const bounds = diagram.nodes[cluster.id]!.bounds
+    const routes = routeEdges(diagram as never, defaultLightTheme)
+    const desiredX = terminalClusterLeft(diagram, ids, bounds, routes)
+    if (desiredX === undefined) continue
+    const delta = clearClusterLeft(diagram, ids, bounds, desiredX) - bounds.x
+    if (delta >= -COMPACT_CLUSTER_THRESHOLD_PX) continue
+    const moved = [...ids].map((id) => diagram.nodes[id]!.bounds)
+    const before = flowchartRouteConflicts(diagram, routes)
+    for (const box of moved) box.x += delta
+    const after = flowchartRouteConflicts(diagram, routeEdges(diagram as never, defaultLightTheme))
+    if (after.some((count, index) => count > before[index]!)) {
+      for (const box of moved) box.x -= delta
+    }
+  }
+}
+
+function terminalClusterLeft(
+  diagram: StructureDiagram,
+  ids: Set<string>,
+  cluster: DiagramBounds,
+  routes: EdgeRoute[]
+): number | undefined {
+  if (routes.some((route) => ids.has(route.sourceNodeId) && !ids.has(route.targetNodeId))) return undefined
+  const incoming = routes.filter((route) => !ids.has(route.sourceNodeId) && ids.has(route.targetNodeId))
+  if (incoming.length === 0) return undefined
+  const positions = incoming.map((route) => {
+    const source = diagram.nodes[route.sourceNodeId]!.bounds
+    const target = diagram.nodes[route.targetNodeId]!.bounds
+    if (forwardRankGap(source, target, LayoutDirection.LeftToRight) === undefined) return undefined
+    const labelGap = (route.labelBox?.width ?? 0) + EDGE_LABEL_NODE_CLEARANCE_PX * 2
+    const gap = Math.max(COMPACT_CLUSTER_GAP_PX, labelGap)
+    return source.x + source.width + gap - (target.x - cluster.x)
+  })
+  if (positions.some((position) => position === undefined)) return undefined
+  return Math.max(...positions as number[])
+}
+
+function clearClusterLeft(
+  diagram: StructureDiagram,
+  ids: Set<string>,
+  cluster: DiagramBounds,
+  desiredX: number
+): number {
+  let left = desiredX
+  for (const element of Object.values(diagram.elements)) {
+    if (ids.has(element.id)) continue
+    const bounds = diagram.nodes[element.id]?.bounds
+    if (!isValidBounds(bounds) || bounds.x >= cluster.x + cluster.width) continue
+    const sharesRow = bounds.y < cluster.y + cluster.height + BUS_ROUTE_CLUSTER_CLEARANCE_PX &&
+      bounds.y + bounds.height > cluster.y - BUS_ROUTE_CLUSTER_CLEARANCE_PX
+    if (sharesRow) left = Math.max(left, bounds.x + bounds.width + COMPACT_CLUSTER_GAP_PX)
+  }
+  return left
 }
 
 function classNodeEntries(diagram: StructureDiagram): DiagramNodeEntry[] {
@@ -1938,10 +2006,11 @@ function routeNodeIntersectionCount(route: EdgeRoute, diagram: StructureDiagram)
   let count = 0
   for (const element of Object.values(diagram.elements)) {
     if (element.type !== ElementType.ClassNode) continue
-    if (element.id === route.sourceNodeId || element.id === route.targetNodeId) continue
     const bounds = diagram.nodes[element.id]?.bounds
     if (!isValidBounds(bounds)) continue
-    const obstacle = inflate(bounds, ROUTE_OBSTACLE_CLEARANCE_PX, ROUTE_OBSTACLE_CLEARANCE_PX)
+    const endpoint = element.id === route.sourceNodeId || element.id === route.targetNodeId
+    const clearance = endpoint ? -ROUTE_ENDPOINT_INTERIOR_INSET_PX : ROUTE_OBSTACLE_CLEARANCE_PX
+    const obstacle = inflate(bounds, clearance, clearance)
     for (let index = 1; index < route.polyline.length; index++) {
       if (segmentEntersRect(route.polyline[index - 1]!, route.polyline[index]!, obstacle)) {
         count++
