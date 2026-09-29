@@ -86,6 +86,11 @@ const EDGE_STROKE_WIDTH = 1.5
 const EDGE_LABEL_FONT_SIZE = 14
 const EDGE_LABEL_HALO_STROKE_WIDTH = 4
 const EDGE_LABEL_VERTICAL_OFFSET = 4
+// Dash pattern applied to edges whose Mermaid source used a dotted-link
+// operator (`-.->`, `-.-`). Doodles' importer cannot parse those operators, so
+// they are rewritten to solid links before layout and this dash array restores
+// the dotted appearance when the rendered SVG is patched.
+const DOTTED_EDGE_STROKE_DASHARRAY = '3 3'
 
 const WHITE_SPACE_RE = /\s+/g
 const MERMAID_QUOTED_LABEL_RIGHT_BRACKET_PLACEHOLDER = '\uE000'
@@ -151,6 +156,7 @@ type DiagramElement = {
   memberNodeIds?: string[]
   axonizeRoutePolyline?: EdgeRoute['polyline']
   axonizeRouteLabelOffset?: { x: number; y: number }
+  axonizeDashed?: boolean
 }
 
 type DiagramNodeRecord = {
@@ -268,11 +274,13 @@ export async function importMermaidFlowchartWithAxonizeLayout(source: string): P
     display: defaultDiagramDisplay,
   }
   const { source: compatibleSource, nodeShapes } = replaceUnsupportedFlowchartNodes(source)
-  const protectedSource = protectQuotedLabelClosingBrackets(compatibleSource)
+  const { source: solidLinkSource, dottedEdges } = replaceDottedFlowchartLinks(compatibleSource)
+  const protectedSource = protectQuotedLabelClosingBrackets(solidLinkSource)
   const diagram = (await importMermaidFlowchartWithLayout(base, protectedSource)) as StructureDiagram
   const direction = parseMermaidLayoutHints(protectedSource).direction
   restoreQuotedLabelClosingBrackets(diagram)
   markUnsupportedFlowchartNodes(diagram, nodeShapes)
+  markDashedFlowchartLinks(diagram, dottedEdges)
   repairFlowchartGeometry(diagram, direction)
   avoidNodeCrossingRoutes(diagram)
   avoidSameSourceRouteCrossings(diagram)
@@ -408,6 +416,143 @@ function markUnsupportedFlowchartNodes(
     if (element.type !== ElementType.ClassNode || !element.sourceId) continue
     element.axonizeFlowchartShape = nodeShapes.get(element.sourceId)
   }
+}
+
+// Doodles' Mermaid flowchart importer does not understand dotted-link operators
+// (`-.->`, `-.-`, and their `<`/`>` variants): it silently drops the whole
+// statement, discarding both the edge and any node introduced only on that
+// line. Rewrite each dotted operator to its solid equivalent so topology and
+// nodes survive layout, and record the endpoint id pair so the rendered SVG can
+// be patched back to a dotted stroke. Thick links (`==>`) already parse and are
+// left untouched.
+const NODE_SHAPE_CLOSE_TO_OPEN: Record<string, string> = { ']': '[', ')': '(', '}': '{' }
+
+type DottedEdgeKey = string
+
+function dottedEdgeKey(sourceId: string, targetId: string): DottedEdgeKey {
+  return `${sourceId}\u0000${targetId}`
+}
+
+function replaceDottedFlowchartLinks(source: string): {
+  source: string
+  dottedEdges: Set<DottedEdgeKey>
+} {
+  const dottedEdges = new Set<DottedEdgeKey>()
+  const lines = source.split('\n').map((line) =>
+    line.trimStart().startsWith('%%') ? line : rewriteDottedLinksInLine(line, dottedEdges)
+  )
+  return { source: lines.join('\n'), dottedEdges }
+}
+
+function rewriteDottedLinksInLine(line: string, dottedEdges: Set<DottedEdgeKey>): string {
+  const mask = computeQuotedMask(line)
+  const regex = /(<)?-\.+-(>)?/g
+  let result = ''
+  let cursor = 0
+  let match: RegExpExecArray | null
+  while ((match = regex.exec(line)) !== null) {
+    const start = match.index
+    const end = regex.lastIndex
+    if (mask[start] || mask[end - 1]) continue
+    const sourceId = scanLeftNodeId(line, mask, start)
+    const targetId = scanRightNodeId(line, mask, end)
+    if (sourceId && targetId) dottedEdges.add(dottedEdgeKey(sourceId, targetId))
+    result += line.slice(cursor, start) + solidLinkOperator(match[1], match[2])
+    cursor = end
+  }
+  return cursor === 0 ? line : result + line.slice(cursor)
+}
+
+function solidLinkOperator(lead: string | undefined, trail: string | undefined): string {
+  if (!lead && !trail) return '---'
+  return `${lead ?? ''}--${trail ?? ''}`
+}
+
+// Marks positions inside `"..."` / `` `...` `` spans so link-operator matches
+// and identifier scans ignore characters that live in node/edge labels.
+function computeQuotedMask(line: string): boolean[] {
+  const mask = new Array<boolean>(line.length).fill(false)
+  let quote: '"' | '`' | undefined
+  let escaped = false
+  for (let index = 0; index < line.length; index++) {
+    const char = line[index]!
+    if (quote) {
+      mask[index] = true
+      if (escaped) escaped = false
+      else if (char === '\\') escaped = true
+      else if (char === quote) quote = undefined
+      continue
+    }
+    if (char === '"' || char === '`') {
+      quote = char
+      mask[index] = true
+    }
+  }
+  return mask
+}
+
+function scanLeftNodeId(line: string, mask: boolean[], operatorStart: number): string | undefined {
+  let index = skipSpacesBackward(line, operatorStart - 1)
+  while (index >= 0 && !mask[index] && line[index]! in NODE_SHAPE_CLOSE_TO_OPEN) {
+    index = skipSpacesBackward(line, matchingOpenIndex(line, mask, index) - 1)
+  }
+  const end = index + 1
+  while (index >= 0 && !mask[index] && /[\w-]/.test(line[index]!)) index--
+  return line.slice(index + 1, end) || undefined
+}
+
+function scanRightNodeId(line: string, mask: boolean[], operatorEnd: number): string | undefined {
+  let index = skipSpacesForward(line, operatorEnd)
+  if (line[index] === '|' && !mask[index]) {
+    index++
+    while (index < line.length && !(line[index] === '|' && !mask[index])) index++
+    index = skipSpacesForward(line, index + 1)
+  }
+  const start = index
+  while (index < line.length && !mask[index] && /[\w-]/.test(line[index]!)) index++
+  return line.slice(start, index) || undefined
+}
+
+function matchingOpenIndex(line: string, mask: boolean[], closeIndex: number): number {
+  const closeChar = line[closeIndex]!
+  const openChar = NODE_SHAPE_CLOSE_TO_OPEN[closeChar]!
+  let depth = 0
+  for (let index = closeIndex; index >= 0; index--) {
+    if (mask[index]) continue
+    const char = line[index]!
+    if (char === closeChar) depth++
+    else if (char === openChar && --depth === 0) return index
+  }
+  return closeIndex
+}
+
+function skipSpacesBackward(line: string, index: number): number {
+  let cursor = index
+  while (cursor >= 0 && /\s/.test(line[cursor]!)) cursor--
+  return cursor
+}
+
+function skipSpacesForward(line: string, index: number): number {
+  let cursor = index
+  while (cursor < line.length && /\s/.test(line[cursor]!)) cursor++
+  return cursor
+}
+
+function markDashedFlowchartLinks(diagram: StructureDiagram, dottedEdges: Set<DottedEdgeKey>): void {
+  if (dottedEdges.size === 0) return
+  for (const element of Object.values(diagram.elements)) {
+    if (element.type !== ElementType.ClassLink || !element.port1 || !element.port2) continue
+    const sourceId = linkEndpointSourceId(diagram, element.port1)
+    const targetId = linkEndpointSourceId(diagram, element.port2)
+    if (sourceId && targetId && dottedEdges.has(dottedEdgeKey(sourceId, targetId))) {
+      element.axonizeDashed = true
+    }
+  }
+}
+
+function linkEndpointSourceId(diagram: StructureDiagram, portId: string): string | undefined {
+  const nodeId = diagram.elements[portId]?.nodeId
+  return nodeId ? diagram.elements[nodeId]?.sourceId : undefined
 }
 
 /**
@@ -2048,9 +2193,10 @@ function patchFlowchartEdgeRoutes(svg: string, diagram: StructureDiagram): strin
       const link = diagram.elements[route.edgeId]
       const polyline = link?.axonizeRoutePolyline
       const offset = link?.axonizeRouteLabelOffset
-      const patchedPath = polyline
+      const routedPath = polyline
         ? path.replace(/\bd="[^"]*"/, `d="${edgePolylinePath(polyline)}"`)
         : path
+      const patchedPath = link?.axonizeDashed ? withDottedStroke(routedPath) : routedPath
       const patchedLabel = label && offset
         ? label.replace(
             '<text ',
@@ -2067,6 +2213,11 @@ function edgePolylinePath(polyline: EdgeRoute['polyline']): string {
   if (!first) return ''
   return [`M ${first.x} ${first.y}`, ...rest.map((point) => `L ${point.x} ${point.y}`)]
     .join(' ')
+}
+
+function withDottedStroke(path: string): string {
+  if (path.includes('stroke-dasharray')) return path
+  return path.replace('<path ', `<path stroke-dasharray="${DOTTED_EDGE_STROKE_DASHARRAY}" `)
 }
 
 function patchUnsupportedFlowchartShapes(svg: string, diagram: StructureDiagram): string {

@@ -520,14 +520,11 @@ flowchart TB
     CONTROL --> PIPELINE --> IMPORTER --> PAGER --> BATCH
     SINGLE --> STREAM
     BATCH --> STREAM
-    SINGLE -.->|"oversized"| OVERFLOW
     STREAM --> SEARCH
-    OVERFLOW -.-> SEARCH
     SEARCH --> INDEX
     STREAM --> FETCH --> PREPARE --> CHUNK --> BUILD --> INGEST --> SEARCHDB --> API
 
     ACTIVE -->|"text extraction enabled<br/>plus eligibility rules"| QTEXT
-    CLOSED -.->|"not emitted after removal"| QTEXT
     ACTIVE -->|"vector extraction enabled<br/>same-event fan-out"| QVECTOR
     CLOSED -->|"lifecycle vector event<br/>remove and archive only"| QVECTOR
     ACTIVE -->|"media conversion enabled"| QMEDIA
@@ -547,8 +544,6 @@ flowchart TB
     TEXT --> RAW
     VECTOR --> EMBEDDINGS
     MEDIA --> CACHE
-
-    RECORDS -.->|"content update emits another event"| SINGLE
 `.trim()
 
     const diagram = await importMermaidFlowchartWithAxonizeLayout(source)
