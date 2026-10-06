@@ -120,4 +120,33 @@ describe('Doodles IDM/RAG/OpenSearch architecture layout', () => {
       ).toBe(true)
     }
   })
+
+  it('does not collapse the Kinesis stream incoming and outgoing edges into one line', async () => {
+    const diagram = (await importMermaidFlowchartWithAxonizeLayout(SOURCE)) as unknown as Struct & {
+      elements: Record<string, { id: string; sourceId?: string; axonizeRoutePolyline?: { x: number; y: number }[] }>
+    }
+    const routes = routeEdges(diagram as never, defaultLightTheme)
+    const kinId = Object.values(diagram.elements).find((e) => e.sourceId === 'KIN')!.id
+    const touching = routes.filter((r) => r.sourceNodeId === kinId || r.targetNodeId === kinId)
+    expect(touching.length).toBe(2) // IDMPUB -> KIN and KIN -> INGEST
+    const poly = (r: (typeof touching)[number]) => diagram.elements[r.edgeId]?.axonizeRoutePolyline ?? r.polyline
+
+    // Two collinear axis-aligned segments overlap if they share a coordinate and
+    // their spans intersect over a non-zero length. The incoming and outgoing
+    // edges attaching to the same node face at the same ratio produce exactly
+    // this — visually merging into a single line.
+    const segmentsOverlap = (a: { x: number; y: number }[], b: { x: number; y: number }[]) => {
+      const overlap1D = (lo1: number, hi1: number, lo2: number, hi2: number) =>
+        Math.min(hi1, hi2) - Math.max(lo1, lo2) > 0.5
+      for (let i = 1; i < a.length; i++) for (let j = 1; j < b.length; j++) {
+        const [a0, a1, b0, b1] = [a[i - 1]!, a[i]!, b[j - 1]!, b[j]!]
+        if (Math.abs(a0.y - a1.y) < 0.5 && Math.abs(b0.y - b1.y) < 0.5 && Math.abs(a0.y - b0.y) < 0.5 &&
+          overlap1D(Math.min(a0.x, a1.x), Math.max(a0.x, a1.x), Math.min(b0.x, b1.x), Math.max(b0.x, b1.x))) return true
+        if (Math.abs(a0.x - a1.x) < 0.5 && Math.abs(b0.x - b1.x) < 0.5 && Math.abs(a0.x - b0.x) < 0.5 &&
+          overlap1D(Math.min(a0.y, a1.y), Math.max(a0.y, a1.y), Math.min(b0.y, b1.y), Math.max(b0.y, b1.y))) return true
+      }
+      return false
+    }
+    expect(segmentsOverlap(poly(touching[0]!), poly(touching[1]!))).toBe(false)
+  })
 })

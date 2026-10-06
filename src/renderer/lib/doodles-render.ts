@@ -292,6 +292,7 @@ export async function importMermaidFlowchartWithAxonizeLayout(source: string): P
   avoidSameTargetRouteCrossings(diagram)
   straightenSingleIncomingRoutes(diagram)
   expandDisplayToFitNodes(diagram)
+  separateSharedFacePortOverlap(diagram)
   separateOverlappingRouteBuses(diagram, direction)
   repairTopBottomFanInCornerAttachments(diagram, direction)
   repairSideFaceGutterFanIn(diagram, direction)
@@ -1815,6 +1816,91 @@ function repairTopBottomFanInCornerAttachments(
         restoreRouteAttachment(link, targetPort, snapshot)
       }
     }
+  }
+}
+
+type SharedFacePort = {
+  port: DiagramPortRecord
+  farNodeId: string
+  edgeId: string
+}
+
+/**
+ * The router distributes a node's source ports and target ports independently,
+ * so an incoming edge and an outgoing edge can both land at the centre of the
+ * same face. Their first/last segments then run along the same line and merge
+ * into one stroke (an arrow appears to pass straight through the node). Detect
+ * faces whose attached edges overlap and spread their port positions evenly,
+ * ordered by the opposite endpoint so the fan reads correctly. Kept only when
+ * it removes overlap without adding node intersections or crossings.
+ */
+function separateSharedFacePortOverlap(diagram: StructureDiagram): void {
+  if (!diagram.ports) return
+  const groups = new Map<string, SharedFacePort[]>()
+  for (const link of Object.values(diagram.elements)) {
+    if (link.type !== ElementType.ClassLink || !link.port1 || !link.port2) continue
+    const sourceNodeId = diagram.elements[link.port1]?.nodeId
+    const targetNodeId = diagram.elements[link.port2]?.nodeId
+    if (!sourceNodeId || !targetNodeId) continue
+    addSharedFacePort(diagram, groups, sourceNodeId, link.port1, targetNodeId, link.id)
+    addSharedFacePort(diagram, groups, targetNodeId, link.port2, sourceNodeId, link.id)
+  }
+
+  for (const attaches of groups.values()) {
+    if (attaches.length < 2) continue
+    separateFacePortGroup(diagram, attaches)
+  }
+}
+
+function addSharedFacePort(
+  diagram: StructureDiagram,
+  groups: Map<string, SharedFacePort[]>,
+  nodeId: string,
+  portId: string,
+  farNodeId: string,
+  edgeId: string
+): void {
+  const port = diagram.ports?.[portId]
+  if (!port || port.alignment === undefined) return
+  const key = `${nodeId}\u0000${port.alignment}`
+  const list = groups.get(key) ?? []
+  list.push({ port, farNodeId, edgeId })
+  groups.set(key, list)
+}
+
+function separateFacePortGroup(diagram: StructureDiagram, attaches: SharedFacePort[]): void {
+  const alignment = attaches[0]!.port.alignment
+  const currentRoutes = routeEdges(diagram as never, defaultLightTheme)
+  const edgeIds = new Set(attaches.map((attach) => attach.edgeId))
+  const groupRoutes = currentRoutes.filter((route) => edgeIds.has(route.edgeId))
+  const hasOverlap = groupRoutes.some((route, index) =>
+    groupRoutes.some((other, otherIndex) => otherIndex > index && routesOverlap(route, other))
+  )
+  if (!hasOverlap) return
+
+  const vertical = alignment === PortAlignment.Left || alignment === PortAlignment.Right
+  const ordered = [...attaches].sort((left, right) => {
+    const leftFar = diagram.nodes[left.farNodeId]?.bounds
+    const rightFar = diagram.nodes[right.farNodeId]?.bounds
+    if (!isValidBounds(leftFar) || !isValidBounds(rightFar)) return 0
+    return vertical
+      ? (leftFar.y + leftFar.height / 2) - (rightFar.y + rightFar.height / 2)
+      : (leftFar.x + leftFar.width / 2) - (rightFar.x + rightFar.width / 2)
+  })
+
+  const snapshots = ordered.map((attach) => ({ port: attach.port, ratio: attach.port.edgePosRatio }))
+  ordered.forEach((attach, index) => {
+    attach.port.edgePosRatio = (index + 1 / 2) * FAN_OUT_PORT_SPAN_PERCENT / ordered.length
+  })
+
+  const candidateRoutes = routeEdges(diagram as never, defaultLightTheme)
+  const groupCandidates = candidateRoutes.filter((route) => edgeIds.has(route.edgeId))
+  const accepted = groupCandidates.every((route) => routeNodeIntersectionCount(route, diagram) === 0) &&
+    routeOverlapCount(candidateRoutes) < routeOverlapCount(currentRoutes) &&
+    routeCrossingCount(candidateRoutes) <= routeCrossingCount(currentRoutes) &&
+    routeLabelOverlapCount(candidateRoutes) <= routeLabelOverlapCount(currentRoutes)
+  if (!accepted) {
+    for (const snapshot of snapshots) snapshot.port.edgePosRatio = snapshot.ratio
   }
 }
 
