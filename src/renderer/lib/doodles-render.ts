@@ -572,6 +572,7 @@ function repairFlowchartGeometry(
   compactSinkLikeClusterGaps(diagram, resolvedDirection)
   compactLeftToRightTerminalClusters(diagram, resolvedDirection)
   makeRoomForForwardEdgeLabels(diagram, resolvedDirection)
+  makeRoomForClusterCrossingLabels(diagram, resolvedDirection)
 }
 
 // Independent compound pipelines need not consume consecutive horizontal
@@ -1102,6 +1103,197 @@ function shiftTargetAndLaterRanks(
   distance: number
 ): void {
   for (const { bounds } of classNodeEntries(diagram)) {
+    if (direction === LayoutDirection.LeftToRight && bounds.x >= target.x - SAME_RANK_TOLERANCE_PX) {
+      bounds.x += distance
+    } else if (
+      direction === LayoutDirection.RightToLeft &&
+      bounds.x <= target.x + SAME_RANK_TOLERANCE_PX
+    ) {
+      bounds.x -= distance
+    } else if (
+      direction === LayoutDirection.TopToBottom &&
+      bounds.y >= target.y - SAME_RANK_TOLERANCE_PX
+    ) {
+      bounds.y += distance
+    } else if (
+      direction === LayoutDirection.BottomToTop &&
+      bounds.y <= target.y + SAME_RANK_TOLERANCE_PX
+    ) {
+      bounds.y -= distance
+    }
+  }
+}
+
+// makeRoomForForwardEdgeLabels bails out on compound diagrams, so a label on a
+// cross-cluster edge — which sits in the gap between two cluster columns —
+// collides with the cluster rectangles whenever that gap is narrower than the
+// label. Widen the gap by shifting the target group (its cluster and members)
+// and everything downstream of it, the whole-cluster analogue of the leaf-node
+// rank widening.
+function makeRoomForClusterCrossingLabels(diagram: StructureDiagram, direction: string): void {
+  if (!Object.values(diagram.elements).some((element) => element.type === ElementType.Cluster)) {
+    return
+  }
+  const horizontal = isHorizontalDirection(direction)
+  const processed = new Set<string>()
+  while (true) {
+    const route = effectiveRouteEdges(diagram).find((candidate) =>
+      candidate.labelBox !== undefined &&
+      !processed.has(candidate.edgeId) &&
+      clusterCrossingLabelShift(diagram, candidate, direction, horizontal) > 0
+    )
+    if (!route) break
+    processed.add(route.edgeId)
+    const shift = clusterCrossingLabelShift(diagram, route, direction, horizontal)
+    const targetGroup = groupBounds(diagram, route.targetNodeId)
+    if (shift <= 0 || !targetGroup) continue
+    shiftGroupsAndLaterRanks(diagram, targetGroup.bounds, direction, shift)
+  }
+  centerClusterCrossingLabelsInGap(diagram, direction, horizontal)
+}
+
+// Widening the gap fixes labels the router centres between two groups, but a
+// dogleg route parks its label on the turn near the source, so a wide label can
+// still clip the source cluster. For any cross-cluster label that still overlaps
+// a cluster, slide it along the flow axis to the centre of the (cleared) gap
+// between its two groups.
+function centerClusterCrossingLabelsInGap(
+  diagram: StructureDiagram,
+  direction: string,
+  horizontal: boolean
+): void {
+  for (const route of effectiveRouteEdges(diagram)) {
+    if (!route.labelBox || !labelOverlapsAnyCluster(diagram, route.labelBox)) continue
+    const sourceGroup = groupBounds(diagram, route.sourceNodeId)
+    const targetGroup = groupBounds(diagram, route.targetNodeId)
+    if (!sourceGroup || !targetGroup || sourceGroup.id === targetGroup.id) continue
+    const band = interGroupGapCenter(sourceGroup.bounds, targetGroup.bounds, direction)
+    if (band === undefined ||
+      !isGapBandClear(diagram, sourceGroup, targetGroup, direction)) continue
+    const labelCenter = horizontal
+      ? route.labelBox.x + route.labelBox.width / 2
+      : route.labelBox.y + route.labelBox.height / 2
+    const delta = band - labelCenter
+    const link = diagram.elements[route.edgeId]!
+    const existing = link.axonizeRouteLabelOffset ?? { x: 0, y: 0 }
+    link.axonizeRouteLabelOffset = horizontal
+      ? { x: existing.x + delta, y: existing.y }
+      : { x: existing.x, y: existing.y + delta }
+  }
+}
+
+// Primary-axis centre of the clear band between two forward-ordered groups, or
+// undefined when the groups are not forward-separated along the flow axis.
+function interGroupGapCenter(
+  source: DiagramBounds,
+  target: DiagramBounds,
+  direction: string
+): number | undefined {
+  if (direction === LayoutDirection.LeftToRight && target.x >= source.x + source.width) {
+    return (source.x + source.width + target.x) / 2
+  }
+  if (direction === LayoutDirection.RightToLeft && target.x + target.width <= source.x) {
+    return (target.x + target.width + source.x) / 2
+  }
+  if (direction === LayoutDirection.TopToBottom && target.y >= source.y + source.height) {
+    return (source.y + source.height + target.y) / 2
+  }
+  if (direction === LayoutDirection.BottomToTop && target.y + target.height <= source.y) {
+    return (target.y + target.height + source.y) / 2
+  }
+  return undefined
+}
+
+// True when no other group's primary-axis span sits inside the gap between the
+// source and target groups, so a label centred there will not land on a third
+// group.
+function isGapBandClear(
+  diagram: StructureDiagram,
+  sourceGroup: { id: string; bounds: DiagramBounds },
+  targetGroup: { id: string; bounds: DiagramBounds },
+  direction: string
+): boolean {
+  const horizontal = isHorizontalDirection(direction)
+  const start = Math.min(primaryStart(sourceGroup.bounds, horizontal), primaryStart(targetGroup.bounds, horizontal))
+  const end = Math.max(primaryEnd(sourceGroup.bounds, horizontal), primaryEnd(targetGroup.bounds, horizontal))
+  for (const element of Object.values(diagram.elements)) {
+    if (element.type === ElementType.Cluster) {
+      if (element.id === sourceGroup.id || element.id === targetGroup.id) continue
+    } else if (element.type === ElementType.ClassNode) {
+      if (directClusterContainingNode(diagram, element.id) || element.id === sourceGroup.id ||
+        element.id === targetGroup.id) continue
+    } else {
+      continue
+    }
+    const bounds = diagram.nodes[element.id]?.bounds
+    if (!isValidBounds(bounds)) continue
+    if (primaryStart(bounds, horizontal) < end && primaryEnd(bounds, horizontal) > start) return false
+  }
+  return true
+}
+
+function primaryEnd(bounds: DiagramBounds, horizontal: boolean): number {
+  return primaryStart(bounds, horizontal) + (horizontal ? bounds.width : bounds.height)
+}
+
+function clusterCrossingLabelShift(
+  diagram: StructureDiagram,
+  route: EdgeRoute,
+  direction: string,
+  horizontal: boolean
+): number {
+  if (!route.labelBox) return 0
+  const sourceGroup = groupBounds(diagram, route.sourceNodeId)
+  const targetGroup = groupBounds(diagram, route.targetNodeId)
+  if (!sourceGroup || !targetGroup || sourceGroup.id === targetGroup.id) return 0
+  const gap = forwardRankGap(sourceGroup.bounds, targetGroup.bounds, direction)
+  if (gap === undefined || !labelOverlapsAnyCluster(diagram, route.labelBox)) return 0
+  const labelExtent = horizontal ? route.labelBox.width : route.labelBox.height
+  return Math.ceil(labelExtent + EDGE_LABEL_NODE_CLEARANCE_PX * 2 - gap)
+}
+
+// Resolves the outermost cluster a node belongs to, falling back to the node
+// itself when it lives outside every cluster (e.g. a terminal external node).
+function groupBounds(
+  diagram: StructureDiagram,
+  nodeId: string
+): { id: string; bounds: DiagramBounds } | undefined {
+  const id = outermostClusterContainingNode(diagram, nodeId) ?? nodeId
+  const bounds = diagram.nodes[id]?.bounds
+  return isValidBounds(bounds) ? { id, bounds } : undefined
+}
+
+function outermostClusterContainingNode(diagram: StructureDiagram, nodeId: string): string | undefined {
+  let current = nodeId
+  let outer: string | undefined
+  while (true) {
+    const parent = directClusterContainingNode(diagram, current)
+    if (!parent || parent === current) break
+    outer = parent
+    current = parent
+  }
+  return outer
+}
+
+function labelOverlapsAnyCluster(diagram: StructureDiagram, labelBox: DiagramBounds): boolean {
+  for (const element of Object.values(diagram.elements)) {
+    if (element.type !== ElementType.Cluster) continue
+    const bounds = diagram.nodes[element.id]?.bounds
+    if (isValidBounds(bounds) && rectanglesOverlap(labelBox, bounds)) return true
+  }
+  return false
+}
+
+function shiftGroupsAndLaterRanks(
+  diagram: StructureDiagram,
+  target: DiagramBounds,
+  direction: string,
+  distance: number
+): void {
+  for (const element of Object.values(diagram.elements)) {
+    if (element.type !== ElementType.ClassNode && element.type !== ElementType.Cluster) continue
+    const bounds = diagram.nodes[element.id]?.bounds
+    if (!isValidBounds(bounds)) continue
     if (direction === LayoutDirection.LeftToRight && bounds.x >= target.x - SAME_RANK_TOLERANCE_PX) {
       bounds.x += distance
     } else if (
