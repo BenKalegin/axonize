@@ -117,6 +117,11 @@ const BUS_ROUTE_MIN_LANE_GAP_PX = 8
 const BUS_ROUTE_CLUSTER_CLEARANCE_PX = 20
 const COMPACT_CLUSTER_GAP_PX = 80
 const COMPACT_CLUSTER_THRESHOLD_PX = 160
+// Horizontal gap between adjacent gutter risers when several back-edges fan into
+// the same vertical face of one node, and the fraction of the face height kept
+// clear of its top/bottom corners when distributing their entry points.
+const SIDE_FAN_IN_LANE_GAP_PX = 16
+const SIDE_FAN_IN_FACE_MARGIN_RATIO = 0.15
 
 type DiagramDisplay = {
   width: number
@@ -289,6 +294,7 @@ export async function importMermaidFlowchartWithAxonizeLayout(source: string): P
   expandDisplayToFitNodes(diagram)
   separateOverlappingRouteBuses(diagram, direction)
   repairTopBottomFanInCornerAttachments(diagram, direction)
+  repairSideFaceGutterFanIn(diagram, direction)
   return diagram
 }
 
@@ -1102,22 +1108,27 @@ function shiftTargetAndLaterRanks(
   direction: string,
   distance: number
 ): void {
+  // Snapshot the threshold before mutating any bounds: `target` is a live
+  // reference to a node whose bounds this loop may shift, and moving it
+  // mid-iteration would change the comparison value for later ranks.
+  const thresholdX = target.x
+  const thresholdY = target.y
   for (const { bounds } of classNodeEntries(diagram)) {
-    if (direction === LayoutDirection.LeftToRight && bounds.x >= target.x - SAME_RANK_TOLERANCE_PX) {
+    if (direction === LayoutDirection.LeftToRight && bounds.x >= thresholdX - SAME_RANK_TOLERANCE_PX) {
       bounds.x += distance
     } else if (
       direction === LayoutDirection.RightToLeft &&
-      bounds.x <= target.x + SAME_RANK_TOLERANCE_PX
+      bounds.x <= thresholdX + SAME_RANK_TOLERANCE_PX
     ) {
       bounds.x -= distance
     } else if (
       direction === LayoutDirection.TopToBottom &&
-      bounds.y >= target.y - SAME_RANK_TOLERANCE_PX
+      bounds.y >= thresholdY - SAME_RANK_TOLERANCE_PX
     ) {
       bounds.y += distance
     } else if (
       direction === LayoutDirection.BottomToTop &&
-      bounds.y <= target.y + SAME_RANK_TOLERANCE_PX
+      bounds.y <= thresholdY + SAME_RANK_TOLERANCE_PX
     ) {
       bounds.y -= distance
     }
@@ -1290,25 +1301,33 @@ function shiftGroupsAndLaterRanks(
   direction: string,
   distance: number
 ): void {
+  // `target` is a live reference to a shifted element's bounds, so capture the
+  // comparison threshold before the loop mutates any bounds. Without the
+  // snapshot, shifting the threshold element itself moves `target.x`/`target.y`
+  // mid-iteration and later-visited elements (notably an enclosing cluster
+  // rectangle whose x equals the threshold) are then wrongly excluded, leaving
+  // the cluster box behind its members.
+  const thresholdX = target.x
+  const thresholdY = target.y
   for (const element of Object.values(diagram.elements)) {
     if (element.type !== ElementType.ClassNode && element.type !== ElementType.Cluster) continue
     const bounds = diagram.nodes[element.id]?.bounds
     if (!isValidBounds(bounds)) continue
-    if (direction === LayoutDirection.LeftToRight && bounds.x >= target.x - SAME_RANK_TOLERANCE_PX) {
+    if (direction === LayoutDirection.LeftToRight && bounds.x >= thresholdX - SAME_RANK_TOLERANCE_PX) {
       bounds.x += distance
     } else if (
       direction === LayoutDirection.RightToLeft &&
-      bounds.x <= target.x + SAME_RANK_TOLERANCE_PX
+      bounds.x <= thresholdX + SAME_RANK_TOLERANCE_PX
     ) {
       bounds.x -= distance
     } else if (
       direction === LayoutDirection.TopToBottom &&
-      bounds.y >= target.y - SAME_RANK_TOLERANCE_PX
+      bounds.y >= thresholdY - SAME_RANK_TOLERANCE_PX
     ) {
       bounds.y += distance
     } else if (
       direction === LayoutDirection.BottomToTop &&
-      bounds.y <= target.y + SAME_RANK_TOLERANCE_PX
+      bounds.y <= thresholdY + SAME_RANK_TOLERANCE_PX
     ) {
       bounds.y -= distance
     }
@@ -1797,6 +1816,159 @@ function repairTopBottomFanInCornerAttachments(
       }
     }
   }
+}
+
+type SideFanInGroup = {
+  faceX: number
+  baseGutterX: number
+  gutterSign: number
+  routes: EdgeRoute[]
+}
+
+/**
+ * When several back-edges reach the same vertical face of a node through the
+ * side gutter, the stock router can give the first a clean perpendicular entry
+ * but route a later one along the node's own border — its final segment runs
+ * parallel to the face, so the arrowhead points up/down against the edge instead
+ * of into the node. Re-lay such fan-ins with one gutter riser lane per edge and
+ * staggered entry points so every final segment is perpendicular. Node layout
+ * and port assignments are untouched; the change is kept only when it adds no
+ * node intersections, crossings, overlaps, or label collisions.
+ */
+function repairSideFaceGutterFanIn(diagram: StructureDiagram, direction: string | undefined): void {
+  const resolved = direction ?? LayoutDirection.TopToBottom
+  if (!isHorizontalDirection(resolved)) return
+
+  const targetIds = new Set(effectiveRouteEdges(diagram).map((route) => route.targetNodeId))
+  for (const targetId of targetIds) {
+    const targetBounds = diagram.nodes[targetId]?.bounds
+    if (!isValidBounds(targetBounds)) continue
+    const currentRoutes = effectiveRouteEdges(diagram)
+    const incoming = currentRoutes.filter((route) => route.targetNodeId === targetId)
+    if (incoming.length < 2) continue
+    for (const faceX of [targetBounds.x, targetBounds.x + targetBounds.width]) {
+      const group = sideGutterFanInGroup(incoming, faceX, faceX === targetBounds.x ? -1 : 1)
+      if (group) rebuildSideFaceFanIn(diagram, targetBounds, group, currentRoutes)
+    }
+  }
+}
+
+// Collects the incoming back-edges that attach to the vertical face at `faceX`
+// after reaching into the gutter on that side (gutterSign: -1 left, +1 right),
+// but only when at least one of them has a degenerate final segment running
+// parallel to the face. Returns undefined when there is nothing to repair.
+function sideGutterFanInGroup(
+  incoming: EdgeRoute[],
+  faceX: number,
+  gutterSign: number
+): SideFanInGroup | undefined {
+  const routes: EdgeRoute[] = []
+  let baseGutterX = faceX
+  let hasDegenerate = false
+  for (const route of incoming) {
+    const last = route.polyline[route.polyline.length - 1]
+    const prev = route.polyline[route.polyline.length - 2]
+    if (!last || !prev || Math.abs(last.x - faceX) > SAME_RANK_TOLERANCE_PX) continue
+    const extentX = gutterSign < 0
+      ? Math.min(...route.polyline.map((point) => point.x))
+      : Math.max(...route.polyline.map((point) => point.x))
+    const reachesGutter = gutterSign < 0
+      ? extentX < faceX - SAME_RANK_TOLERANCE_PX
+      : extentX > faceX + SAME_RANK_TOLERANCE_PX
+    if (!reachesGutter) continue
+    routes.push(route)
+    baseGutterX = gutterSign < 0 ? Math.min(baseGutterX, extentX) : Math.max(baseGutterX, extentX)
+    if (Math.abs(prev.x - last.x) < SAME_RANK_TOLERANCE_PX) hasDegenerate = true
+  }
+  if (routes.length < 2 || !hasDegenerate) return undefined
+  return { faceX, baseGutterX, gutterSign, routes }
+}
+
+function rebuildSideFaceFanIn(
+  diagram: StructureDiagram,
+  targetBounds: DiagramBounds,
+  group: SideFanInGroup,
+  currentRoutes: EdgeRoute[]
+): void {
+  const engineRoutes = new Map(
+    routeEdges(diagram as never, defaultLightTheme).map((route) => [route.edgeId, route])
+  )
+  const count = group.routes.length
+  const sorted = [...group.routes].sort((left, right) => left.polyline[0]!.y - right.polyline[0]!.y)
+  const margin = targetBounds.height * SIDE_FAN_IN_FACE_MARGIN_RATIO
+  const usable = Math.max(0, targetBounds.height - margin * 2)
+
+  for (const reverse of [false, true]) {
+    const snapshots = sorted.map((route) => {
+      const link = diagram.elements[route.edgeId]!
+      return { link, polyline: link.axonizeRoutePolyline, labelOffset: link.axonizeRouteLabelOffset }
+    })
+
+    sorted.forEach((route, index) => {
+      // Couple the entry slot to the lane rank: the outermost gutter lane takes
+      // the entry furthest along the face, so an entry leg never has to cross a
+      // more-inner lane's riser. `reverse` flips which source takes the outer
+      // lane, giving the guard a second candidate ordering to try.
+      const laneRank = reverse ? index : count - 1 - index
+      const slot = laneRank
+      const laneX = group.baseGutterX + group.gutterSign * laneRank * SIDE_FAN_IN_LANE_GAP_PX
+      const entryY = count === 1
+        ? targetBounds.y + targetBounds.height / 2
+        : targetBounds.y + margin + (slot / (count - 1)) * usable
+      const source = route.polyline[0]!
+      const polyline = [
+        { x: source.x, y: source.y },
+        { x: laneX, y: source.y },
+        { x: laneX, y: entryY },
+        { x: group.faceX, y: entryY },
+      ]
+      const link = diagram.elements[route.edgeId]!
+      link.axonizeRoutePolyline = polyline
+      link.axonizeRouteLabelOffset = sideFanInLabelOffset(engineRoutes.get(route.edgeId), polyline)
+    })
+
+    if (sideFanInAccepted(diagram, sorted, currentRoutes)) return
+
+    for (const snapshot of snapshots) {
+      snapshot.link.axonizeRoutePolyline = snapshot.polyline
+      snapshot.link.axonizeRouteLabelOffset = snapshot.labelOffset
+    }
+  }
+}
+
+function sideFanInLabelOffset(
+  engineRoute: EdgeRoute | undefined,
+  polyline: EdgeRoute['polyline']
+): { x: number; y: number } | undefined {
+  if (!engineRoute?.labelBox) return undefined
+  const midpoint = routePolylineMidpoint(polyline)
+  const labelX = midpoint.x - engineRoute.labelBox.width / 2
+  const labelY = midpoint.y - engineRoute.labelBox.height / 2
+  return { x: labelX - engineRoute.labelBox.x, y: labelY - engineRoute.labelBox.y }
+}
+
+function sideFanInAccepted(
+  diagram: StructureDiagram,
+  rebuilt: EdgeRoute[],
+  currentRoutes: EdgeRoute[]
+): boolean {
+  const edgeIds = new Set(rebuilt.map((route) => route.edgeId))
+  const candidateRoutes = effectiveRouteEdges(diagram)
+  const candidates = candidateRoutes.filter((route) => edgeIds.has(route.edgeId))
+  if (candidates.length !== rebuilt.length) return false
+  const perpendicular = candidates.every((route) => {
+    const last = route.polyline[route.polyline.length - 1]!
+    const prev = route.polyline[route.polyline.length - 2]!
+    return Math.abs(prev.y - last.y) < SAME_RANK_TOLERANCE_PX
+  })
+  const clear = candidates.every((route) =>
+    routeNodeIntersectionCount(route, diagram) === 0 &&
+    routeLabelNodeIntersectionCount(route, diagram) === 0
+  )
+  return perpendicular && clear &&
+    routeCrossingCount(candidateRoutes) <= routeCrossingCount(currentRoutes) &&
+    routeOverlapCount(candidateRoutes) <= routeOverlapCount(currentRoutes) &&
+    routeLabelOverlapCount(candidateRoutes) <= routeLabelOverlapCount(currentRoutes)
 }
 
 function effectiveRouteEdges(diagram: StructureDiagram): EdgeRoute[] {
