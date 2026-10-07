@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { defaultLightTheme, layoutFor, routeEdges } from '@benkalegin/doodles-api'
+import { defaultLightTheme, layoutFor, routeEdges, ElementType, inflate, segmentEntersRect } from '@benkalegin/doodles-api'
 import { importMermaidFlowchartWithAxonizeLayout } from '../../../src/renderer/lib/doodles-render'
 
 // Regression for the user's IDM/RAG/OpenSearch architecture diagram.
@@ -148,5 +148,31 @@ describe('Doodles IDM/RAG/OpenSearch architecture layout', () => {
       return false
     }
     expect(segmentsOverlap(poly(touching[0]!), poly(touching[1]!))).toBe(false)
+  })
+
+  it('routes the Kinesis stream outgoing edge clear of the IDM cluster box', async () => {
+    const diagram = (await importMermaidFlowchartWithAxonizeLayout(SOURCE)) as unknown as Struct & {
+      elements: Record<string, { id: string; type: number; sourceId?: string; axonizeRoutePolyline?: { x: number; y: number }[] }>
+    }
+    const routes = routeEdges(diagram as never, defaultLightTheme)
+    const kinId = Object.values(diagram.elements).find((e) => e.sourceId === 'KIN')!.id
+    const idmCluster = Object.values(diagram.elements).find(
+      (e) => e.type === ElementType.Cluster && typeof (e as { text?: string }).text === 'string' &&
+        (e as { text?: string }).text!.includes('IDM')
+    )!
+    const idmBounds = diagram.nodes[idmCluster.id]!.bounds!
+    // KIN and INGEST are not IDM members, so the KIN -> INGEST transit must not
+    // run along the IDM cluster border. Treat the box with a small clearance as
+    // an obstacle the back-edge must stay off.
+    const TRANSIT_CLEARANCE_PX = 4
+    const obstacle = inflate(idmBounds as never, TRANSIT_CLEARANCE_PX, TRANSIT_CLEARANCE_PX)
+    const kinOut = routes.find((r) => r.sourceNodeId === kinId)!
+    const polyline = diagram.elements[kinOut.edgeId]?.axonizeRoutePolyline ?? kinOut.polyline
+    for (let i = 1; i < polyline.length; i++) {
+      expect(
+        segmentEntersRect(polyline[i - 1]! as never, polyline[i]! as never, obstacle),
+        `KIN outgoing segment ${JSON.stringify(polyline[i - 1])}->${JSON.stringify(polyline[i])} grazes the IDM cluster`
+      ).toBe(false)
+    }
   })
 })

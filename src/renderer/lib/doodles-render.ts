@@ -122,6 +122,9 @@ const COMPACT_CLUSTER_THRESHOLD_PX = 160
 // clear of its top/bottom corners when distributing their entry points.
 const SIDE_FAN_IN_LANE_GAP_PX = 16
 const SIDE_FAN_IN_FACE_MARGIN_RATIO = 0.15
+// Vertical gap kept between a back-edge's horizontal transit and any cluster
+// rectangle it passes alongside but is not routed into.
+const CLUSTER_TRANSIT_CLEARANCE_PX = 8
 
 type DiagramDisplay = {
   width: number
@@ -296,6 +299,7 @@ export async function importMermaidFlowchartWithAxonizeLayout(source: string): P
   separateOverlappingRouteBuses(diagram, direction)
   repairTopBottomFanInCornerAttachments(diagram, direction)
   repairSideFaceGutterFanIn(diagram, direction)
+  avoidClusterGrazingTransit(diagram, direction)
   return diagram
 }
 
@@ -1816,6 +1820,122 @@ function repairTopBottomFanInCornerAttachments(
         restoreRouteAttachment(link, targetPort, snapshot)
       }
     }
+  }
+}
+
+type ClusterBox = { id: string; bounds: DiagramBounds }
+
+function clusterBoxList(diagram: StructureDiagram): ClusterBox[] {
+  const boxes: ClusterBox[] = []
+  for (const element of Object.values(diagram.elements)) {
+    if (element.type !== ElementType.Cluster) continue
+    const bounds = diagram.nodes[element.id]?.bounds
+    if (isValidBounds(bounds)) boxes.push({ id: element.id, bounds })
+  }
+  return boxes
+}
+
+/**
+ * A long back-edge transit can run flush against a cluster rectangle it is not
+ * routed into — the horizontal leg sits on the cluster's top/bottom border and
+ * reads as if it belongs to the group. For each route whose first (source-side)
+ * horizontal leg grazes such a cluster, lift that leg to a clear lane just
+ * outside the cluster, keeping the source attach point via a short jog. Kept
+ * only when it removes the graze without adding node intersections, crossings,
+ * overlaps, or label collisions.
+ */
+function avoidClusterGrazingTransit(diagram: StructureDiagram, direction: string | undefined): void {
+  const resolved = direction ?? LayoutDirection.TopToBottom
+  if (!isHorizontalDirection(resolved)) return
+  const clusters = clusterBoxList(diagram)
+  if (clusters.length === 0) return
+  const nodeBoxes = classNodeEntries(diagram).map((entry) => entry.bounds)
+
+  for (const route of effectiveRouteEdges(diagram)) {
+    if (route.polyline.length < 3) continue
+    const link = diagram.elements[route.edgeId]
+    if (!link) continue
+    const start = route.polyline[0]!
+    const bend = route.polyline[1]!
+    if (Math.abs(start.y - bend.y) > SAME_RANK_TOLERANCE_PX) continue
+    const srcOuter = outermostClusterContainingNode(diagram, route.sourceNodeId)
+    const tgtOuter = outermostClusterContainingNode(diagram, route.targetNodeId)
+    const spanLo = Math.min(start.x, bend.x)
+    const spanHi = Math.max(start.x, bend.x)
+    const grazed = clusters.find((cluster) =>
+      cluster.id !== srcOuter && cluster.id !== tgtOuter &&
+      spanHi > cluster.bounds.x + SAME_RANK_TOLERANCE_PX &&
+      spanLo < cluster.bounds.x + cluster.bounds.width - SAME_RANK_TOLERANCE_PX &&
+      start.y > cluster.bounds.y - CLUSTER_TRANSIT_CLEARANCE_PX &&
+      start.y < cluster.bounds.y + cluster.bounds.height + CLUSTER_TRANSIT_CLEARANCE_PX)
+    if (!grazed) continue
+    const clearY = clearTransitLane(start.y, grazed.bounds, spanLo, spanHi, clusters, nodeBoxes)
+    if (clearY === undefined) continue
+    applyGrazingTransitLift(diagram, link, route, clearY)
+  }
+}
+
+// Chooses the nearer of "just above" / "just below" the grazed cluster whose
+// lane is clear of every other cluster and node across the transit's x-span.
+function clearTransitLane(
+  segY: number,
+  grazed: DiagramBounds,
+  spanLo: number,
+  spanHi: number,
+  clusters: ClusterBox[],
+  nodeBoxes: DiagramBounds[]
+): number | undefined {
+  const candidates = [
+    grazed.y + grazed.height + CLUSTER_TRANSIT_CLEARANCE_PX,
+    grazed.y - CLUSTER_TRANSIT_CLEARANCE_PX,
+  ].sort((left, right) => Math.abs(left - segY) - Math.abs(right - segY))
+  for (const laneY of candidates) {
+    const spansCluster = clusters.some((cluster) =>
+      spanHi > cluster.bounds.x + SAME_RANK_TOLERANCE_PX &&
+      spanLo < cluster.bounds.x + cluster.bounds.width - SAME_RANK_TOLERANCE_PX &&
+      laneY > cluster.bounds.y - CLUSTER_TRANSIT_CLEARANCE_PX &&
+      laneY < cluster.bounds.y + cluster.bounds.height + CLUSTER_TRANSIT_CLEARANCE_PX)
+    const spansNode = nodeBoxes.some((bounds) =>
+      spanHi > bounds.x + SAME_RANK_TOLERANCE_PX &&
+      spanLo < bounds.x + bounds.width - SAME_RANK_TOLERANCE_PX &&
+      laneY > bounds.y - SAME_RANK_TOLERANCE_PX &&
+      laneY < bounds.y + bounds.height + SAME_RANK_TOLERANCE_PX)
+    if (!spansCluster && !spansNode) return laneY
+  }
+  return undefined
+}
+
+function applyGrazingTransitLift(
+  diagram: StructureDiagram,
+  link: DiagramElement,
+  route: EdgeRoute,
+  clearY: number
+): void {
+  const start = route.polyline[0]!
+  const bend = route.polyline[1]!
+  const jogX = start.x + (bend.x < start.x ? -1 : 1) * SIDE_FAN_IN_LANE_GAP_PX
+  const tail = route.polyline.slice(1).map((point) => ({ x: point.x, y: point.y }))
+  tail[0] = { x: tail[0]!.x, y: clearY }
+  const lifted = [{ x: start.x, y: start.y }, { x: jogX, y: start.y }, { x: jogX, y: clearY }, ...tail]
+
+  const engineRoute = routeEdges(diagram as never, defaultLightTheme).find((item) => item.edgeId === route.edgeId)
+  const snapshotPolyline = link.axonizeRoutePolyline
+  const snapshotOffset = link.axonizeRouteLabelOffset
+  const currentRoutes = effectiveRouteEdges(diagram)
+  link.axonizeRoutePolyline = lifted
+  link.axonizeRouteLabelOffset = sideFanInLabelOffset(engineRoute, lifted)
+
+  const candidateRoutes = effectiveRouteEdges(diagram)
+  const candidate = candidateRoutes.find((item) => item.edgeId === route.edgeId)
+  const accepted = candidate !== undefined &&
+    routeNodeIntersectionCount(candidate, diagram) === 0 &&
+    routeLabelNodeIntersectionCount(candidate, diagram) === 0 &&
+    routeCrossingCount(candidateRoutes) <= routeCrossingCount(currentRoutes) &&
+    routeOverlapCount(candidateRoutes) <= routeOverlapCount(currentRoutes) &&
+    routeLabelOverlapCount(candidateRoutes) <= routeLabelOverlapCount(currentRoutes)
+  if (!accepted) {
+    link.axonizeRoutePolyline = snapshotPolyline
+    link.axonizeRouteLabelOffset = snapshotOffset
   }
 }
 
